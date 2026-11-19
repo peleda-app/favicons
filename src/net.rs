@@ -1,0 +1,317 @@
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
+use std::sync::Arc;
+use std::time::Duration;
+
+use anyhow::{Context, bail};
+use reqwest::header::ACCEPT;
+use url::{Host, Url};
+
+use crate::config::Fetch;
+use crate::dns::{ReqwestResolver, SafeDns};
+
+pub fn is_public_ip(ip: IpAddr) -> bool {
+    match ip {
+        IpAddr::V4(v4) => is_public_v4(v4),
+        IpAddr::V6(v6) => is_public_v6(v6),
+    }
+}
+
+fn is_public_v4(ip: Ipv4Addr) -> bool {
+    let o = ip.octets();
+    !(ip.is_unspecified()
+        || ip.is_loopback()
+        || ip.is_private()
+        || ip.is_link_local()
+        || ip.is_broadcast()
+        || ip.is_documentation()
+        || ip.is_multicast()
+        || o[0] == 0
+        || (o[0] == 100 && (o[1] & 0xc0) == 64)
+        || (o[0] == 192 && o[1] == 0 && o[2] == 0)
+        || (o[0] == 198 && (o[1] & 0xfe) == 18)
+        || o[0] >= 240)
+}
+
+fn is_public_v6(ip: Ipv6Addr) -> bool {
+    if let Some(v4) = ip.to_ipv4_mapped() {
+        return is_public_v4(v4);
+    }
+    let s = ip.segments();
+    if (s[0] & 0xe000) != 0x2000 {
+        return false;
+    }
+    let embedded_v4 =
+        |hi: u16, lo: u16| Ipv4Addr::new((hi >> 8) as u8, hi as u8, (lo >> 8) as u8, lo as u8);
+    match s[0] {
+        0x2001 if s[1] == 0 => false,
+        0x2001 if s[1] == 0x0db8 => false,
+        0x2001 if s[1] < 0x0200 => false,
+        0x2002 => is_public_v4(embedded_v4(s[1], s[2])),
+        _ => true,
+    }
+}
+
+pub fn is_fetchable_url(url: &Url, allow_http: bool) -> bool {
+    let scheme_ok = match url.scheme() {
+        "https" => true,
+        "http" => allow_http,
+        _ => false,
+    };
+    if !scheme_ok || !url.username().is_empty() || url.password().is_some() {
+        return false;
+    }
+    if !matches!(url.port(), None | Some(80) | Some(443)) {
+        return false;
+    }
+    match url.host() {
+        Some(Host::Domain(d)) => crate::domain::is_valid_hostname(d.trim_end_matches('.')),
+        _ => false,
+    }
+}
+
+#[derive(Debug)]
+pub struct Fetched {
+    pub bytes: Vec<u8>,
+    pub final_url: Url,
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum FetchError {
+    #[error("url not allowed")]
+    Forbidden,
+    #[error("http status {0}")]
+    Status(u16),
+    #[error("redirect to {0}")]
+    Redirect(Url),
+    #[error("too many redirects")]
+    TooManyRedirects,
+    #[error("response exceeds {0} bytes")]
+    TooLarge(usize),
+    #[error("transport: {0}")]
+    Transport(#[from] reqwest::Error),
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum Redirects {
+    Manual,
+    Follow,
+}
+
+#[derive(Clone)]
+pub struct HttpClient {
+    client: reqwest::Client,
+    allow_http: bool,
+}
+
+impl HttpClient {
+    pub fn new(cfg: &Fetch, dns: Arc<SafeDns>, redirects: Redirects) -> anyhow::Result<Self> {
+        let max_redirects = cfg.max_redirects;
+        let allow_http = cfg.allow_http;
+        let policy = match redirects {
+            Redirects::Manual => reqwest::redirect::Policy::none(),
+            Redirects::Follow => reqwest::redirect::Policy::custom(move |attempt| {
+                if attempt.previous().len() >= max_redirects {
+                    attempt.error("too many redirects")
+                } else if !is_fetchable_url(attempt.url(), allow_http) {
+                    attempt.error("redirect target not allowed")
+                } else {
+                    attempt.follow()
+                }
+            }),
+        };
+        let client = reqwest::Client::builder()
+            .user_agent(&cfg.user_agent)
+            .no_proxy()
+            .dns_resolver(Arc::new(ReqwestResolver(dns)))
+            .redirect(policy)
+            .connect_timeout(cfg.connect_timeout())
+            .timeout(cfg.request_timeout())
+            .pool_max_idle_per_host(1)
+            .pool_idle_timeout(Duration::from_secs(15))
+            .https_only(!allow_http)
+            .referer(false)
+            .build()
+            .context("building http client")?;
+        Ok(Self { client, allow_http })
+    }
+
+    pub fn allow_http(&self) -> bool {
+        self.allow_http
+    }
+
+    pub async fn get(&self, url: &Url, accept: &str, max: usize) -> Result<Fetched, FetchError> {
+        self.fetch(url, accept, max, false).await
+    }
+
+    pub async fn get_head(
+        &self,
+        url: &Url,
+        accept: &str,
+        max: usize,
+    ) -> Result<Fetched, FetchError> {
+        self.fetch(url, accept, max, true).await
+    }
+
+    async fn fetch(
+        &self,
+        url: &Url,
+        accept: &str,
+        max_bytes: usize,
+        truncate: bool,
+    ) -> Result<Fetched, FetchError> {
+        if !is_fetchable_url(url, self.allow_http) {
+            return Err(FetchError::Forbidden);
+        }
+        let mut resp = self
+            .client
+            .get(url.clone())
+            .header(ACCEPT, accept)
+            .send()
+            .await?;
+        if resp.status().is_redirection() {
+            let next = resp
+                .headers()
+                .get(reqwest::header::LOCATION)
+                .and_then(|v| v.to_str().ok())
+                .and_then(|loc| url.join(loc.trim()).ok());
+            return match next {
+                Some(next) if is_fetchable_url(&next, self.allow_http) => {
+                    Err(FetchError::Redirect(next))
+                }
+                Some(_) => Err(FetchError::Forbidden),
+                None => Err(FetchError::Status(resp.status().as_u16())),
+            };
+        }
+        if !resp.status().is_success() {
+            return Err(FetchError::Status(resp.status().as_u16()));
+        }
+        if !truncate && resp.content_length().is_some_and(|l| l > max_bytes as u64) {
+            return Err(FetchError::TooLarge(max_bytes));
+        }
+        let final_url = resp.url().clone();
+        let mut bytes = Vec::with_capacity(
+            resp.content_length()
+                .map_or(16 * 1024, |l| l as usize)
+                .min(max_bytes),
+        );
+        while let Some(chunk) = resp.chunk().await? {
+            let scan_from = bytes.len().saturating_sub(HEAD_MARKER_MAX - 1);
+            if bytes.len() + chunk.len() > max_bytes {
+                if !truncate {
+                    return Err(FetchError::TooLarge(max_bytes));
+                }
+                bytes.extend_from_slice(&chunk[..max_bytes - bytes.len()]);
+                break;
+            }
+            bytes.extend_from_slice(&chunk);
+            if truncate && contains_head_end(&bytes[scan_from..]) {
+                break;
+            }
+        }
+        Ok(Fetched { bytes, final_url })
+    }
+}
+
+const HEAD_MARKERS: [&[u8]; 2] = [b"</head", b"<body"];
+const HEAD_MARKER_MAX: usize = 6;
+
+pub fn contains_head_end(buf: &[u8]) -> bool {
+    HEAD_MARKERS
+        .iter()
+        .any(|m| buf.windows(m.len()).any(|w| w.eq_ignore_ascii_case(m)))
+}
+
+pub async fn read_source(
+    client: &HttpClient,
+    source: &str,
+    max_bytes: usize,
+) -> anyhow::Result<Vec<u8>> {
+    if source.starts_with("https://") || source.starts_with("http://") {
+        let url = Url::parse(source)?;
+        return Ok(client.get(&url, "*/*", max_bytes).await?.bytes);
+    }
+    let path = source.strip_prefix("file://").unwrap_or(source);
+    let meta = tokio::fs::metadata(path)
+        .await
+        .with_context(|| format!("reading {path}"))?;
+    if meta.len() > max_bytes as u64 {
+        bail!("{path} exceeds {max_bytes} bytes");
+    }
+    Ok(tokio::fs::read(path).await?)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rejects_internal_addresses() {
+        for ip in [
+            "0.0.0.0",
+            "127.0.0.1",
+            "10.1.2.3",
+            "172.16.0.1",
+            "192.168.1.1",
+            "169.254.169.254",
+            "100.64.0.1",
+            "192.0.0.8",
+            "198.18.0.1",
+            "224.0.0.1",
+            "255.255.255.255",
+            "::",
+            "::1",
+            "fe80::1",
+            "fc00::1",
+            "fd12:3456::1",
+            "ff02::1",
+            "::ffff:127.0.0.1",
+            "::ffff:169.254.169.254",
+            "64:ff9b::a9fe:a9fe",
+            "2001:db8::1",
+            "2001::1",
+            "2002:7f00:1::",
+            "2002:a00:1::",
+        ] {
+            assert!(!is_public_ip(ip.parse().unwrap()), "{ip} must be blocked");
+        }
+    }
+
+    #[test]
+    fn allows_public_addresses() {
+        for ip in [
+            "1.1.1.1",
+            "93.184.215.14",
+            "2606:4700:4700::1111",
+            "2a00:1450:4001::200e",
+            "2002:0101:0101::",
+        ] {
+            assert!(is_public_ip(ip.parse().unwrap()), "{ip} must be allowed");
+        }
+    }
+
+    #[test]
+    fn detects_end_of_head() {
+        assert!(contains_head_end(b"<html><head><title>x</title></HEAD>"));
+        assert!(contains_head_end(b"<html><BODY class=a>"));
+        assert!(!contains_head_end(
+            b"<html><head><link rel=icon href=/a.png>"
+        ));
+        assert!(!contains_head_end(b"<html><header>"));
+    }
+
+    #[test]
+    fn validates_urls() {
+        let ok = |s: &str, http: bool| is_fetchable_url(&Url::parse(s).unwrap(), http);
+        assert!(ok("https://example.com/favicon.ico", false));
+        assert!(ok("http://example.com/favicon.ico", true));
+        assert!(!ok("http://example.com/favicon.ico", false));
+        assert!(!ok("https://127.0.0.1/", true));
+        assert!(!ok("https://[::1]/", true));
+        assert!(!ok("https://localhost/", true));
+        assert!(!ok("https://user:pw@example.com/", true));
+        assert!(!ok("https://example.com:6379/", true));
+        assert!(!ok("ftp://example.com/", true));
+        assert!(!ok("file:///etc/passwd", true));
+        assert!(!ok("https://2130706433/", true));
+    }
+}

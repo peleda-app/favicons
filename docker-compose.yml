@@ -1,0 +1,40 @@
+x-hardening: &hardening
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  user: "65534:65534"
+  restart: unless-stopped
+
+services:
+  api:
+    <<: *hardening
+    build: .
+    image: favicons
+    ports: ["8080:8080"]
+    environment:
+      FAVICONS_RENDER__SANDBOX: socket
+      FAVICONS_RENDER__SOCKET_PATH: /run/favicons/render.sock
+      FAVICONS_CACHE__STORAGE: /var/cache/favicons
+    volumes:
+      - render-socket:/run/favicons
+      - cache:/var/cache/favicons
+    pids_limit: 256
+    mem_limit: 512m
+    depends_on: [renderer]
+
+  renderer:
+    <<: *hardening
+    image: favicons
+    command: ["render-server"]
+    network_mode: none
+    environment:
+      FAVICONS_RENDER__SOCKET_PATH: /run/favicons/render.sock
+    volumes:
+      - render-socket:/run/favicons
+    pids_limit: 32
+    mem_limit: 512m
+    cpus: 1
+
+volumes:
+  render-socket:
+  cache:

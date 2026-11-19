@@ -1,0 +1,150 @@
+# Every key is optional; the values below are the defaults unless marked otherwise.
+# Any key can be overridden with an environment variable:
+#   FAVICONS_<SECTION>__<KEY>, e.g. FAVICONS_CACHE__STORAGE=s3://bucket/icons
+
+[server]
+listen = "0.0.0.0:8080"
+# admin_listen = "127.0.0.1:9090"   # /metrics and /healthz; keep private
+max_connections = 4096
+max_concurrent_requests = 512
+request_timeout_ms = 5000
+header_read_timeout_ms = 5000
+shutdown_grace_ms = 10000
+
+[client_ip]
+# peer | x-forwarded-for | x-real-ip | cf-connecting-ip
+# Only change this when a trusted reverse proxy sets the header.
+source = "peer"
+trusted_hops = 1        # for x-forwarded-for: how many proxies append to the header
+ipv4_prefix = 24        # clients are grouped by subnet for limits and fairness
+ipv6_prefix = 56
+
+[rate_limit]
+requests_per_second = 50.0   # per subnet; 0 disables
+burst = 400.0
+max_tracked_clients = 100000
+
+[fetch]
+workers = 8
+queue_capacity = 10000
+per_client_queue_capacity = 64
+wait_ms = 1500                # how long a cache miss may wait for the fetch
+connect_timeout_ms = 3000
+request_timeout_ms = 8000
+dns_timeout_ms = 2000
+job_timeout_ms = 25000
+max_html_bytes = 131072        # stream stops at </head> or <body>, or at this cap
+max_manifest_bytes = 65536
+max_icon_bytes = 1048576
+max_redirects = 4
+max_candidates = 6
+allow_http = true
+
+[render]
+# process  each image is decoded in a fresh seccomp-confined child process (default)
+# socket   send images to `favicons render-server` (e.g. a container with no network)
+# off      decode in-process (not recommended)
+sandbox = "process"
+socket_path = "/run/favicons/render.sock"
+worker_memory_bytes = 268435456
+# Sizes to render and store; any non-empty subset of 16, 32, 64, 128.
+# Requests snap to the nearest allowed size. A source smaller than every
+# allowed size is upscaled to the smallest one, e.g. sizes = [128].
+sizes = [16, 32, 64, 128]
+decode_concurrency = 2
+decode_timeout_ms = 3000
+max_source_dimension = 1024
+max_alloc_bytes = 33554432
+max_svg_bytes = 262144
+max_svg_depth = 48
+svg = true
+# webp (lossless, default) | png. Outlook for Windows can't show WebP; use png for it.
+format = "webp"
+
+[cache]
+# none                      memory only (lost on restart)
+# /var/cache/favicons       local directory (also file:///var/cache/favicons)
+# s3://bucket/prefix        S3 or any S3-compatible store (MinIO, R2, Ceph, …)
+# gs://bucket/prefix        Google Cloud Storage
+# az://container/prefix     Azure Blob Storage
+storage = "none"
+ttl_secs = 604800             # real icons are refreshed after 7 days
+not_found_ttl_secs = 86400
+fetch_failed_ttl_secs = 3600
+too_new_ttl_secs = 86400
+blocked_ttl_secs = 86400      # domains sinkholed by the filtering DNS resolver
+memory_max_bytes = 67108864   # hot in-memory image cache
+memory_meta_entries = 100000
+memory_ttl_secs = 600
+absent_ttl_secs = 60
+storage_timeout_ms = 2000
+# When the bucket is publicly readable, answer with 302 to the object instead of
+# streaming bytes through the service.
+redirect_to_public_url = false
+# public_base_url = "https://icons-cdn.example.com"
+
+# Passed straight to object_store; see its docs for all keys.
+[cache.options]
+# aws_region = "eu-central-1"
+# aws_endpoint = "https://s3.eu-central-1.amazonaws.com"
+# aws_access_key_id = "…"          # prefer FAVICONS_CACHE__OPTIONS__AWS_ACCESS_KEY_ID
+# aws_secret_access_key = "…"
+
+# Each profile sets the browser Cache-Control and the CDN-Cache-Control (RFC 9213).
+[http_cache.icon]
+browser = "public, max-age=604800, stale-while-revalidate=86400"
+cdn = "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800"
+
+[http_cache.redirect]
+browser = "public, max-age=86400"
+cdn = "public, max-age=86400"
+
+[http_cache.fallback_transient]   # queued, overloaded, fetch-failed
+browser = "public, max-age=300"
+cdn = "public, max-age=60"
+
+[http_cache.fallback_stable]      # not-found, blocklisted, domain-too-new, invalid-domain
+browser = "public, max-age=86400"
+cdn = "public, max-age=86400, stale-if-error=86400"
+
+[http_cache.error]
+browser = "no-store"
+cdn = "no-store"
+
+[policy]
+collapse_private_suffixes = true
+deny_suffixes = ["onion", "arpa", "i2p"]
+# Local paths or URLs; hosts, adblock (||domain^) and plain-domain formats.
+blocklists = []
+allowlist = []
+# Bitwarden/Vaultwarden "equivalent domains" JSON. Multiple sources are merged.
+aliases = ["https://raw.githubusercontent.com/dani-garcia/vaultwarden/main/src/static/global_domains.json"]
+# When a group contains one of these, it becomes the canonical domain for the group.
+alias_preferred = ["microsoft.com", "google.com", "apple.com", "amazon.com", "yahoo.com"]
+reload_secs = 21600
+max_list_bytes = 67108864
+# Also applied to every foreign host an icon, manifest or redirect points to. 0 disables.
+min_domain_age_days = 30
+unknown_domain_age = "allow"   # allow | block when RDAP has no answer
+rdap_bootstrap_url = "https://data.iana.org/rdap/dns.json"
+
+[policy.alias_overrides]
+# "live.com" = "microsoft.com"
+
+[dns]
+# cloudflare-security  1.1.1.2 / 1.0.0.2, Cloudflare with malware blocking (default)
+# quad9                9.9.9.9, malware blocking as well
+# cloudflare | google  no filtering
+# system               OS resolver config (plain DNS)
+# custom               your own servers below
+provider = "cloudflare-security"
+protocol = "https"            # https (DoH, port 443) | tls (DoT, port 853) | udp
+# servers = ["194.242.2.2"]   # for provider = "custom"
+# server_name = "dns.mullvad.net"
+path = "/dns-query"
+cache_size = 8192
+max_ttl_secs = 3600
+
+[identicon]
+# Change to make generated icons unique to your deployment.
+salt = ""

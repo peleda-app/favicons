@@ -1,0 +1,159 @@
+mod age;
+mod app;
+mod config;
+mod contract;
+mod discover;
+mod dns;
+mod domain;
+mod http;
+mod limiter;
+mod metrics;
+mod net;
+mod policy;
+mod queue;
+mod render;
+mod sandbox;
+mod server;
+mod store;
+
+use std::path::PathBuf;
+use std::process::ExitCode;
+
+use tokio::sync::watch;
+use tracing_subscriber::EnvFilter;
+
+fn main() -> ExitCode {
+    let mut args = std::env::args().skip(1).peekable();
+    match args.peek().map(String::as_str) {
+        Some("render-worker") => return sandbox::worker_main(),
+        Some("sandbox-selftest") => {
+            let probe = args.nth(1).unwrap_or_default();
+            return sandbox::selftest(&probe);
+        }
+        _ => {}
+    }
+    match run_main(args) {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(e) => {
+            eprintln!("Error: {e:#}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+fn run_main(mut args: impl Iterator<Item = String>) -> anyhow::Result<()> {
+    let mut render_server = false;
+    let mut config_path = std::env::var_os("FAVICONS_CONFIG").map(PathBuf::from);
+    let mut check_only = false;
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "-c" | "--config" => config_path = args.next().map(PathBuf::from),
+            "--check-config" => check_only = true,
+            "render-server" => render_server = true,
+            "-V" | "--version" => {
+                println!("favicons {}", env!("CARGO_PKG_VERSION"));
+                return Ok(());
+            }
+            other => anyhow::bail!(
+                "unknown argument {other}; usage: favicons [render-server | render-worker | sandbox-selftest PROBE] [--config PATH] [--check-config]"
+            ),
+        }
+    }
+
+    let filter = EnvFilter::try_from_env("FAVICONS_LOG").unwrap_or_else(|_| EnvFilter::new("info"));
+    if std::env::var("FAVICONS_LOG_FORMAT").is_ok_and(|v| v == "json") {
+        tracing_subscriber::fmt()
+            .json()
+            .with_env_filter(filter)
+            .init();
+    } else {
+        tracing_subscriber::fmt().with_env_filter(filter).init();
+    }
+
+    let cfg = config::Config::load(config_path.as_deref())?;
+    if check_only {
+        println!("config ok");
+        return Ok(());
+    }
+    if render_server {
+        let render = cfg.render.clone();
+        return tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()?
+            .block_on(sandbox::serve(&render.socket_path.clone(), render));
+    }
+
+    tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .thread_stack_size(8 * 1024 * 1024)
+        .max_blocking_threads(cfg.render.decode_concurrency * 2 + cfg.fetch.workers * 2 + 16)
+        .build()?
+        .block_on(run(cfg))
+}
+
+async fn run(cfg: config::Config) -> anyhow::Result<()> {
+    let app = app::App::new(cfg)?;
+    if !app.store.has_backend() {
+        tracing::warn!(
+            "cache.storage = none: icons are kept only in memory and refetched after restart"
+        );
+    }
+    match app.cfg.render.sandbox {
+        config::SandboxMode::Off => {
+            tracing::warn!("render.sandbox = off: untrusted images are decoded in-process")
+        }
+        config::SandboxMode::Process if !cfg!(target_os = "linux") => tracing::warn!(
+            "seccomp is Linux-only: render workers here are isolated by process and rlimits only"
+        ),
+        _ => {}
+    }
+    app.spawn_policy_reloader();
+    app.spawn_workers();
+
+    let (tx, rx) = watch::channel(false);
+    tokio::spawn(async move {
+        shutdown_signal().await;
+        tracing::info!("shutting down");
+        let _ = tx.send(true);
+    });
+
+    if let Some(addr) = app.cfg.server.admin_listen {
+        let admin = http::admin_router(app.clone());
+        let mut rx = rx.clone();
+        tokio::spawn(async move {
+            match tokio::net::TcpListener::bind(addr).await {
+                Ok(l) => {
+                    tracing::info!(%addr, "admin listening");
+                    let _ = axum::serve(l, admin)
+                        .with_graceful_shutdown(async move {
+                            let _ = rx.changed().await;
+                        })
+                        .await;
+                }
+                Err(e) => tracing::error!(%addr, error = %e, "admin bind failed"),
+            }
+        });
+    }
+
+    let server_cfg = app.cfg.server.clone();
+    server::serve(http::router(app), &server_cfg, rx).await
+}
+
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        let _ = tokio::signal::ctrl_c().await;
+    };
+    #[cfg(unix)]
+    let term = async {
+        if let Ok(mut s) = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+        {
+            s.recv().await;
+        }
+    };
+    #[cfg(not(unix))]
+    let term = std::future::pending::<()>();
+    tokio::select! {
+        _ = ctrl_c => {},
+        _ = term => {},
+    }
+}

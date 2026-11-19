@@ -2,17 +2,23 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-BIN="${FAVICONS_BIN:-${CARGO_TARGET_DIR:-target}/release/favicons}"
+BIN="${LOADTEST_BIN:-${CARGO_TARGET_DIR:-target}/release/favicons}"
 [ -x "$BIN" ] || cargo build --release --locked
 mkdir -p loadtest/out
 
 FAVICONS_LOG="${FAVICONS_LOG:-warn}" "$BIN" --config loadtest/config.toml &
 PID=$!
 trap 'kill "$PID" 2>/dev/null || true' EXIT
+up=0
 for _ in $(seq 1 100); do
-  curl -fs http://127.0.0.1:8080/healthz >/dev/null && break
+  if curl -fs http://127.0.0.1:8080/healthz >/dev/null; then up=1; break; fi
+  kill -0 "$PID" 2>/dev/null || break
   sleep 0.2
 done
+if [ "$up" != 1 ]; then
+  echo "favicons did not start" >&2
+  exit 1
+fi
 
 if command -v k6 >/dev/null; then
   k6 run -e BASE_URL=http://127.0.0.1:8080 -e OUT_DIR=loadtest/out "$@" loadtest/favicons.js

@@ -16,14 +16,13 @@ base64 = "0.22"
 blake3 = "1"
 bytes = "1"
 figment = { version = "0.10", features = ["toml", "env"] }
-futures = "0.3"
 hickory-resolver = { version = "0.26", features = ["tokio", "https-ring", "tls-ring", "webpki-roots"] }
 http = "1"
 hyper = { version = "1", features = ["server", "http1", "http2"] }
 hyper-util = { version = "0.1.21", features = ["server", "server-auto", "tokio", "http1", "http2", "service"] }
 image = { version = "0.25", default-features = false, features = ["png", "ico", "jpeg", "gif", "webp", "bmp"] }
 moka = { version = "0.12", features = ["future", "sync"] }
-object_store = { version = "0.12", features = ["aws", "gcp", "azure"] }
+object_store = { version = "0.14", features = ["aws", "gcp", "azure"] }
 percent-encoding = "2"
 psl = "2"
 rand = "0.9"

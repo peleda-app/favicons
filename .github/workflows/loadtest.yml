@@ -34,7 +34,7 @@ jobs:
       - uses: grafana/setup-k6-action@v1
       - name: run k6
         env:
-          FAVICONS_BIN: target/release/favicons
+          LOADTEST_BIN: target/release/favicons
         run: ./loadtest/run.sh -e DURATION=${{ inputs.duration || '30s' }} -e SCALE=${{ inputs.scale || '1' }}
       - name: summary
         if: always()

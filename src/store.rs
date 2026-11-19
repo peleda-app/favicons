@@ -6,7 +6,7 @@ use anyhow::Context;
 use bytes::Bytes;
 use moka::future::Cache;
 use object_store::path::Path;
-use object_store::{Attribute, Attributes, ObjectStore, PutOptions, PutPayload};
+use object_store::{Attribute, Attributes, ObjectStore, ObjectStoreExt, PutOptions, PutPayload};
 use serde::{Deserialize, Serialize};
 use url::Url;
 

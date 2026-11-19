@@ -117,33 +117,32 @@ pub fn monochrome(img: &RgbaImage, source: MonoSource) -> anyhow::Result<RgbaIma
                 .map(|(x, y)| *img.get_pixel(x, y))
                 .collect();
             let transparent = border.iter().filter(|p| p[3] < 32).count();
-            if transparent * 2 >= border.len() {
-                knockout_or_silhouette(img)
-            } else {
-                let opaque: Vec<_> = border.iter().filter(|p| p[3] >= 200).collect();
-                let pool: Vec<_> = if opaque.is_empty() {
-                    border.iter().collect()
-                } else {
-                    opaque
-                };
-                let median = |c: usize| {
-                    let mut v: Vec<u8> = pool.iter().map(|p| p[c]).collect();
-                    v.sort_unstable();
-                    f32::from(v[v.len() / 2])
-                };
-                let bg = [median(0), median(1), median(2)];
-                img.pixels()
+            let opaque: Vec<&image::Rgba<u8>> = border.iter().filter(|p| p[3] >= 200).collect();
+            let tile_bg = (transparent * 2 < border.len() && !opaque.is_empty())
+                .then(|| {
+                    let median = |c: usize| {
+                        let mut v: Vec<u8> = opaque.iter().map(|p| p[c]).collect();
+                        v.sort_unstable();
+                        f32::from(v[v.len() / 2])
+                    };
+                    [median(0), median(1), median(2)]
+                })
+                .filter(|bg| {
+                    let near = opaque
+                        .iter()
+                        .filter(|p| color_distance(p, *bg) < 0.12)
+                        .count();
+                    near * 10 >= opaque.len() * 8
+                });
+            match tile_bg {
+                Some(bg) => img
+                    .pixels()
                     .map(|p| {
-                        let d = (0..3)
-                            .map(|c| (f32::from(p[c]) - bg[c]).powi(2))
-                            .sum::<f32>()
-                            .sqrt()
-                            / 441.67;
-                        let t = ((d - 0.10) / 0.20).clamp(0.0, 1.0);
-                        let soft = t * t * (3.0 - 2.0 * t);
+                        let soft = smoothstep(0.10, 0.30, color_distance(p, bg));
                         (soft * f32::from(p[3])).round() as u8
                     })
-                    .collect()
+                    .collect(),
+                None => knockout_or_silhouette(img),
             }
         }
     };
@@ -645,6 +644,23 @@ mod tests {
         assert_eq!(alpha_at(&m, 32, 50), 255, "plate stays");
         assert_eq!(alpha_at(&m, 32, 32), 0, "detail is cut out");
         assert_eq!(alpha_at(&m, 1, 1), 0, "outside stays empty");
+    }
+
+    #[test]
+    fn multicolour_edges_are_not_a_tile() {
+        let colours = [[242, 80, 34], [127, 186, 0], [0, 164, 239], [255, 185, 0]];
+        let img = RgbaImage::from_fn(64, 64, |x, y| {
+            if x % 32 >= 30 || y % 32 >= 30 {
+                image::Rgba([0, 0, 0, 0])
+            } else {
+                let c = colours[((y / 32) * 2 + x / 32) as usize];
+                image::Rgba([c[0], c[1], c[2], 255])
+            }
+        });
+        let m = monochrome(&img, MonoSource::Derived).unwrap();
+        for (x, y) in [(10, 10), (50, 10), (10, 50), (50, 50)] {
+            assert_eq!(alpha_at(&m, x, y), 255, "square at {x},{y} must stay");
+        }
     }
 
     #[test]

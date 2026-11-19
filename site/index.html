@@ -1,0 +1,769 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>favicons: website icons without the risk</title>
+<meta name="description" content="A privacy-first, attack-resistant website icon service in Rust. Sandboxed rendering, monochrome masks, CDN-ready caching.">
+<meta name="theme-color" content="#07090d">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #07090d;
+  --bg-2: #0c1017;
+  --panel: rgba(17, 22, 31, 0.72);
+  --panel-solid: #11161f;
+  --line: rgba(148, 163, 184, 0.14);
+  --line-strong: rgba(148, 163, 184, 0.26);
+  --text: #e6edf6;
+  --muted: #8b98ab;
+  --dim: #5b677a;
+  --accent: #5eead4;
+  --accent-2: #a78bfa;
+  --warn: #fb7185;
+  --ok: #4ade80;
+  --amber: #fbbf24;
+  --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --sans: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --radius: 14px;
+  --tint: #5eead4;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 15px/1.6 var(--sans);
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  background-image:
+    linear-gradient(var(--line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--line) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, #000 30%, transparent 75%);
+  -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, #000 30%, transparent 75%);
+  opacity: 0.55;
+}
+body::after {
+  content: "";
+  position: fixed;
+  z-index: -1;
+  width: 900px;
+  height: 900px;
+  left: 50%;
+  top: -520px;
+  transform: translateX(-50%);
+  background: radial-gradient(circle, rgba(94, 234, 212, 0.16), rgba(167, 139, 250, 0.10) 40%, transparent 70%);
+  filter: blur(20px);
+  pointer-events: none;
+}
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+code, pre, kbd { font-family: var(--mono); }
+.wrap { width: min(1180px, 100% - 32px); margin: 0 auto; }
+
+nav.top {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  background: rgba(7, 9, 13, 0.72);
+  border-bottom: 1px solid var(--line);
+}
+nav.top .wrap { display: flex; align-items: center; gap: 24px; height: 60px; }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 700; color: var(--text); letter-spacing: -0.01em; }
+.brand:hover { text-decoration: none; }
+.brand svg { width: 26px; height: 26px; }
+.brand small { font: 500 11px var(--mono); color: var(--dim); padding: 2px 6px; border: 1px solid var(--line); border-radius: 6px; }
+nav.top .links { display: flex; gap: 20px; margin-left: auto; font-size: 14px; }
+nav.top .links a { color: var(--muted); }
+nav.top .links a:hover { color: var(--text); text-decoration: none; }
+.gh { display: inline-flex; align-items: center; gap: 8px; padding: 7px 12px; border: 1px solid var(--line-strong); border-radius: 9px; color: var(--text) !important; font-size: 13px; }
+.gh svg { width: 16px; height: 16px; fill: currentColor; }
+
+header.hero { padding: 88px 0 40px; text-align: center; }
+.pill { display: inline-flex; align-items: center; gap: 8px; font: 500 12px var(--mono); color: var(--accent); background: rgba(94, 234, 212, 0.08); border: 1px solid rgba(94, 234, 212, 0.25); padding: 5px 12px; border-radius: 999px; }
+.pill i { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 10px var(--accent); animation: pulse 2s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: 0.35; } }
+h1 { font-size: clamp(38px, 6vw, 68px); line-height: 1.04; letter-spacing: -0.035em; margin: 22px 0 18px; font-weight: 800; }
+h1 .grad { background: linear-gradient(100deg, var(--accent), var(--accent-2) 60%, #f0abfc); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.lead { font-size: 18px; color: var(--muted); max-width: 720px; margin: 0 auto; }
+.hero-cmd { display: inline-flex; align-items: center; gap: 12px; margin-top: 34px; font: 14px var(--mono); background: var(--panel-solid); border: 1px solid var(--line-strong); border-radius: 12px; padding: 12px 14px 12px 18px; max-width: 100%; overflow-x: auto; white-space: nowrap; }
+.hero-cmd .m { color: var(--accent-2); font-weight: 700; }
+.hero-cmd .p { color: var(--dim); }
+.hero-cmd .q { color: var(--amber); }
+.btn { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--line-strong); background: transparent; color: var(--text); font: 600 13px var(--sans); padding: 8px 12px; border-radius: 9px; cursor: pointer; transition: border-color .15s, background .15s; }
+.btn:hover { border-color: var(--accent); background: rgba(94, 234, 212, 0.06); text-decoration: none; }
+.btn.primary { background: linear-gradient(100deg, var(--accent), #7dd3fc); color: #04111a; border: 0; }
+.btn.primary:hover { filter: brightness(1.08); }
+.cta { display: flex; gap: 12px; justify-content: center; margin-top: 26px; flex-wrap: wrap; }
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; margin: 64px auto 0; max-width: 920px; background: var(--line); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+.stats div { background: var(--bg-2); padding: 18px 16px; text-align: left; }
+.stats b { display: block; font: 700 24px var(--mono); letter-spacing: -0.02em; }
+.stats span { color: var(--muted); font-size: 13px; }
+
+section { padding: 72px 0; }
+.eyebrow { font: 600 12px var(--mono); text-transform: uppercase; letter-spacing: 0.14em; color: var(--accent); }
+h2 { font-size: clamp(28px, 3.6vw, 40px); letter-spacing: -0.025em; line-height: 1.15; margin: 10px 0 12px; }
+.sub { color: var(--muted); max-width: 760px; margin: 0 0 32px; }
+
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+.playground { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 20px; }
+.pg-left { padding: 22px; display: flex; flex-direction: column; gap: 20px; }
+.label { font: 600 11px var(--mono); text-transform: uppercase; letter-spacing: 0.12em; color: var(--dim); margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+.presets { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.preset { display: flex; align-items: center; gap: 10px; text-align: left; padding: 9px 10px; border-radius: 10px; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.015); color: var(--text); cursor: pointer; transition: border-color .15s, background .15s, transform .15s; min-width: 0; }
+.preset:hover { border-color: var(--line-strong); transform: translateY(-1px); }
+.preset[aria-pressed="true"] { border-color: var(--accent); background: rgba(94, 234, 212, 0.07); box-shadow: 0 0 0 3px rgba(94, 234, 212, 0.08); }
+.preset img { width: 22px; height: 22px; flex: none; border-radius: 5px; }
+.preset .t { min-width: 0; }
+.preset .d { display: block; font: 600 12.5px var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.preset .n { display: block; font-size: 11.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.urlbar { display: flex; align-items: center; gap: 0; border: 1px solid var(--line-strong); border-radius: 10px; background: #080b10; overflow: hidden; }
+.urlbar .lock { display: flex; align-items: center; gap: 6px; padding: 0 12px; height: 42px; font: 600 11px var(--mono); color: var(--amber); background: rgba(251, 191, 36, 0.07); border-right: 1px solid var(--line); white-space: nowrap; }
+.urlbar input { flex: 1; min-width: 0; height: 42px; border: 0; background: transparent; color: var(--text); font: 13px var(--mono); padding: 0 12px; outline: none; cursor: not-allowed; }
+.hint { font-size: 12px; color: var(--dim); margin-top: 8px; }
+.controls { display: grid; grid-template-columns: repeat(3, auto); gap: 18px; justify-content: start; }
+.seg { display: inline-flex; padding: 3px; border: 1px solid var(--line); border-radius: 10px; background: #080b10; }
+.seg button { border: 0; background: transparent; color: var(--muted); font: 600 12px var(--mono); padding: 6px 10px; border-radius: 7px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--panel-solid); color: var(--text); box-shadow: inset 0 0 0 1px var(--line-strong); }
+.seg button:disabled { opacity: 0.35; cursor: not-allowed; }
+.note { font-size: 13px; color: var(--muted); padding: 12px 14px; border: 1px dashed var(--line-strong); border-radius: 10px; }
+.note b { color: var(--text); font-weight: 600; }
+
+.pg-right { overflow: hidden; display: flex; flex-direction: column; }
+.tabs { display: flex; gap: 2px; padding: 8px 8px 0; border-bottom: 1px solid var(--line); }
+.tabs button { border: 0; background: transparent; color: var(--muted); font: 600 12px var(--mono); padding: 9px 14px; border-radius: 8px 8px 0 0; cursor: pointer; border-bottom: 2px solid transparent; }
+.tabs button[aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent); }
+.resp { padding: 20px 22px; display: grid; grid-template-columns: 1fr auto; gap: 22px; align-items: start; }
+.statusline { font: 600 13px var(--mono); margin-bottom: 14px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.code-ok { color: var(--ok); }
+.code-warn { color: var(--amber); }
+.reqline { font: 12px var(--mono); color: var(--dim); margin-bottom: 6px; word-break: break-all; }
+.badge { font: 600 11px var(--mono); padding: 2px 8px; border-radius: 999px; border: 1px solid; }
+.badge.ok { color: var(--ok); border-color: rgba(74, 222, 128, 0.35); background: rgba(74, 222, 128, 0.08); }
+.badge.fb { color: var(--amber); border-color: rgba(251, 191, 36, 0.35); background: rgba(251, 191, 36, 0.08); }
+.badge.bad { color: var(--warn); border-color: rgba(251, 113, 133, 0.4); background: rgba(251, 113, 133, 0.08); }
+.headers { font: 12.5px/1.75 var(--mono); margin: 0; }
+.headers div { display: grid; grid-template-columns: 190px 1fr; gap: 10px; border-bottom: 1px dashed rgba(148, 163, 184, 0.08); }
+.headers dt { color: var(--muted); }
+.headers dd { margin: 0; color: var(--text); word-break: break-all; }
+.headers .x dt { color: var(--accent); }
+.headers .x dd { color: #f8fafc; }
+.preview { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.stage { width: 168px; height: 168px; border-radius: 16px; display: grid; place-items: center; border: 1px solid var(--line); background-color: #fff; transition: background-color .25s; }
+.stage.checker {
+  background-image: linear-gradient(45deg, rgba(0,0,0,.07) 25%, transparent 25%), linear-gradient(-45deg, rgba(0,0,0,.07) 25%, transparent 25%), linear-gradient(45deg, transparent 75%, rgba(0,0,0,.07) 75%), linear-gradient(-45deg, transparent 75%, rgba(0,0,0,.07) 75%);
+  background-size: 16px 16px;
+  background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+}
+.stage.dark { background-color: #0d1117; }
+.stage img { width: 128px; height: 128px; image-rendering: pixelated; }
+.actual { display: flex; align-items: center; gap: 10px; font: 11px var(--mono); color: var(--dim); }
+.actual img { image-rendering: auto; }
+.json { margin: 0; padding: 20px 22px; font: 12.5px/1.65 var(--mono); color: #cbd5e1; overflow: auto; max-height: 470px; white-space: pre; }
+.json .k { color: var(--accent); }
+.json .s { color: #fde68a; }
+.json .n { color: var(--accent-2); }
+
+.maskdemo { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); gap: 20px; }
+.picker { padding: 22px; display: flex; flex-direction: column; gap: 18px; }
+.wheel-row { display: flex; gap: 18px; align-items: center; }
+.swatch-big { width: 74px; height: 74px; border-radius: 18px; background: var(--tint); box-shadow: 0 0 0 1px var(--line-strong), 0 10px 40px -8px var(--tint); position: relative; overflow: hidden; flex: none; transition: box-shadow .2s; }
+.swatch-big input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+.hex { font: 700 22px var(--mono); letter-spacing: 0.02em; }
+.hex small { display: block; font: 500 12px var(--sans); color: var(--muted); letter-spacing: 0; }
+input[type=range].hue { -webkit-appearance: none; appearance: none; width: 100%; height: 14px; border-radius: 999px; background: linear-gradient(90deg, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00); outline: none; border: 1px solid var(--line-strong); }
+input[type=range].hue::-webkit-slider-thumb { -webkit-appearance: none; width: 22px; height: 22px; border-radius: 50%; background: var(--tint); border: 3px solid #fff; box-shadow: 0 2px 10px rgba(0,0,0,.5); cursor: grab; }
+input[type=range].hue::-moz-range-thumb { width: 18px; height: 18px; border-radius: 50%; background: var(--tint); border: 3px solid #fff; cursor: grab; }
+.swatches { display: flex; gap: 8px; flex-wrap: wrap; }
+.swatches button { width: 28px; height: 28px; border-radius: 8px; border: 1px solid var(--line-strong); cursor: pointer; transition: transform .12s; }
+.swatches button:hover { transform: scale(1.12); }
+.row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.autoplay { display: inline-flex; align-items: center; gap: 8px; font: 600 12px var(--mono); color: var(--muted); cursor: pointer; user-select: none; }
+.autoplay .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--dim); }
+.autoplay.on .dot { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
+.mask-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 1px; background: var(--line); border-radius: 12px; overflow: hidden; border: 1px solid var(--line); }
+.mask-cell { aspect-ratio: 1; display: grid; place-items: center; background: #0b0f15; transition: background-color .25s; }
+.mask-grid.light .mask-cell { background: #f7f8fa; }
+.mask-icon { width: 44px; height: 44px; background-color: var(--tint); -webkit-mask: var(--src) center / contain no-repeat; mask: var(--src) center / contain no-repeat; transition: background-color .08s linear; }
+.css-out { padding: 0; overflow: hidden; display: flex; flex-direction: column; }
+.css-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px 10px 18px; border-bottom: 1px solid var(--line); font: 600 12px var(--mono); color: var(--muted); }
+.dots { display: flex; gap: 6px; }
+.dots i { width: 10px; height: 10px; border-radius: 50%; background: #2a3241; }
+pre.code { margin: 0; padding: 18px 20px; font: 13px/1.7 var(--mono); color: #cbd5e1; overflow-x: auto; }
+pre.code .c { color: var(--dim); }
+pre.code .sel { color: var(--accent-2); }
+pre.code .pr { color: #7dd3fc; }
+pre.code .v { color: #fde68a; }
+pre.code .t { color: var(--tint); font-weight: 700; transition: color .08s linear; text-shadow: 0 0 18px color-mix(in srgb, var(--tint) 45%, transparent); }
+.live-row { display: flex; gap: 16px; align-items: center; padding: 16px 18px; border-top: 1px solid var(--line); flex-wrap: wrap; }
+.chip { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px 6px 8px; border-radius: 999px; border: 1px solid var(--line-strong); font: 600 13px var(--sans); color: var(--tint); transition: color .08s linear; }
+.chip .ic { width: 18px; height: 18px; background-color: currentColor; -webkit-mask: var(--src) center / contain no-repeat; mask: var(--src) center / contain no-repeat; }
+
+.api { display: grid; grid-template-columns: 1fr; gap: 20px; }
+.endpoint { padding: 18px 20px; display: flex; gap: 14px; align-items: center; flex-wrap: wrap; font: 15px var(--mono); }
+.verb { font-weight: 700; color: #04111a; background: var(--accent); padding: 3px 9px; border-radius: 7px; font-size: 13px; }
+.endpoint .path { color: var(--text); }
+.endpoint .path em { color: var(--amber); font-style: normal; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th, td { text-align: left; padding: 11px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font: 600 11px var(--mono); text-transform: uppercase; letter-spacing: 0.1em; color: var(--dim); background: rgba(255,255,255,0.015); }
+td code { font-size: 12.5px; color: var(--accent); background: rgba(94, 234, 212, 0.06); padding: 1px 6px; border-radius: 5px; white-space: nowrap; }
+td code.v { color: #fde68a; background: rgba(253, 230, 138, 0.06); }
+.tbl { overflow-x: auto; }
+.cols-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.card-h { padding: 16px 20px 6px; font-weight: 700; display: flex; align-items: center; gap: 10px; }
+.card-h span { font: 500 12px var(--mono); color: var(--dim); }
+
+.pipeline { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; counter-reset: step; }
+.step { padding: 16px; position: relative; }
+.step::before { counter-increment: step; content: "0" counter(step); font: 700 12px var(--mono); color: var(--accent); }
+.step h4 { margin: 6px 0 6px; font-size: 15px; }
+.step p { margin: 0; font-size: 13px; color: var(--muted); }
+.step:not(:last-child)::after { content: "→"; position: absolute; right: -10px; top: 50%; transform: translateY(-50%); color: var(--dim); font: 14px var(--mono); }
+.features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 24px; }
+.feature { padding: 20px; }
+.feature .ico { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; background: rgba(94, 234, 212, 0.08); border: 1px solid rgba(94, 234, 212, 0.2); color: var(--accent); margin-bottom: 12px; }
+.feature .ico svg { width: 18px; height: 18px; }
+.feature h4 { margin: 0 0 6px; font-size: 15.5px; }
+.feature p { margin: 0; color: var(--muted); font-size: 13.5px; }
+
+.selfhost { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.copy { font: 600 11px var(--mono); padding: 4px 9px; }
+.bench td:nth-child(2), .bench td:nth-child(3) { font-family: var(--mono); }
+
+footer { border-top: 1px solid var(--line); padding: 32px 0 48px; color: var(--dim); font-size: 13px; }
+footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+
+.reveal { opacity: 0; transform: translateY(14px); transition: opacity .6s ease, transform .6s ease; }
+.reveal.in { opacity: 1; transform: none; }
+
+@media (max-width: 980px) {
+  .playground, .maskdemo, .cols-2, .selfhost { grid-template-columns: 1fr; }
+  .pipeline { grid-template-columns: repeat(2, 1fr); }
+  .step::after { display: none; }
+  .features { grid-template-columns: 1fr 1fr; }
+  nav.top .links a:not(.gh) { display: none; }
+}
+@media (max-width: 640px) {
+  header.hero { padding-top: 56px; }
+  .stats { grid-template-columns: 1fr 1fr; }
+  .presets { grid-template-columns: 1fr; }
+  .controls { grid-template-columns: 1fr; }
+  .resp { grid-template-columns: 1fr; }
+  .headers div { grid-template-columns: 1fr; gap: 0; padding: 4px 0; }
+  .features { grid-template-columns: 1fr; }
+  .mask-grid { grid-template-columns: repeat(3, 1fr); }
+  .pipeline { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+  .reveal { opacity: 1; transform: none; }
+}
+</style>
+</head>
+<body>
+
+<nav class="top">
+  <div class="wrap">
+    <a class="brand" href="#">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5eead4"/><stop offset="1" stop-color="#a78bfa"/></linearGradient></defs><rect x="2" y="2" width="28" height="28" rx="8" fill="url(#lg)"/><path d="M10 9h12v3.4h-8.3v3h7v3.4h-7V23H10z" fill="#07090d"/></svg>
+      favicons <small>v0.1</small>
+    </a>
+    <div class="links">
+      <a href="#playground">Playground</a>
+      <a href="#mono">Mono masks</a>
+      <a href="#api">API</a>
+      <a href="#security">Security</a>
+      <a href="#self-host">Self-host</a>
+      <a class="gh" href="https://github.com/peleda-app/favicons"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>GitHub</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="wrap">
+    <span class="pill"><i></i>Rust · seccomp sandbox · MIT</span>
+    <h1>Website icons,<br><span class="grad">without the risk.</span></h1>
+    <p class="lead">A privacy-first icon service for mail clients, password managers and bookmark tools. Every image is decoded in a throw-away sandbox, every domain is vetted, and nothing about your users ever reaches the site.</p>
+    <div class="hero-cmd" id="heroCmd"><span class="m">GET</span><span><span class="p">/v1/icon/</span>github.com<span class="q">?size=64&amp;theme=dark&amp;style=mono</span></span><button class="btn copy" data-copy="GET /v1/icon/github.com?size=64&theme=dark&style=mono">copy</button></div>
+    <div class="cta">
+      <a class="btn primary" href="#playground">Try the playground →</a>
+      <a class="btn" href="#self-host">Self-host in one command</a>
+    </div>
+    <div class="stats">
+      <div><b>~1 200 rps</b><span>sustained in the k6 suite on a laptop</span></div>
+      <div><b>p99 ≈ 6 ms</b><span>cache hits during a flood</span></div>
+      <div><b>20 MB</b><span>scratch image, one static binary</span></div>
+      <div><b>0</b><span>bytes of origin images passed through</span></div>
+    </div>
+  </div>
+</header>
+
+<section id="playground">
+  <div class="wrap">
+    <div class="eyebrow reveal">Playground</div>
+    <h2 class="reveal">Ten real responses, captured from a live instance.</h2>
+    <p class="sub reveal">Pick a preset and switch size, theme and style. The headers, the JSON and the image are exactly what the API returned. They are stored in <code>data/presets.json</code>, so this page needs no backend.</p>
+
+    <div class="playground reveal">
+      <div class="panel pg-left">
+        <div>
+          <div class="label">Presets</div>
+          <div class="presets" id="presets" role="group" aria-label="Presets"></div>
+        </div>
+        <div>
+          <div class="label">Request</div>
+          <div class="urlbar">
+            <span class="lock"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg>PRESET</span>
+            <input id="url" type="text" readonly aria-readonly="true" aria-label="Request URL (read-only preset)" value="">
+          </div>
+          <div class="hint">Read-only: this demo replays recorded responses. Run your own instance to query any domain.</div>
+        </div>
+        <div class="controls">
+          <div>
+            <div class="label">size</div>
+            <div class="seg" id="size"><button data-v="16">16</button><button data-v="32">32</button><button data-v="64">64</button><button data-v="128" aria-pressed="true">128</button></div>
+          </div>
+          <div>
+            <div class="label">theme</div>
+            <div class="seg" id="theme"><button data-v="light" aria-pressed="true">light</button><button data-v="dark">dark</button></div>
+          </div>
+          <div>
+            <div class="label">style</div>
+            <div class="seg" id="style"><button data-v="color" aria-pressed="true">color</button><button data-v="mono">mono</button></div>
+          </div>
+        </div>
+        <div class="note" id="note"></div>
+      </div>
+
+      <div class="panel pg-right">
+        <div class="tabs" role="tablist">
+          <button role="tab" aria-selected="true" data-tab="resp">Response</button>
+          <button role="tab" aria-selected="false" data-tab="json">JSON</button>
+        </div>
+        <div id="tab-resp" class="resp">
+          <div>
+            <div class="reqline" id="reqline"></div>
+            <div class="statusline" id="status"></div>
+            <dl class="headers" id="headers"></dl>
+          </div>
+          <div class="preview">
+            <div class="stage checker" id="stage"><img id="img" alt=""></div>
+            <div class="actual"><img id="img1" alt=""><span id="actual"></span></div>
+          </div>
+        </div>
+        <pre id="tab-json" class="json" hidden></pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="mono">
+  <div class="wrap">
+    <div class="eyebrow reveal">Monochrome masks</div>
+    <h2 class="reveal">One request, any colour.</h2>
+    <p class="sub reveal"><code>style=mono</code> returns a black shape on transparency, with all the information in the alpha channel. Use it as a CSS mask and the icon takes whatever colour you give it: brand accent, <code>currentColor</code>, hover states, dark mode. It comes from the site's own <code>mask-icon</code> or <code>monochrome</code> manifest icon when there is one, and is derived from the colour icon otherwise.</p>
+
+    <div class="maskdemo reveal">
+      <div class="panel picker">
+        <div class="row">
+          <div class="wheel-row">
+            <label class="swatch-big" title="Pick a colour"><input type="color" id="color" value="#5eead4" aria-label="Pick a colour"></label>
+            <div class="hex"><span id="hex">#5EEAD4</span><small>background-color of the masked element</small></div>
+          </div>
+          <span class="autoplay on" id="autoplay" role="switch" aria-checked="true" tabindex="0"><span class="dot"></span>auto-cycle</span>
+        </div>
+        <input class="hue" type="range" id="hue" min="0" max="360" value="168" aria-label="Hue">
+        <div class="swatches" id="swatches"></div>
+        <div class="row">
+          <div class="label" style="margin:0">Background</div>
+          <div class="seg" id="maskbg"><button data-v="dark" aria-pressed="true">dark</button><button data-v="light">light</button></div>
+        </div>
+        <div class="mask-grid" id="maskgrid"></div>
+      </div>
+
+      <div class="panel css-out">
+        <div class="css-head"><div class="dots"><i></i><i></i><i></i></div><span>site-icon.css</span><button class="btn copy" id="copycss">copy</button></div>
+<pre class="code" id="css"></pre>
+        <div class="live-row" id="liverow"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="api">
+  <div class="wrap">
+    <div class="eyebrow reveal">API</div>
+    <h2 class="reveal">One endpoint. A contract you can rely on.</h2>
+    <p class="sub reveal">Always <code>200</code> with an image unless you opt out, so an <code>&lt;img&gt;</code> tag never breaks. Every fallback says why in headers. Full contract: <a href="https://github.com/peleda-app/favicons/blob/main/docs/API.md">docs/API.md</a>.</p>
+
+    <div class="api">
+      <div class="panel endpoint reveal"><span class="verb">GET</span><span class="path">/v1/icon/<em>{domain}</em>?size=&amp;theme=&amp;style=&amp;fallback=</span></div>
+
+      <div class="panel reveal">
+        <div class="card-h">Query parameters</div>
+        <div class="tbl"><table>
+          <tr><th>Name</th><th>Values</th><th>Default</th><th>Meaning</th></tr>
+          <tr><td><code>size</code></td><td><code class="v">16</code> <code class="v">32</code> <code class="v">64</code> <code class="v">128</code></td><td><code class="v">32</code></td><td>Snapped down to an enabled size (<code>render.sizes</code>). Missing sizes fall back to the largest smaller one; nothing is upscaled more than 10%.</td></tr>
+          <tr><td><code>theme</code></td><td><code class="v">light</code> <code class="v">dark</code></td><td><code class="v">light</code></td><td>Uses <code>prefers-color-scheme</code> icons when the site has them; otherwise serves the other theme and says so.</td></tr>
+          <tr><td><code>style</code></td><td><code class="v">color</code> <code class="v">mono</code></td><td><code class="v">color</code></td><td><code>mono</code> returns a black-on-transparent mask for CSS <code>mask-image</code>.</td></tr>
+          <tr><td><code>fallback</code></td><td><code class="v">generated</code> <code class="v">none</code></td><td><code class="v">generated</code></td><td><code>none</code> returns <code>404</code> with the same headers instead of a generated icon.</td></tr>
+        </table></div>
+      </div>
+
+      <div class="cols-2">
+        <div class="panel reveal">
+          <div class="card-h">Response headers</div>
+          <div class="tbl"><table>
+            <tr><th>Header</th><th>Values</th></tr>
+            <tr><td><code>X-Icon-Source</code></td><td><code class="v">cache</code> <code class="v">origin</code> <code class="v">generated</code></td></tr>
+            <tr><td><code>X-Icon-Domain</code></td><td>canonical domain after aliasing</td></tr>
+            <tr><td><code>X-Icon-Size</code></td><td>real pixel size of the body</td></tr>
+            <tr><td><code>X-Icon-Theme</code></td><td><code class="v">light</code> <code class="v">dark</code></td></tr>
+            <tr><td><code>X-Icon-Style</code></td><td><code class="v">color</code> <code class="v">mono</code></td></tr>
+            <tr><td><code>X-Icon-Mono-Source</code></td><td><code class="v">mask-icon</code> <code class="v">derived</code> <code class="v">generated</code></td></tr>
+            <tr><td><code>X-Icon-Fallback-Reason</code></td><td>see the next table</td></tr>
+            <tr><td><code>X-Icon-Blocked</code></td><td><code class="v">blocklist</code> <code class="v">dns-filter</code></td></tr>
+            <tr><td><code>Cache-Control</code></td><td>for browsers</td></tr>
+            <tr><td><code>CDN-Cache-Control</code></td><td>for CDNs (RFC 9213)</td></tr>
+          </table></div>
+        </div>
+        <div class="panel reveal">
+          <div class="card-h">Fallback reasons</div>
+          <div class="tbl"><table>
+            <tr><th>Reason</th><th>Meaning</th></tr>
+            <tr><td><code>queued</code></td><td>fetch in progress, short cache</td></tr>
+            <tr><td><code>overloaded</code></td><td>fair queue is full for this client</td></tr>
+            <tr><td><code>fetch-failed</code></td><td>site unreachable, retried later</td></tr>
+            <tr><td><code>not-found</code></td><td>site has no usable icon</td></tr>
+            <tr><td><code>domain-too-new</code></td><td>registered recently (RDAP)</td></tr>
+            <tr><td><code>blocklisted</code></td><td>on a blocklist: red warning icon</td></tr>
+            <tr><td><code>dns-blocked</code></td><td>sinkholed by the filtering resolver</td></tr>
+            <tr><td><code>invalid-domain</code></td><td>IPs, localhost, unknown TLDs</td></tr>
+            <tr><td><code>no-monochrome</code></td><td>no usable mono shape</td></tr>
+          </table></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="security">
+  <div class="wrap">
+    <div class="eyebrow reveal">How it works</div>
+    <h2 class="reveal">Hostile input, from the first byte to the last.</h2>
+    <p class="sub reveal">The request path never waits on the network for long, and attacker-controlled bytes are never parsed by the process that holds the network, the cache and the credentials.</p>
+    <div class="pipeline reveal">
+      <div class="panel step"><h4>Normalize</h4><p>Reduce to eTLD+1; reject IPs, localhost and unknown TLDs.</p></div>
+      <div class="panel step"><h4>Vet</h4><p>Aliases, blocklists, domain age (RDAP), filtering DNS.</p></div>
+      <div class="panel step"><h4>Cache</h4><p>Memory, then disk or S3; 302 to a public bucket.</p></div>
+      <div class="panel step"><h4>Fair queue</h4><p>Round-robin per subnet; the heaviest client is evicted first.</p></div>
+      <div class="panel step"><h4>Sandbox</h4><p>Fresh seccomp worker per image, page and manifest.</p></div>
+      <div class="panel step"><h4>Re-encode</h4><p>Lossless WebP or PNG; nothing passes through.</p></div>
+    </div>
+    <div class="features">
+      <div class="panel feature reveal"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l8 4v5c0 5-3.4 8.6-8 9-4.6-.4-8-4-8-9V7z"/></svg></div><h4>seccomp sandbox</h4><p>No files, no sockets, no exec. A forbidden syscall kills the worker. Optional renderer container with no network at all.</p></div>
+      <div class="panel feature reveal"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 010 18M12 3a14 14 0 000 18"/></svg></div><h4>No SSRF</h4><p>Public addresses only, ports 80/443, every redirect hop and foreign host checked before connecting.</p></div>
+      <div class="panel feature reveal"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v16H4z"/><path d="M9 9h6v6H9z"/></svg></div><h4>Bomb-proof decoding</h4><p>Declared dimensions are checked before any pixel is inflated. 1024 px and 32 MiB caps; gzip, zip and svgz refused.</p></div>
+      <div class="panel feature reveal"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></div><h4>No read receipts</h4><p>Per-recipient subdomains collapse to the registrable domain. Users' IPs never reach the site and are never logged.</p></div>
+      <div class="panel feature reveal"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8M2 12h4M18 12h4"/></svg></div><h4>Filtering DNS</h4><p>DNS-over-HTTPS to Cloudflare's malware-blocking resolver by default; sinkholed domains get a red warning icon.</p></div>
+      <div class="panel feature reveal"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17l6-6 4 4 8-8"/><path d="M14 7h7v7"/></svg></div><h4>Survives floods</h4><p>Load shedding, per-subnet token buckets, negative caching. Honest clients keep getting icons during an attack.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="self-host">
+  <div class="wrap">
+    <div class="eyebrow reveal">Self-host</div>
+    <h2 class="reveal">Two containers. No network for the renderer.</h2>
+    <p class="sub reveal">The <code>api</code> container fetches. The <code>renderer</code> has no network interface, no root, a read-only filesystem and no capabilities.</p>
+    <div class="selfhost">
+      <div class="panel css-out reveal">
+        <div class="css-head"><div class="dots"><i></i><i></i><i></i></div><span>terminal</span><button class="btn copy" data-copy="git clone https://github.com/peleda-app/favicons && cd favicons && docker compose up -d">copy</button></div>
+<pre class="code"><span class="c"># api + isolated renderer, cache on a volume</span>
+git clone https://github.com/peleda-app/favicons
+cd favicons && docker compose up -d
+
+<span class="c"># verify the sandbox on your kernel: each probe exits 159 (SIGSYS)</span>
+for p in fs write net exec; do
+  docker run --rm favicons sandbox-selftest $p; echo "$p: $?"
+done</pre>
+      </div>
+      <div class="panel css-out reveal">
+        <div class="css-head"><div class="dots"><i></i><i></i><i></i></div><span>config.toml</span><span></span></div>
+<pre class="code"><span class="sel">[render]</span>
+<span class="pr">sizes</span> = <span class="v">[128]</span>          <span class="c"># or any subset of 16/32/64/128</span>
+<span class="pr">format</span> = <span class="v">"webp"</span>
+<span class="pr">sandbox</span> = <span class="v">"socket"</span>
+
+<span class="sel">[cache]</span>
+<span class="pr">storage</span> = <span class="v">"s3://icons/v1"</span>
+<span class="pr">redirect_to_public_url</span> = <span class="v">true</span>
+
+<span class="sel">[dns]</span>
+<span class="pr">provider</span> = <span class="v">"cloudflare-security"</span>
+
+<span class="sel">[policy]</span>
+<span class="pr">min_domain_age_days</span> = <span class="v">30</span></pre>
+      </div>
+    </div>
+    <div class="panel reveal" style="margin-top:20px">
+      <div class="card-h">k6 load test <span>loadtest/favicons.js · all scenarios at once</span></div>
+      <div class="tbl"><table class="bench">
+        <tr><th>Scenario</th><th>Rate</th><th>Result</th><th>What it proves</th></tr>
+        <tr><td><code>hot_cache</code></td><td>400 rps</td><td>p99 6.0 ms</td><td>cache hits stay fast</td></tr>
+        <tr><td><code>junk_flood</code></td><td>300 rps</td><td>p99 5.8 ms</td><td>junk never triggers a fetch</td></tr>
+        <tr><td><code>attacker</code></td><td>600 rps, one /24</td><td>96% → 429</td><td>floods are throttled per subnet</td></tr>
+        <tr><td><code>honest_during_attack</code></td><td>50 rps</td><td>100% real icons</td><td>everyone else is unaffected</td></tr>
+      </table></div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span>favicons · MIT licensed · built with Rust</span>
+    <span><a href="https://github.com/peleda-app/favicons">GitHub</a> · <a href="https://github.com/peleda-app/favicons/blob/main/docs/API.md">API</a> · <a href="https://github.com/peleda-app/favicons/blob/main/docs/SECURITY.md">Security</a></span>
+  </div>
+</footer>
+
+<script>
+(() => {
+  const $ = (s, el = document) => el.querySelector(s);
+  const $$ = (s, el = document) => [...el.querySelectorAll(s)];
+  const HOST = "https://icons.example.com";
+  const state = { preset: 0, size: "128", theme: "light", style: "color" };
+  let presets = [];
+
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+  function seg(id, key, onChange) {
+    const root = $("#" + id);
+    root.addEventListener("click", (e) => {
+      const b = e.target.closest("button");
+      if (!b || b.disabled) return;
+      $$("button", root).forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+      state[key] = b.dataset.v;
+      onChange && onChange(b.dataset.v);
+    });
+  }
+
+  function current() {
+    const p = presets[state.preset];
+    const key = state.style === "mono" ? `mono-${state.size}` : `color-${state.theme}-${state.size}`;
+    return { p, r: p.responses[key] };
+  }
+
+  function highlightJson(obj) {
+    return esc(JSON.stringify(obj, null, 2))
+      .replace(/(&quot;[^&]*?&quot;)(\s*:)/g, '<span class="k">$1</span>$2')
+      .replace(/:\s(&quot;.*?&quot;)/g, ': <span class="s">$1</span>')
+      .replace(/:\s(\d+)/g, ': <span class="n">$1</span>');
+  }
+
+  function describe(h) {
+    const reason = h["x-icon-fallback-reason"];
+    const parts = [];
+    if (!reason) parts.push(`<b>Real icon</b> served from the ${h["x-icon-source"]}.`);
+    const map = {
+      blocklisted: "<b>Blocked.</b> The domain is on a blocklist, so the site was never contacted. Blocked domains get a fixed red warning icon.",
+      "dns-blocked": "<b>Blocked by DNS.</b> The filtering resolver sinkholed this domain.",
+      "fetch-failed": "<b>Unreachable.</b> The site could not be fetched, so a deterministic identicon is served and retried later.",
+      "invalid-domain": "<b>Not a public domain.</b> IP literals, localhost and unknown TLDs are rejected before anything else happens.",
+      "not-found": "<b>No icon.</b> The site answered but exposes nothing usable.",
+      "no-monochrome": "<b>No mono shape.</b> A generated monochrome icon is served instead.",
+    };
+    if (reason) parts.push(map[reason] || `Fallback: <b>${esc(reason)}</b>.`);
+    const p = presets[state.preset];
+    if (h["x-icon-domain"] && h["x-icon-domain"] !== p.domain) {
+      parts.push(`Requested <b>${esc(p.domain)}</b>, served as <b>${esc(h["x-icon-domain"])}</b>${p.domain.endsWith(h["x-icon-domain"]) ? " (collapsed to the registrable domain)" : " (equivalent-domain alias)"}.`);
+    }
+    if (h["x-icon-mono-source"]) parts.push(`Mono source: <b>${esc(h["x-icon-mono-source"])}</b>.`);
+    if (h["x-icon-size"] && h["x-icon-size"] !== state.size) parts.push(`Asked for ${state.size} px, got <b>${esc(h["x-icon-size"])} px</b>: the site has nothing larger.`);
+    return parts.join(" ");
+  }
+
+  function render() {
+    const { p, r } = current();
+    const q = new URLSearchParams({ size: state.size });
+    if (state.style === "color") q.set("theme", state.theme); else q.set("style", "mono");
+    $("#url").value = `${HOST}/v1/icon/${p.domain}?${q}`;
+    $("#reqline").textContent = r.request;
+    const h = r.headers;
+    const reason = h["x-icon-fallback-reason"];
+    const blocked = h["x-icon-blocked"];
+    const statusClass = r.status < 300 ? "code-ok" : "code-warn";
+    const badge = blocked ? `<span class="badge bad">blocked · ${esc(blocked)}</span>`
+      : reason ? `<span class="badge fb">fallback · ${esc(reason)}</span>`
+      : `<span class="badge ok">${esc(h["x-icon-source"])}</span>`;
+    $("#status").innerHTML = `<span class="${statusClass}">HTTP/1.1 ${r.status} ${r.status === 200 ? "OK" : ""}</span>${badge}`;
+    $("#headers").innerHTML = Object.entries(h)
+      .map(([k, v]) => `<div class="${k.startsWith("x-icon") ? "x" : ""}"><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`)
+      .join("");
+    const size = Number(h["x-icon-size"] || state.size);
+    const img = $("#img");
+    img.src = r.image;
+    img.alt = `${p.domain} icon`;
+    img.style.imageRendering = size < 128 ? "pixelated" : "auto";
+    const img1 = $("#img1");
+    img1.src = r.image;
+    img1.width = img1.height = Math.min(size, 64);
+    $("#actual").textContent = `${size}×${size} · ${r.bytes} B · ${h["content-type"] || ""}`;
+    const stage = $("#stage");
+    stage.classList.toggle("dark", state.theme === "dark" && state.style === "color");
+    $("#note").innerHTML = describe(h);
+    $("#tab-json").innerHTML = highlightJson({ request: r.request, status: r.status, headers: h, body: `<${r.bytes} bytes ${h["content-type"]}>` });
+    $$("#theme button").forEach((b) => (b.disabled = state.style === "mono"));
+  }
+
+  function buildPresets() {
+    const root = $("#presets");
+    root.innerHTML = presets
+      .map((p, i) => `<button class="preset" aria-pressed="${i === state.preset}" data-i="${i}"><img src="${esc(p.responses["color-light-32"].image)}" alt=""><span class="t"><span class="d">${esc(p.domain)}</span><span class="n">${esc(p.note)}</span></span></button>`)
+      .join("");
+    root.addEventListener("click", (e) => {
+      const b = e.target.closest(".preset");
+      if (!b) return;
+      state.preset = Number(b.dataset.i);
+      $$(".preset", root).forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+      render();
+    });
+  }
+
+  function hslToHex(h, s, l) {
+    s /= 100; l /= 100;
+    const k = (n) => (n + h / 30) % 12;
+    const a = s * Math.min(l, 1 - l);
+    const f = (n) => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+    return "#" + [f(0), f(8), f(4)].map((x) => Math.round(x * 255).toString(16).padStart(2, "0")).join("");
+  }
+  function hexToHue(hex) {
+    const n = parseInt(hex.slice(1), 16);
+    const r = (n >> 16) / 255, g = ((n >> 8) & 255) / 255, b = (n & 255) / 255;
+    const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
+    if (!d) return 0;
+    let h = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+    return Math.round((h * 60 + 360) % 360);
+  }
+
+  let tint = "#5eead4";
+  function setTint(hex, fromHue) {
+    tint = hex.toLowerCase();
+    document.documentElement.style.setProperty("--tint", tint);
+    $("#hex").textContent = tint.toUpperCase();
+    $("#color").value = tint;
+    if (!fromHue) $("#hue").value = hexToHue(tint);
+    renderCss();
+  }
+
+  const maskSet = () => presets.filter((p) => !p.responses["mono-128"].headers["x-icon-fallback-reason"] || p.responses["mono-128"].headers["x-icon-blocked"]).slice(0, 10);
+
+  function renderCss() {
+    const p = maskSet()[0] || presets[0];
+    const url = `${HOST}/v1/icon/${p.domain}?style=mono&amp;size=32`;
+    $("#css").innerHTML =
+`<span class="c">/* any element becomes a tinted icon */</span>
+<span class="sel">.site-icon</span> {
+  <span class="pr">width</span>: <span class="v">16px</span>;
+  <span class="pr">height</span>: <span class="v">16px</span>;
+  <span class="pr">background-color</span>: <span class="t">${tint}</span>;
+  <span class="pr">-webkit-mask</span>: <span class="v">url("${url}")</span> center / contain no-repeat;
+          <span class="pr">mask</span>: <span class="v">url("${url}")</span> center / contain no-repeat;
+}
+
+<span class="c">/* or inherit the text colour */</span>
+<span class="sel">.site-icon.inherit</span> { <span class="pr">background-color</span>: <span class="v">currentColor</span>; }`;
+  }
+
+  function buildMasks() {
+    const set = maskSet();
+    $("#maskgrid").innerHTML = set
+      .map((p) => `<div class="mask-cell" title="${esc(p.domain)} · ${esc(p.responses["mono-128"].headers["x-icon-mono-source"])}"><div class="mask-icon" style="--src:url('${p.responses["mono-128"].image}')"></div></div>`)
+      .join("");
+    $("#liverow").innerHTML = set
+      .slice(0, 4)
+      .map((p) => `<span class="chip"><span class="ic" style="--src:url('${p.responses["mono-32"].image}')"></span>${esc(p.responses["mono-32"].headers["x-icon-domain"] || p.domain)}</span>`)
+      .join("");
+    const sw = ["#5eead4", "#a78bfa", "#f472b6", "#fb7185", "#fbbf24", "#4ade80", "#38bdf8", "#f8fafc"];
+    $("#swatches").innerHTML = sw.map((c) => `<button style="background:${c}" data-c="${c}" aria-label="${c}"></button>`).join("");
+    $("#swatches").addEventListener("click", (e) => {
+      const b = e.target.closest("button");
+      if (b) { stopAuto(); setTint(b.dataset.c); }
+    });
+  }
+
+  let raf = 0, hue = 168, last = 0;
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  function tick(t) {
+    if (t - last > 33) {
+      hue = (hue + 0.6) % 360;
+      $("#hue").value = Math.round(hue);
+      setTint(hslToHex(hue, 85, 68), true);
+      last = t;
+    }
+    raf = requestAnimationFrame(tick);
+  }
+  function startAuto() { if (reduce || raf) return; $("#autoplay").classList.add("on"); $("#autoplay").setAttribute("aria-checked", "true"); hue = Number($("#hue").value); raf = requestAnimationFrame(tick); }
+  function stopAuto() { cancelAnimationFrame(raf); raf = 0; $("#autoplay").classList.remove("on"); $("#autoplay").setAttribute("aria-checked", "false"); }
+
+  function wire() {
+    seg("size", "size", render);
+    seg("theme", "theme", render);
+    seg("style", "style", render);
+    seg("maskbg", "maskbg", (v) => $("#maskgrid").classList.toggle("light", v === "light"));
+    $$(".tabs button").forEach((b) => b.addEventListener("click", () => {
+      $$(".tabs button").forEach((x) => x.setAttribute("aria-selected", String(x === b)));
+      $("#tab-resp").hidden = b.dataset.tab !== "resp";
+      $("#tab-json").hidden = b.dataset.tab !== "json";
+    }));
+    $("#hue").addEventListener("input", (e) => { stopAuto(); setTint(hslToHex(Number(e.target.value), 85, 68), true); });
+    $("#color").addEventListener("input", (e) => { stopAuto(); setTint(e.target.value); });
+    const toggle = () => (raf ? stopAuto() : startAuto());
+    $("#autoplay").addEventListener("click", toggle);
+    $("#autoplay").addEventListener("keydown", (e) => { if (e.key === " " || e.key === "Enter") { e.preventDefault(); toggle(); } });
+    document.addEventListener("click", (e) => {
+      const b = e.target.closest("[data-copy]");
+      if (b) copy(b, b.dataset.copy);
+    });
+    $("#copycss").addEventListener("click", (e) => copy(e.currentTarget, $("#css").textContent));
+    const io = new IntersectionObserver((es) => es.forEach((en) => en.isIntersecting && (en.target.classList.add("in"), io.unobserve(en.target))), { threshold: 0.12 });
+    $$(".reveal").forEach((el) => io.observe(el));
+  }
+
+  function copy(btn, text) {
+    const done = () => { const t = btn.textContent; btn.textContent = "copied"; setTimeout(() => (btn.textContent = t), 1200); };
+    if (navigator.clipboard) navigator.clipboard.writeText(text).then(done, () => {});
+  }
+
+  fetch("data/presets.json")
+    .then((r) => r.json())
+    .then((data) => {
+      presets = data;
+      buildPresets();
+      buildMasks();
+      wire();
+      render();
+      setTint("#5eead4");
+      startAuto();
+    })
+    .catch(() => {
+      $("#note").textContent = "Could not load data/presets.json.";
+      $$(".reveal").forEach((el) => el.classList.add("in"));
+    });
+})();
+</script>
+</body>
+</html>

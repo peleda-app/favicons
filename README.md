@@ -98,6 +98,17 @@ docker run --rm -p 8080:8080 --read-only --cap-drop ALL --security-opt no-new-pr
 
 ## Documentation
 
+**[peleda-app.github.io/favicons](https://peleda-app.github.io/favicons/)** is an
+interactive one-pager. It has ten presets replaying real API responses, an
+animated colour picker that tints monochrome masks with live CSS, and the API
+reference. It is a static page in [`site/`](site), deployed by the `pages`
+workflow. Refresh the recorded responses from a running instance with:
+
+```bash
+./site/capture.py http://127.0.0.1:8080
+```
+
+
 * [HTTP API contract](docs/API.md): parameters, statuses, headers, fallback reasons, storage layout
 * [Security model](docs/SECURITY.md): threats, mitigations, privacy, hardening checklist
 * [config.example.toml](config.example.toml): every option with its default

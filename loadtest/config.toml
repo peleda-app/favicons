@@ -1,0 +1,26 @@
+[server]
+listen = "0.0.0.0:8080"
+max_connections = 8192
+max_concurrent_requests = 1024
+
+[client_ip]
+source = "x-forwarded-for"
+trusted_hops = 1
+
+[rate_limit]
+requests_per_second = 20.0
+burst = 60.0
+
+[fetch]
+workers = 4
+queue_capacity = 500
+per_client_queue_capacity = 16
+wait_ms = 0
+
+[cache]
+storage = "none"
+
+[policy]
+aliases = []
+blocklists = ["loadtest/blocklist.txt"]
+min_domain_age_days = 0

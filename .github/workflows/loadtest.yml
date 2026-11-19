@@ -1,0 +1,46 @@
+name: loadtest
+
+on:
+  workflow_dispatch:
+    inputs:
+      duration:
+        description: Duration of every scenario
+        default: 30s
+      scale:
+        description: Multiplier for request rates
+        default: "1"
+  schedule:
+    - cron: "17 4 * * 1"
+  push:
+    branches: [main]
+    paths: ["src/**", "Cargo.*", "loadtest/**", ".github/workflows/loadtest.yml"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: loadtest
+  cancel-in-progress: true
+
+jobs:
+  k6:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --release --locked
+      - uses: grafana/setup-k6-action@v1
+      - name: run k6
+        env:
+          FAVICONS_BIN: target/release/favicons
+        run: ./loadtest/run.sh -e DURATION=${{ inputs.duration || '30s' }} -e SCALE=${{ inputs.scale || '1' }}
+      - name: summary
+        if: always()
+        run: cat loadtest/out/summary.md >> "$GITHUB_STEP_SUMMARY" || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: k6-summary
+          path: loadtest/out/

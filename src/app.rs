@@ -17,6 +17,7 @@ use crate::domain::normalize;
 use crate::limiter::{ClientKeyer, RateLimiter};
 use crate::metrics::{Stats, inc};
 use crate::net::{FetchError, Fetched, HttpClient, Redirects};
+use crate::palette::Palette;
 use crate::policy::Policy;
 use crate::queue::FairQueue;
 use crate::sandbox::Renderer;
@@ -44,6 +45,7 @@ pub struct App {
     pub stats: Stats,
     generated: Cache<([u8; 32], Style), Arc<Icon>>,
     pub profiles: crate::http::Profiles,
+    generated_palettes: Cache<[u8; 32], Palette>,
     decode_slots: Arc<Semaphore>,
     pub request_slots: Arc<Semaphore>,
 }
@@ -63,6 +65,10 @@ impl App {
         Ok(Arc::new(Self {
             store: Store::new(&cfg.cache, &cfg.http_cache)?,
             profiles: crate::http::Profiles::new(&cfg.http_cache)?,
+            generated_palettes: Cache::builder()
+                .max_capacity(10_000)
+                .time_to_idle(Duration::from_secs(3_600))
+                .build(),
             policy: Policy::new(cfg.policy.clone()),
             catalog: crate::catalog::Catalog::new(&cfg.catalog.thesvg),
             renderer: match cfg.render.sandbox {
@@ -117,25 +123,46 @@ impl App {
         self.generated_icon([0; 32], style, crate::vector::warning)
     }
 
-    pub fn identicon(&self, seed_source: &str, style: Style) -> Arc<Icon> {
+    fn seed(&self, seed_source: &str) -> [u8; 32] {
         let mut hasher = blake3::Hasher::new();
         hasher.update(self.cfg.identicon.salt.as_bytes());
         hasher.update(b"\0");
         hasher.update(seed_source.as_bytes());
-        let seed = *hasher.finalize().as_bytes();
+        *hasher.finalize().as_bytes()
+    }
+
+    pub fn identicon(&self, seed_source: &str, style: Style) -> Arc<Icon> {
+        let seed = self.seed(seed_source);
         self.generated_icon(seed, style, |mono| crate::vector::identicon(&seed, mono))
+    }
+
+    pub async fn analyze(&self, svg: &[u8]) -> Option<Palette> {
+        let svg = std::str::from_utf8(svg).ok()?;
+        let _permit = self.decode_slots.clone().acquire_owned().await.ok()?;
+        match self.renderer.analyze(&self.cfg.render, svg).await {
+            Ok(p) => Some(p),
+            Err(e) => {
+                tracing::debug!(error = %e, "palette analysis failed");
+                None
+            }
+        }
     }
 
     fn generated_icon(
         &self,
         key: [u8; 32],
         style: Style,
-        draw: impl FnOnce(bool) -> String,
+        draw: impl Fn(bool) -> String,
     ) -> Arc<Icon> {
         self.generated.get_with((key, style), || {
+            let palette = self.generated_palettes.get(&key).or_else(|| {
+                let p = crate::palette::analyze_svg(&draw(false)).ok()?;
+                self.generated_palettes.insert(key, p);
+                Some(p)
+            });
             let data = Bytes::from(draw(style == Style::Mono));
             let etag = format!("g-{}", &blake3::hash(&data).to_hex()[..20]);
-            Icon::new(data, Some(&etag), None)
+            Icon::new(data, Some(&etag), None, palette)
         })
     }
 
@@ -173,6 +200,12 @@ impl App {
                         Status::FetchFailed => inc(&app.stats.fetch_failed),
                         Status::TooNew => inc(&app.stats.fetch_too_new),
                         Status::Blocked => inc(&app.stats.fetch_blocked),
+                    }
+                    if meta.status == Status::Ok
+                        && meta.palette.is_none()
+                        && let Some((_, svg)) = images.iter().find(|(s, _)| *s == Slot::Color)
+                    {
+                        meta.palette = app.analyze(svg).await;
                     }
                     tracing::info!(domain, status = ?meta.status, ms = started.elapsed().as_millis() as u64, "fetched");
                     app.store.put(meta, images).await;

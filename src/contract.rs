@@ -61,6 +61,17 @@ pub const H_VECTOR: &str = "x-icon-vector";
 pub const H_UPSTREAM: &str = "x-icon-upstream";
 pub const H_PROVENANCE: &str = "x-icon-provenance";
 pub const H_LICENSE: &str = "x-icon-license";
+pub const H_SHAPE: &str = "x-icon-shape";
+pub const H_FILL: &str = "x-icon-fill";
+pub const H_ACCENT: &str = "x-icon-accent";
+pub const H_LIGHT_PLATE: &str = "x-icon-light-plate";
+pub const H_LIGHT_TEXT: &str = "x-icon-light-text";
+pub const H_LIGHT_MONO: &str = "x-icon-light-mono";
+pub const H_DARK_PLATE: &str = "x-icon-dark-plate";
+pub const H_DARK_TEXT: &str = "x-icon-dark-text";
+pub const H_DARK_MONO: &str = "x-icon-dark-mono";
+pub const H_LIGHT_MONO_PLATE: &str = "x-icon-light-mono-plate";
+pub const H_DARK_MONO_PLATE: &str = "x-icon-dark-mono-plate";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]

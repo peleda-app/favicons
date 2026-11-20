@@ -13,6 +13,7 @@ use url::Url;
 use crate::config::Render as RenderCfg;
 use crate::contract::{MonoSource, Theme};
 use crate::discover::{self, Candidate, Location, Page, Scope};
+use crate::palette::{self, Palette};
 use crate::render;
 use crate::vector::{self, Vector, VectorOrigin};
 
@@ -36,11 +37,13 @@ pub enum Task {
     Mono { source: MonoSource },
     Html { url: String, scope: Scope },
     Manifest { url: String, scope: Scope },
+    Analyze,
 }
 
 pub enum Output {
     Vector(Vector),
     Page(Page),
+    Palette(Palette),
 }
 
 #[derive(Serialize, Deserialize)]
@@ -63,6 +66,9 @@ enum WireMeta {
     Page {
         icons: Vec<WireCandidate>,
         manifest: Option<String>,
+    },
+    Palette {
+        palette: Palette,
     },
 }
 
@@ -91,6 +97,7 @@ pub fn encode_response(result: &anyhow::Result<Output>) -> Vec<u8> {
                     WireMeta::Vector { origin: v.origin },
                     vec![v.svg.as_bytes()],
                 ),
+                Output::Palette(palette) => (WireMeta::Palette { palette: *palette }, vec![]),
                 Output::Page(page) => {
                     let mut blobs = Vec::new();
                     let icons = page
@@ -166,6 +173,13 @@ pub fn decode_vector(buf: &[u8], max_bytes: usize) -> anyhow::Result<Vector> {
     })
 }
 
+pub fn decode_palette(buf: &[u8]) -> anyhow::Result<Palette> {
+    match decode_frames(buf)? {
+        (WireMeta::Palette { palette }, blobs) if blobs.is_empty() => Ok(palette),
+        _ => bail!("worker returned something other than a palette"),
+    }
+}
+
 pub fn decode_page(buf: &[u8], scope: &Scope) -> anyhow::Result<Page> {
     let (WireMeta::Page { icons, manifest }, blobs) = decode_frames(buf)? else {
         bail!("worker returned variants for a parse task");
@@ -231,6 +245,11 @@ pub fn execute(job: &Job, payload: &[u8]) -> anyhow::Result<Output> {
         Task::Html { url, scope } => {
             let url = Url::parse(url)?;
             Ok(Output::Page(discover::parse_html(payload, &url, scope)))
+        }
+        Task::Analyze => {
+            let svg = std::str::from_utf8(payload).context("svg is not utf-8")?;
+            vector::verify(svg, job.cfg.max_output_svg_bytes)?;
+            palette::analyze_svg(svg).map(Output::Palette)
         }
         Task::Manifest { url, scope } => {
             let url = Url::parse(url)?;
@@ -418,6 +437,7 @@ pub fn selftest(probe: &str) -> ExitCode {
                         vector::verify(&v.svg, job.cfg.max_output_svg_bytes).is_ok()
                     }
                     Ok(Output::Page(p)) => !p.icons.is_empty(),
+                    Ok(Output::Palette(p)) => p.shape == palette::Shape::Rounded,
                     Err(e) => {
                         eprintln!("{name}: {e:#}");
                         false
@@ -469,6 +489,14 @@ fn sample_jobs(cfg: &RenderCfg) -> anyhow::Result<Vec<(String, Job, Vec<u8>)>> {
         "mono mask-icon".into(),
         Job { cfg: cfg.clone(), task: Task::Mono { source: MonoSource::MaskIcon } },
         br##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M2 2h12v12H2z"/></svg>"##.to_vec(),
+    ));
+    jobs.push((
+        "analyze palette".into(),
+        Job {
+            cfg: cfg.clone(),
+            task: Task::Analyze,
+        },
+        br##"<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128"><path fill="#1d4ed8" d="M28 0H100A28 28 0 0 1 128 28V100A28 28 0 0 1 100 128H28A28 28 0 0 1 0 100V28A28 28 0 0 1 28 0z"/></svg>"##.to_vec(),
     ));
     jobs.push((
         "parse html".into(),
@@ -588,6 +616,14 @@ impl Renderer {
             task: Task::Render,
         };
         decode_vector(&self.exchange(job, image).await?, cfg.max_output_svg_bytes)
+    }
+
+    pub async fn analyze(&self, cfg: &RenderCfg, svg: &str) -> anyhow::Result<Palette> {
+        let job = Job {
+            cfg: cfg.clone(),
+            task: Task::Analyze,
+        };
+        decode_palette(&self.exchange(job, svg.as_bytes().to_vec()).await?)
     }
 
     pub async fn mono(

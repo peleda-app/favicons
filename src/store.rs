@@ -13,6 +13,7 @@ use url::Url;
 
 use crate::config::{Cache as CacheCfg, HttpCache};
 use crate::contract::{MonoSource, Provenance, SVG_MIME, Slot};
+use crate::palette::Palette;
 use crate::vector::VectorOrigin;
 
 pub const LAYOUT_VERSION: &str = "v3";
@@ -46,6 +47,8 @@ pub struct Meta {
     pub license: Option<String>,
     #[serde(default)]
     pub etags: BTreeMap<String, String>,
+    #[serde(default)]
+    pub palette: Option<Palette>,
 }
 
 impl Meta {
@@ -61,6 +64,7 @@ impl Meta {
             provenance: None,
             license: None,
             etags: BTreeMap::new(),
+            palette: None,
         }
     }
 }
@@ -82,23 +86,40 @@ pub struct Icon {
     pub data: Bytes,
     pub etag: Option<HeaderValue>,
     pub domain: Option<HeaderValue>,
+    pub palette: crate::palette::Headers,
 }
 
 impl Icon {
-    pub fn new(data: Bytes, etag: Option<&str>, domain: Option<&str>) -> Arc<Self> {
-        Arc::new(Self {
+    pub fn new(
+        data: Bytes,
+        etag: Option<&str>,
+        domain: Option<&str>,
+        palette: Option<Palette>,
+    ) -> Arc<Self> {
+        Arc::new(Self::build(data, etag, domain, palette))
+    }
+
+    fn build(
+        data: Bytes,
+        etag: Option<&str>,
+        domain: Option<&str>,
+        palette: Option<Palette>,
+    ) -> Self {
+        Self {
             data,
             etag: etag.and_then(|e| HeaderValue::from_str(&format!("\"{e}\"")).ok()),
             domain: domain.and_then(|d| HeaderValue::from_str(d).ok()),
-        })
+            palette: palette.map(|p| p.headers()).unwrap_or_default(),
+        }
     }
 
     fn of(meta: &Meta, slot: Slot, data: Bytes) -> Arc<Self> {
-        Self::new(
+        Arc::new(Self::build(
             data,
             meta.etags.get(object_name(slot)).map(String::as_str),
             Some(&meta.domain),
-        )
+            meta.palette,
+        ))
     }
 }
 

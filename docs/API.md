@@ -163,11 +163,55 @@ capped at `render.max_output_svg_bytes` (48 KiB).
 | `X-Icon-Fallback-Reason` | see below | when `X-Icon-Fallback` is present |
 | `X-Icon-Stale` | `true` | the cached entry is past its TTL; a refresh was queued |
 | `X-Icon-Blocked` | `blocklist`, `dns-filter` | the domain is blocked; tells which mechanism blocked it |
+| `X-Icon-Shape`, `X-Icon-Fill`, `X-Icon-Accent`, `X-Icon-{Light,Dark}-{Plate,Text,Mono,Mono-Plate}` | see [Palette headers](#palette-headers) | 200, 302, 304, on real and generated icons |
+
+All `X-Icon-*` headers and `ETag` are listed in `Access-Control-Expose-Headers`,
+so a page on another origin can read them with `fetch()`.
 
 Every response also carries `X-Content-Type-Options: nosniff`,
 `Content-Security-Policy: default-src 'none'; sandbox`, `Referrer-Policy: no-referrer`,
 `X-Frame-Options: DENY`, `Cross-Origin-Resource-Policy: cross-origin`,
 `Access-Control-Allow-Origin: *` and `X-Robots-Tag: noindex`. No cookies are ever set.
+
+### Palette headers
+
+Colours to put around the icon, so it stays visible on any theme. Both styles
+carry the same set, computed from the colour icon:
+
+```
+x-icon-shape: circle
+x-icon-fill: inset
+x-icon-accent: #1ed760
+x-icon-light-plate: #1c1c1e
+x-icon-light-text: #13883d
+x-icon-light-mono: #17a249
+x-icon-light-mono-plate: #e7f8ed
+x-icon-dark-plate: #183f26
+x-icon-dark-text: #1ed760
+x-icon-dark-mono: #1ed760
+x-icon-dark-mono-plate: #1d442b
+```
+
+| Header | Meaning |
+|--------|---------|
+| `X-Icon-Shape` | Whether the colour icon brings its own background: `square`, `rounded` (square with rounded corners), `circle`, or `none` for a free-standing logo. Read from the outline, so a square with a transparent glyph cut out of it is still `square`. |
+| `X-Icon-Fill` | `bleed`: the icon brings its own background right up to the edges (a square, or a rounded square with a corner radius up to 25% of its side). Draw it at 100% of your badge and clip it to your own corners; padding would leave a small tile floating on a plate. `inset`: a free-standing logo, a circle or a very round tile; draw it with padding on the plate. |
+| `X-Icon-Accent` | The icon's dominant brand colour; the darkest neutral for black-and-white logos. |
+| `X-Icon-Light-*`, `X-Icon-Dark-*` | One scheme per theme. The light theme assumes a `#ffffff` background, the dark one `#1c1c1e`. |
+| `…-Plate` | Fill for a badge behind the colour icon. Prefers a soft tint of the accent, then neutral, then the opposite brightness. For a free-standing logo it must contrast with most of the logo; for a tile with holes it must contrast with the tile itself, so a black square with a transparent glyph never gets a black plate and turns into a plain black square. |
+| `…-Text` | The accent, darkened or lightened to at least 4.5:1 against the theme background, for a name or link next to the icon. Neutral logos get the theme's regular light text on dark. |
+| `…-Mono` | Colour for the `mono` mask, at least 3:1 (the WCAG minimum for graphics) on its mono plate and therefore on the theme background too. |
+| `…-Mono-Plate` | Badge fill for the `mono` mask: a soft tint of the same hue close to the theme background, so badge and icon read as one colour. |
+
+Every icon is fitted edge to edge. Inside a badge, give `inset` icons the same
+padding (around 18% of the side works well) and draw `bleed` icons at full size.
+
+The palette is computed once per fetch, in the sandbox, from a 64 px rendering
+of the final colour SVG, and stored in `meta.json`. An entry cached before
+palettes existed is served without them and refreshed in the background.
+When `redirect_to_public_url` is on, the headers are on the `302`; a browser
+`fetch()` follows redirects without exposing them, so read them from the
+service rather than the bucket in that setup.
 
 ### Fallback reasons
 

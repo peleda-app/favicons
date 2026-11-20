@@ -9,8 +9,9 @@ use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use http::header::{
-    ACCESS_CONTROL_ALLOW_ORIGIN, CACHE_CONTROL, CONTENT_SECURITY_POLICY, CONTENT_TYPE, ETAG,
-    IF_NONE_MATCH, LOCATION, REFERRER_POLICY, RETRY_AFTER, X_CONTENT_TYPE_OPTIONS, X_FRAME_OPTIONS,
+    ACCESS_CONTROL_ALLOW_ORIGIN, ACCESS_CONTROL_EXPOSE_HEADERS, CACHE_CONTROL,
+    CONTENT_SECURITY_POLICY, CONTENT_TYPE, ETAG, IF_NONE_MATCH, LOCATION, REFERRER_POLICY,
+    RETRY_AFTER, X_CONTENT_TYPE_OPTIONS, X_FRAME_OPTIONS,
 };
 use http::{HeaderMap, HeaderName, HeaderValue, StatusCode, Uri};
 
@@ -23,7 +24,7 @@ use crate::contract::{
 };
 use crate::domain::{MAX_INPUT_LEN, normalize};
 use crate::metrics::inc;
-use crate::queue::Enqueue;
+use crate::queue::{ClientKey, Enqueue};
 use crate::store::{Icon, Meta, Status};
 
 pub fn router(app: Arc<App>) -> Router {
@@ -70,6 +71,12 @@ async fn guard(State(app): State<Arc<App>>, req: Request, next: Next) -> Respons
     }
 }
 
+const EXPOSED: &str = "etag, x-icon-source, x-icon-domain, x-icon-style, x-icon-vector, \
+     x-icon-provenance, x-icon-license, x-icon-upstream, x-icon-mono-source, x-icon-fallback, \
+     x-icon-fallback-reason, x-icon-stale, x-icon-blocked, x-icon-shape, x-icon-fill, x-icon-accent, \
+     x-icon-light-plate, x-icon-light-text, x-icon-light-mono, x-icon-light-mono-plate, \
+     x-icon-dark-plate, x-icon-dark-text, x-icon-dark-mono, x-icon-dark-mono-plate";
+
 async fn security_headers(mut res: Response) -> Response {
     let h = res.headers_mut();
     h.insert(X_CONTENT_TYPE_OPTIONS, HeaderValue::from_static("nosniff"));
@@ -86,6 +93,10 @@ async fn security_headers(mut res: Response) -> Response {
         HeaderValue::from_static("cross-origin"),
     );
     h.insert(ACCESS_CONTROL_ALLOW_ORIGIN, HeaderValue::from_static("*"));
+    h.insert(
+        ACCESS_CONTROL_EXPOSE_HEADERS,
+        HeaderValue::from_static(EXPOSED),
+    );
     h.insert(
         HeaderName::from_static("x-robots-tag"),
         HeaderValue::from_static("noindex"),
@@ -175,14 +186,9 @@ async fn serve_icon(
     trailing_slash: bool,
 ) -> Response {
     inc(&app.stats.requests);
-    let client = app.keyer.key(app.keyer.client_ip(peer.ip(), &headers));
-    if !app.limiter.check(client) {
-        inc(&app.stats.rate_limited);
-        let mut r = plain(StatusCode::TOO_MANY_REQUESTS, "rate limited");
-        r.headers_mut()
-            .insert(RETRY_AFTER, HeaderValue::from_static("1"));
-        return r;
-    }
+    let Some(client) = admit(&app, peer, &headers) else {
+        return rate_limited();
+    };
 
     let Some(style) = Style::from_path(&style) else {
         return plain(StatusCode::NOT_FOUND, "unknown style; use color or mono");
@@ -223,7 +229,8 @@ async fn serve_icon(
     }
 
     if let Some(meta) = app.store.meta(domain).await {
-        let stale = app.is_stale(&meta);
+        let stale = app.is_stale(&meta)
+            || (meta.status == Status::Ok && meta.color.is_some() && meta.palette.is_none());
         if stale {
             let _ = app.queue.push(domain, client);
         }
@@ -255,14 +262,7 @@ struct Shown {
 }
 
 async fn serve_meta(app: &App, req: &Req, meta: &Meta, source: Source, stale: bool) -> Response {
-    let reason = match meta.status {
-        Status::Ok => None,
-        Status::NotFound => Some(FallbackReason::NotFound),
-        Status::FetchFailed => Some(FallbackReason::FetchFailed),
-        Status::TooNew => Some(FallbackReason::DomainTooNew),
-        Status::Blocked => Some(FallbackReason::DnsBlocked),
-    };
-    if let Some(r) = reason {
+    if let Some(r) = status_reason(meta.status) {
         return fallback(app, req, r);
     }
     let shown = match req.style {
@@ -285,9 +285,10 @@ async fn serve_meta(app: &App, req: &Req, meta: &Meta, source: Source, stale: bo
         };
         return fallback(app, req, reason);
     };
-    let mut out = Out {
+    let out = Out {
         source,
         domain: None,
+        palette: &[],
         upstream: meta.upstream.as_deref(),
         provenance: meta.provenance.map(Provenance::as_str),
         license: meta.license.as_deref(),
@@ -306,7 +307,12 @@ async fn serve_meta(app: &App, req: &Req, meta: &Meta, source: Source, stale: bo
         let mut r = Response::new(Body::empty());
         *r.status_mut() = StatusCode::FOUND;
         r.headers_mut().insert(LOCATION, loc);
-        out.domain = HeaderValue::from_str(&meta.domain).ok();
+        let palette = meta.palette.map(|p| p.headers()).unwrap_or_default();
+        let out = Out {
+            domain: HeaderValue::from_str(&meta.domain).ok(),
+            palette: &palette,
+            ..out
+        };
         decorate(&mut r, &app.profiles.redirect, &out);
         return r;
     }
@@ -314,7 +320,11 @@ async fn serve_meta(app: &App, req: &Req, meta: &Meta, source: Source, stale: bo
     match app.store.image(meta, shown.slot).await {
         Some(icon) => {
             inc(&app.stats.served_cache);
-            out.domain.clone_from(&icon.domain);
+            let out = Out {
+                domain: icon.domain.clone(),
+                palette: &icon.palette,
+                ..out
+            };
             image(&icon, req, &app.profiles.icon, &out)
         }
         None => {
@@ -325,6 +335,32 @@ async fn serve_meta(app: &App, req: &Req, meta: &Meta, source: Source, stale: bo
             fallback(app, req, FallbackReason::Queued)
         }
     }
+}
+
+fn status_reason(status: Status) -> Option<FallbackReason> {
+    match status {
+        Status::Ok => None,
+        Status::NotFound => Some(FallbackReason::NotFound),
+        Status::FetchFailed => Some(FallbackReason::FetchFailed),
+        Status::TooNew => Some(FallbackReason::DomainTooNew),
+        Status::Blocked => Some(FallbackReason::DnsBlocked),
+    }
+}
+
+fn admit(app: &App, peer: SocketAddr, headers: &HeaderMap) -> Option<ClientKey> {
+    let client = app.keyer.key(app.keyer.client_ip(peer.ip(), headers));
+    if app.limiter.check(client) {
+        return Some(client);
+    }
+    inc(&app.stats.rate_limited);
+    None
+}
+
+fn rate_limited() -> Response {
+    let mut r = plain(StatusCode::TOO_MANY_REQUESTS, "rate limited");
+    r.headers_mut()
+        .insert(RETRY_AFTER, HeaderValue::from_static("1"));
+    r
 }
 
 async fn redirect_to_canonical(app: &App, style: Style, domain: &str) -> Response {
@@ -383,6 +419,7 @@ fn redirect(
     let out = Out {
         source: Source::Cache,
         domain: HeaderValue::from_str(domain).ok(),
+        palette: &[],
         upstream: None,
         provenance: None,
         license: None,
@@ -408,6 +445,11 @@ fn fallback(app: &App, req: &Req, reason: FallbackReason) -> Response {
         vector: "generated",
         mono_source: mono.then_some("generated"),
     };
+    let icon = if reason.blocked_by().is_some() {
+        app.warning_icon(req.style)
+    } else {
+        app.identicon(&req.name, req.style)
+    };
     let out = Out {
         source: Source::Generated,
         domain: if req.valid {
@@ -415,6 +457,7 @@ fn fallback(app: &App, req: &Req, reason: FallbackReason) -> Response {
         } else {
             None
         },
+        palette: &icon.palette,
         upstream: None,
         provenance: None,
         license: None,
@@ -423,17 +466,13 @@ fn fallback(app: &App, req: &Req, reason: FallbackReason) -> Response {
         reason: Some(reason),
         stale: false,
     };
-    let icon = if reason.blocked_by().is_some() {
-        app.warning_icon(req.style)
-    } else {
-        app.identicon(&req.name, req.style)
-    };
     image(&icon, req, profile, &out)
 }
 
 struct Out<'a> {
     source: Source,
     domain: Option<HeaderValue>,
+    palette: &'a [(HeaderName, HeaderValue)],
     upstream: Option<&'a str>,
     provenance: Option<&'static str>,
     license: Option<&'a str>,
@@ -480,6 +519,9 @@ fn decorate(r: &mut Response, profile: &CacheHeaders, out: &Out<'_>) {
     h.insert(name(H_STYLE), HeaderValue::from_static(out.style.as_str()));
     if let Some(v) = &out.domain {
         h.insert(name(H_DOMAIN), v.clone());
+    }
+    for (k, v) in out.palette {
+        h.insert(k.clone(), v.clone());
     }
     if let Some(shown) = out.shown {
         h.insert(name(H_VECTOR), HeaderValue::from_static(shown.vector));
@@ -602,6 +644,44 @@ mod routing_tests {
         assert_eq!(r.status(), StatusCode::OK);
         assert_eq!(r.headers().get(H_REASON).unwrap(), "invalid-domain");
         assert_eq!(r.headers().get(H_STYLE).unwrap(), "mono");
+    }
+
+    #[tokio::test]
+    async fn sends_palette_headers_and_exposes_them() {
+        let app = app();
+        for path in ["/v1/icon/color/example.com", "/v1/icon/mono/example.com"] {
+            let r = get(&app, path).await;
+            assert_eq!(r.status(), StatusCode::OK);
+            let h = r.headers();
+            assert_eq!(h.get("x-icon-shape").unwrap(), "square");
+            assert_eq!(h.get("x-icon-fill").unwrap(), "bleed");
+            assert!(EXPOSED.contains("x-icon-fill"));
+            for name in [
+                "x-icon-accent",
+                "x-icon-light-plate",
+                "x-icon-light-text",
+                "x-icon-light-mono",
+                "x-icon-dark-plate",
+                "x-icon-dark-text",
+                "x-icon-dark-mono",
+                "x-icon-light-mono-plate",
+                "x-icon-dark-mono-plate",
+            ] {
+                let v = h.get(name).unwrap().to_str().unwrap();
+                assert!(
+                    crate::palette::Rgb::parse(v).is_some(),
+                    "{path} {name} = {v}"
+                );
+                assert!(EXPOSED.contains(name), "{name} not exposed");
+            }
+        }
+        let r = get(&app, "/v1/icon/color/example.com").await;
+        let exposed = r.headers().get(ACCESS_CONTROL_EXPOSE_HEADERS).unwrap();
+        assert!(exposed.to_str().unwrap().contains("x-icon-dark-plate"));
+        assert_eq!(
+            get(&app, "/v1/palette/example.com").await.status(),
+            StatusCode::NOT_FOUND
+        );
     }
 
     #[tokio::test]

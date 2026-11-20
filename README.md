@@ -49,6 +49,12 @@ request must not leak the user, crash a server or become an attack vector.
   URL templates can be tried, e.g. `https://icons.duckduckgo.com/ip3/{domain}.ico`.
   Off by default. The example services are third-party and **using them may
   violate their terms of use**; see [docs/API.md](docs/API.md#upstream-providers).
+* **Palettes in the headers.** Every icon response says whether the icon brings
+  its own square, rounded square or circle, its brand colour, and for light and
+  dark themes a badge fill that keeps it visible, a readable text colour and a
+  colour for the monochrome mask (`X-Icon-Shape`, `X-Icon-Light-Plate`, …).
+  `X-Icon-Fill: bleed` marks icons with their own full background that should
+  be drawn edge to edge rather than padded.
 * **Deterministic fallback icons.** When there is no real icon, a symmetric
   identicon is generated from the domain. Headers say why
   (`X-Icon-Fallback-Reason: queued | not-found | blocklisted | domain-too-new | …`).

@@ -10,6 +10,7 @@ mod http;
 mod limiter;
 mod metrics;
 mod net;
+mod palette;
 mod policy;
 mod queue;
 mod render;

@@ -1,0 +1,137 @@
+name: docker
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  IMAGE: ghcr.io/${{ github.repository }}
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-24.04
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - id: arch
+        run: echo "name=${PLATFORM#linux/}" >> "$GITHUB_OUTPUT"
+        env:
+          PLATFORM: ${{ matrix.platform }}
+      - name: build for smoke test
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: ${{ matrix.platform }}
+          load: true
+          tags: favicons:smoke
+          cache-from: type=gha,scope=${{ steps.arch.outputs.name }}
+          cache-to: type=gha,mode=max,scope=${{ steps.arch.outputs.name }}
+      - name: smoke test
+        run: |
+          docker run --rm favicons:smoke sandbox-selftest render
+          for probe in fs write net exec prctl; do
+            set +e; docker run --rm favicons:smoke sandbox-selftest "$probe"; code=$?; set -e
+            if [ "$code" -ne 159 ]; then echo "probe $probe not killed by seccomp (exit $code)"; exit 1; fi
+          done
+          docker run -d --name smoke -p 8080:8080 \
+            -e FAVICONS_CACHE__STORAGE=s3://favicons-smoke-test/icons \
+            -e FAVICONS_CACHE__OPTIONS__AWS_REGION=us-east-1 \
+            -e FAVICONS_CACHE__OPTIONS__AWS_ACCESS_KEY_ID=AKIAEXAMPLESMOKE0000 \
+            -e FAVICONS_CACHE__OPTIONS__AWS_SECRET_ACCESS_KEY=not-a-secret \
+            favicons:smoke
+          for _ in $(seq 1 30); do curl -fs http://127.0.0.1:8080/healthz && break; sleep 0.5; done
+          curl -fs http://127.0.0.1:8080/healthz || { docker logs smoke; exit 1; }
+          headers=$(curl -fsS -D - -o /dev/null http://127.0.0.1:8080/v1/icon/color/example.com)
+          echo "$headers"
+          echo "$headers" | grep -qi '^content-type: image/svg+xml'
+          echo "$headers" | grep -qi '^x-icon-light-plate: #'
+          docker rm -f smoke
+      - uses: docker/login-action@v3
+        if: github.event_name != 'pull_request'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE }}
+      - id: push
+        if: github.event_name != 'pull_request'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: ${{ matrix.platform }}
+          labels: ${{ steps.meta.outputs.labels }}
+          outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha,scope=${{ steps.arch.outputs.name }}
+      - name: export digest
+        if: github.event_name != 'pull_request'
+        run: |
+          mkdir -p /tmp/digests
+          touch "/tmp/digests/${DIGEST#sha256:}"
+        env:
+          DIGEST: ${{ steps.push.outputs.digest }}
+      - uses: actions/upload-artifact@v4
+        if: github.event_name != 'pull_request'
+        with:
+          name: digest-${{ steps.arch.outputs.name }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: /tmp/digests
+          pattern: digest-*
+          merge-multiple: true
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,format=short
+      - name: create multi-arch manifest
+        working-directory: /tmp/digests
+        run: |
+          mapfile -t tags < <(jq -r '.tags[] | "-t", .' <<< "$DOCKER_METADATA_OUTPUT_JSON")
+          refs=()
+          for digest in *; do refs+=("$IMAGE@sha256:$digest"); done
+          docker buildx imagetools create "${tags[@]}" "${refs[@]}"
+      - name: inspect
+        run: docker buildx imagetools inspect "$IMAGE:sha-${GITHUB_SHA::7}"

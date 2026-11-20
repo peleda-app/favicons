@@ -248,8 +248,11 @@ runs the same image twice:
   can't loosen them.
 
 **Image.** `FROM scratch` with a single statically linked (musl) binary: no shell,
-no libc, no package manager, no CA bundle on disk (roots are compiled in). The
-whole image is about 20 MB.
+no libc, no package manager. Fetching icons uses root certificates compiled into
+the binary; the Mozilla CA bundle in `/etc/ssl/certs` is there only for the
+S3, GCS and Azure clients, which read it from disk. About 22 MB unpacked,
+7.3 MB to download. Published as `ghcr.io/peleda-app/favicons` for amd64 and
+arm64.
 
 **Verify on your host.** Each probe must be denied; on Linux it is killed with
 exit code 159 (128 + SIGSYS):

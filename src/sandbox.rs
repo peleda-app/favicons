@@ -307,7 +307,10 @@ mod seccomp {
     use std::collections::BTreeMap;
 
     use anyhow::Context;
-    use seccompiler::{BpfProgram, SeccompAction, SeccompFilter, TargetArch};
+    use seccompiler::{
+        BpfProgram, SeccompAction, SeccompCmpArgLen, SeccompCmpOp, SeccompCondition, SeccompFilter,
+        SeccompRule, TargetArch,
+    };
 
     const ALLOWED: &[libc::c_long] = &[
         libc::SYS_write,
@@ -336,10 +339,19 @@ mod seccomp {
     ];
 
     pub fn install() -> anyhow::Result<()> {
-        let rules = ALLOWED
+        let mut rules = ALLOWED
             .iter()
             .map(|s| (*s, vec![]))
             .collect::<BTreeMap<_, _>>();
+        let name_vma = SeccompCondition::new(
+            0,
+            SeccompCmpArgLen::Dword,
+            SeccompCmpOp::Eq,
+            libc::PR_SET_VMA as u64,
+        )
+        .and_then(|c| SeccompRule::new(vec![c]))
+        .context("building prctl rule")?;
+        rules.insert(libc::SYS_prctl, vec![name_vma]);
         let arch = TargetArch::try_from(std::env::consts::ARCH).context("unsupported arch")?;
         let filter = SeccompFilter::new(
             rules,
@@ -391,6 +403,8 @@ pub fn selftest(probe: &str) -> ExitCode {
         "fs" => std::fs::File::open("/etc/hostname").is_ok() || std::fs::File::open("/").is_ok(),
         "write" => std::fs::write("/tmp/favicons-sandbox-probe", b"x").is_ok(),
         "net" => std::net::TcpStream::connect(("1.1.1.1", 443)).is_ok(),
+        #[cfg(target_os = "linux")]
+        "prctl" => rustix::thread::set_name(c"probe").is_ok(),
         "exec" => std::process::Command::new("/bin/sh")
             .arg("-c")
             .arg("true")

@@ -254,7 +254,7 @@ whole image is about 20 MB.
 exit code 159 (128 + SIGSYS):
 
 ```bash
-for p in fs write net exec; do docker run --rm favicons sandbox-selftest $p; echo "$p: $?"; done
+for p in fs write net exec prctl; do docker run --rm favicons sandbox-selftest $p; echo "$p: $?"; done
 ```
 
 `sandbox-selftest render` must succeed (exit 0). CI runs the same checks.

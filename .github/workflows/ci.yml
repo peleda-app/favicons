@@ -24,7 +24,7 @@ jobs:
         run: |
           cargo build --locked
           ./target/debug/favicons sandbox-selftest render
-          for probe in fs write net exec; do
+          for probe in fs write net exec prctl; do
             set +e; ./target/debug/favicons sandbox-selftest "$probe"; code=$?; set -e
             if [ "$code" -ne 159 ]; then echo "probe $probe not killed by seccomp (exit $code)"; exit 1; fi
           done

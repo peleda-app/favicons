@@ -56,6 +56,10 @@ impl Config {
                 "upstream provider {template:?} must use https"
             );
         }
+        anyhow::ensure!(
+            self.server.worker_threads != Some(0),
+            "server.worker_threads must be > 0"
+        );
         anyhow::ensure!(self.fetch.workers > 0, "fetch.workers must be > 0");
         anyhow::ensure!(
             self.fetch.queue_capacity > 0,
@@ -97,6 +101,7 @@ pub struct Server {
     pub request_timeout_ms: u64,
     pub header_read_timeout_ms: u64,
     pub shutdown_grace_ms: u64,
+    pub worker_threads: Option<usize>,
 }
 
 impl Default for Server {
@@ -109,6 +114,7 @@ impl Default for Server {
             request_timeout_ms: 5_000,
             header_read_timeout_ms: 5_000,
             shutdown_grace_ms: 10_000,
+            worker_threads: None,
         }
     }
 }

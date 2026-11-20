@@ -20,7 +20,7 @@ use crate::net::{FetchError, Fetched, HttpClient, Redirects};
 use crate::policy::Policy;
 use crate::queue::FairQueue;
 use crate::sandbox::Renderer;
-use crate::store::{Meta, Status, Store, now};
+use crate::store::{Icon, Meta, Status, Store, now};
 use crate::vector::Vector;
 
 const ACCEPT_HTML: &str = "text/html,application/xhtml+xml;q=0.9,*/*;q=0.1";
@@ -42,7 +42,8 @@ pub struct App {
     pub limiter: RateLimiter,
     pub keyer: ClientKeyer,
     pub stats: Stats,
-    pub generated: Cache<(String, Style), Bytes>,
+    generated: Cache<([u8; 32], Style), Arc<Icon>>,
+    pub profiles: crate::http::Profiles,
     decode_slots: Arc<Semaphore>,
     pub request_slots: Arc<Semaphore>,
 }
@@ -61,6 +62,7 @@ impl App {
         )?;
         Ok(Arc::new(Self {
             store: Store::new(&cfg.cache, &cfg.http_cache)?,
+            profiles: crate::http::Profiles::new(&cfg.http_cache)?,
             policy: Policy::new(cfg.policy.clone()),
             catalog: crate::catalog::Catalog::new(&cfg.catalog.thesvg),
             renderer: match cfg.render.sandbox {
@@ -83,8 +85,8 @@ impl App {
             stats: Stats::default(),
             generated: Cache::builder()
                 .max_capacity(16 * 1024 * 1024)
-                .weigher(|k: &(String, Style), v: &Bytes| {
-                    (k.0.len() + v.len()).try_into().unwrap_or(u32::MAX)
+                .weigher(|_: &([u8; 32], Style), v: &Arc<Icon>| {
+                    (32 + v.data.len()).try_into().unwrap_or(u32::MAX)
                 })
                 .time_to_idle(Duration::from_secs(3_600))
                 .build(),
@@ -111,29 +113,30 @@ impl App {
         now().saturating_sub(meta.fetched_at) >= self.ttl_for(meta.status)
     }
 
-    pub fn warning_icon(&self, style: Style) -> Bytes {
-        self.generated_icon("\0blocked", style, crate::vector::warning)
+    pub fn warning_icon(&self, style: Style) -> Arc<Icon> {
+        self.generated_icon([0; 32], style, crate::vector::warning)
     }
 
-    pub fn identicon(&self, seed_source: &str, style: Style) -> Bytes {
+    pub fn identicon(&self, seed_source: &str, style: Style) -> Arc<Icon> {
         let mut hasher = blake3::Hasher::new();
         hasher.update(self.cfg.identicon.salt.as_bytes());
         hasher.update(b"\0");
         hasher.update(seed_source.as_bytes());
         let seed = *hasher.finalize().as_bytes();
-        self.generated_icon(seed_source, style, |mono| {
-            crate::vector::identicon(&seed, mono)
-        })
+        self.generated_icon(seed, style, |mono| crate::vector::identicon(&seed, mono))
     }
 
-    fn generated_icon(&self, key: &str, style: Style, draw: impl FnOnce(bool) -> String) -> Bytes {
-        let key = (key.to_string(), style);
-        if let Some(b) = self.generated.get(&key) {
-            return b;
-        }
-        let data = Bytes::from(draw(style == Style::Mono));
-        self.generated.insert(key, data.clone());
-        data
+    fn generated_icon(
+        &self,
+        key: [u8; 32],
+        style: Style,
+        draw: impl FnOnce(bool) -> String,
+    ) -> Arc<Icon> {
+        self.generated.get_with((key, style), || {
+            let data = Bytes::from(draw(style == Style::Mono));
+            let etag = format!("g-{}", &blake3::hash(&data).to_hex()[..20]);
+            Icon::new(data, Some(&etag), None)
+        })
     }
 
     pub fn spawn_workers(self: &Arc<Self>) {
@@ -278,7 +281,7 @@ impl App {
             );
             let etag = blake3::hash(vector.svg.as_bytes()).to_hex()[..20].to_string();
             meta.etags
-                .insert(crate::store::object_name(Slot::Color), etag);
+                .insert(crate::store::object_name(Slot::Color).into(), etag);
             meta.color = Some(vector.origin);
             meta.provenance = Some(Provenance::Site);
             images.push((Slot::Color, vector.svg.into_bytes()));
@@ -302,7 +305,7 @@ impl App {
                 tracing::debug!(domain, upstream = host, "icon taken from upstream provider");
                 let etag = blake3::hash(vector.svg.as_bytes()).to_hex()[..20].to_string();
                 meta.etags
-                    .insert(crate::store::object_name(Slot::Color), etag);
+                    .insert(crate::store::object_name(Slot::Color).into(), etag);
                 meta.color = Some(vector.origin);
                 meta.upstream = Some(host);
                 meta.provenance = Some(Provenance::Upstream);
@@ -313,7 +316,7 @@ impl App {
         if let Some((source, vector)) = self.monochrome(domain, &candidates, &images).await {
             let etag = blake3::hash(vector.svg.as_bytes()).to_hex()[..20].to_string();
             meta.etags
-                .insert(crate::store::object_name(Slot::Mono), etag);
+                .insert(crate::store::object_name(Slot::Mono).into(), etag);
             meta.mono = Some(vector.origin);
             meta.mono_source = Some(source);
             images.push((Slot::Mono, vector.svg.into_bytes()));
@@ -553,7 +556,7 @@ impl App {
             meta.license = license;
             let etag = blake3::hash(vector.svg.as_bytes()).to_hex()[..20].to_string();
             meta.etags
-                .insert(crate::store::object_name(Slot::Color), etag);
+                .insert(crate::store::object_name(Slot::Color).into(), etag);
             meta.color = Some(vector.origin);
             let colour_svg = vector.svg.into_bytes();
             let mut mono = None;
@@ -580,7 +583,7 @@ impl App {
             if let Some((source, v)) = mono {
                 let etag = blake3::hash(v.svg.as_bytes()).to_hex()[..20].to_string();
                 meta.etags
-                    .insert(crate::store::object_name(Slot::Mono), etag);
+                    .insert(crate::store::object_name(Slot::Mono).into(), etag);
                 meta.mono = Some(v.origin);
                 meta.mono_source = Some(source);
                 images.push((Slot::Mono, v.svg.into_bytes()));

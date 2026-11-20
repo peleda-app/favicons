@@ -10,6 +10,7 @@ max_concurrent_requests = 512
 request_timeout_ms = 5000
 header_read_timeout_ms = 5000
 shutdown_grace_ms = 10000
+# worker_threads = 2     # async runtime threads; default is one per CPU. Lower it on a box shared with other services
 
 [client_ip]
 # peer | x-forwarded-for | x-real-ip | cf-connecting-ip

@@ -8,7 +8,6 @@ use axum::extract::{ConnectInfo, Path, Request, State};
 use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
-use bytes::Bytes;
 use http::header::{
     ACCESS_CONTROL_ALLOW_ORIGIN, CACHE_CONTROL, CONTENT_SECURITY_POLICY, CONTENT_TYPE, ETAG,
     IF_NONE_MATCH, LOCATION, REFERRER_POLICY, RETRY_AFTER, X_CONTENT_TYPE_OPTIONS, X_FRAME_OPTIONS,
@@ -16,7 +15,7 @@ use http::header::{
 use http::{HeaderMap, HeaderName, HeaderValue, StatusCode, Uri};
 
 use crate::app::App;
-use crate::config::CacheProfile;
+use crate::config::{CacheProfile, HttpCache};
 use crate::contract::{
     FallbackReason, H_BLOCKED, H_CDN_CACHE_CONTROL, H_DOMAIN, H_FALLBACK, H_LICENSE, H_MONO_SOURCE,
     H_PROVENANCE, H_REASON, H_SOURCE, H_STALE, H_STYLE, H_UPSTREAM, H_VECTOR, MonoSource,
@@ -25,7 +24,7 @@ use crate::contract::{
 use crate::domain::{MAX_INPUT_LEN, normalize};
 use crate::metrics::inc;
 use crate::queue::Enqueue;
-use crate::store::{Meta, Status, object_name};
+use crate::store::{Icon, Meta, Status};
 
 pub fn router(app: Arc<App>) -> Router {
     Router::new()
@@ -101,11 +100,49 @@ fn plain(status: StatusCode, msg: &'static str) -> Response {
     r
 }
 
+pub struct CacheHeaders {
+    browser: HeaderValue,
+    cdn: HeaderValue,
+}
+
+impl CacheHeaders {
+    fn new(name: &str, p: &CacheProfile) -> anyhow::Result<Self> {
+        let parse = |v: &str| {
+            HeaderValue::from_str(v)
+                .map_err(|_| anyhow::anyhow!("http_cache.{name} has an invalid header value"))
+        };
+        Ok(Self {
+            browser: parse(&p.browser)?,
+            cdn: parse(&p.cdn)?,
+        })
+    }
+}
+
+pub struct Profiles {
+    icon: CacheHeaders,
+    redirect: CacheHeaders,
+    canonical: CacheHeaders,
+    fallback_transient: CacheHeaders,
+    fallback_stable: CacheHeaders,
+}
+
+impl Profiles {
+    pub fn new(c: &HttpCache) -> anyhow::Result<Self> {
+        Ok(Self {
+            icon: CacheHeaders::new("icon", &c.icon)?,
+            redirect: CacheHeaders::new("redirect", &c.redirect)?,
+            canonical: CacheHeaders::new("canonical", &c.canonical)?,
+            fallback_transient: CacheHeaders::new("fallback_transient", &c.fallback_transient)?,
+            fallback_stable: CacheHeaders::new("fallback_stable", &c.fallback_stable)?,
+        })
+    }
+}
+
 struct Req {
-    domain: Option<String>,
-    seed: String,
+    name: String,
+    valid: bool,
     style: Style,
-    if_none_match: Option<String>,
+    if_none_match: Option<HeaderValue>,
 }
 
 async fn icon(
@@ -155,43 +192,45 @@ async fn serve_icon(
         .iter()
         .find_map(|ext| requested.strip_suffix(ext))
         .unwrap_or(requested);
-    let mut req = Req {
-        domain: None,
-        seed: raw
-            .chars()
-            .take(MAX_INPUT_LEN)
-            .collect::<String>()
-            .to_lowercase(),
-        style,
-        if_none_match: headers
-            .get(IF_NONE_MATCH)
-            .and_then(|v| v.to_str().ok())
-            .map(str::to_owned),
-    };
+    let if_none_match = headers.get(IF_NONE_MATCH).cloned();
 
     let policy = &app.cfg.policy;
     let Some(n) = normalize(raw, policy.collapse_private_suffixes, &policy.deny_suffixes) else {
+        let req = Req {
+            name: raw
+                .chars()
+                .take(MAX_INPUT_LEN)
+                .collect::<String>()
+                .to_lowercase(),
+            valid: false,
+            style,
+            if_none_match,
+        };
         return fallback(&app, &req, FallbackReason::InvalidDomain);
     };
-    let domain = n.registrable;
-    req.seed.clone_from(&domain);
-    req.domain = Some(domain.clone());
-    if requested != domain || uri.query().is_some() || trailing_slash {
-        return redirect_to_canonical(&app, style, &domain).await;
+    if requested != n.registrable || uri.query().is_some() || trailing_slash {
+        return redirect_to_canonical(&app, style, &n.registrable).await;
     }
-    if app.policy.is_blocked(&n.host, &domain) {
+    let req = Req {
+        name: n.registrable,
+        valid: true,
+        style,
+        if_none_match,
+    };
+    let domain = &req.name;
+    if app.policy.is_blocked(&n.host, domain) {
         return fallback(&app, &req, FallbackReason::Blocklisted);
     }
 
-    if let Some(meta) = app.store.meta(&domain).await {
+    if let Some(meta) = app.store.meta(domain).await {
         let stale = app.is_stale(&meta);
         if stale {
-            let _ = app.queue.push(&domain, client);
+            let _ = app.queue.push(domain, client);
         }
         return serve_meta(&app, &req, &meta, Source::Cache, stale).await;
     }
 
-    match app.queue.push(&domain, client) {
+    match app.queue.push(domain, client) {
         Enqueue::Rejected => fallback(&app, &req, FallbackReason::Overloaded),
         Enqueue::Pending(mut rx) => {
             let wait = Duration::from_millis(app.cfg.fetch.wait_ms);
@@ -199,7 +238,7 @@ async fn serve_icon(
                 && tokio::time::timeout(wait, rx.wait_for(|done| *done))
                     .await
                     .is_ok()
-                && let Some(meta) = app.store.meta(&domain).await
+                && let Some(meta) = app.store.meta(domain).await
             {
                 return serve_meta(&app, &req, &meta, Source::Origin, false).await;
             }
@@ -246,13 +285,9 @@ async fn serve_meta(app: &App, req: &Req, meta: &Meta, source: Source, stale: bo
         };
         return fallback(app, req, reason);
     };
-    let etag = meta
-        .etags
-        .get(&object_name(shown.slot))
-        .map(|e| format!("\"{e}\""));
-    let out = Out {
+    let mut out = Out {
         source,
-        domain: Some(&meta.domain),
+        domain: None,
         upstream: meta.upstream.as_deref(),
         provenance: meta.provenance.map(Provenance::as_str),
         license: meta.license.as_deref(),
@@ -271,14 +306,16 @@ async fn serve_meta(app: &App, req: &Req, meta: &Meta, source: Source, stale: bo
         let mut r = Response::new(Body::empty());
         *r.status_mut() = StatusCode::FOUND;
         r.headers_mut().insert(LOCATION, loc);
-        decorate(&mut r, &app.cfg.http_cache.redirect, &out);
+        out.domain = HeaderValue::from_str(&meta.domain).ok();
+        decorate(&mut r, &app.profiles.redirect, &out);
         return r;
     }
 
-    match app.store.image(&meta.domain, shown.slot).await {
-        Some(data) => {
+    match app.store.image(meta, shown.slot).await {
+        Some(icon) => {
             inc(&app.stats.served_cache);
-            image(data, etag, req, &app.cfg.http_cache.icon, &out)
+            out.domain.clone_from(&icon.domain);
+            image(&icon, req, &app.profiles.icon, &out)
         }
         None => {
             tracing::warn!(
@@ -309,7 +346,7 @@ async fn redirect_to_canonical(app: &App, style: Style, domain: &str) -> Respons
             app,
             StatusCode::FOUND,
             &url,
-            &app.cfg.http_cache.redirect,
+            &app.profiles.redirect,
             style,
             domain,
         );
@@ -320,7 +357,7 @@ async fn redirect_to_canonical(app: &App, style: Style, domain: &str) -> Respons
         app,
         StatusCode::MOVED_PERMANENTLY,
         &location,
-        &app.cfg.http_cache.canonical,
+        &app.profiles.canonical,
         style,
         domain,
     )
@@ -330,7 +367,7 @@ fn redirect(
     app: &App,
     status: StatusCode,
     location: &str,
-    profile: &CacheProfile,
+    profile: &CacheHeaders,
     style: Style,
     domain: &str,
 ) -> Response {
@@ -345,7 +382,7 @@ fn redirect(
     r.headers_mut().insert(LOCATION, loc);
     let out = Out {
         source: Source::Cache,
-        domain: Some(domain),
+        domain: HeaderValue::from_str(domain).ok(),
         upstream: None,
         provenance: None,
         license: None,
@@ -360,11 +397,10 @@ fn redirect(
 
 fn fallback(app: &App, req: &Req, reason: FallbackReason) -> Response {
     app.stats.fallback(reason);
-    let hc = &app.cfg.http_cache;
     let profile = if reason.is_transient() {
-        &hc.fallback_transient
+        &app.profiles.fallback_transient
     } else {
-        &hc.fallback_stable
+        &app.profiles.fallback_stable
     };
     let mono = req.style == Style::Mono;
     let shown = Shown {
@@ -374,7 +410,11 @@ fn fallback(app: &App, req: &Req, reason: FallbackReason) -> Response {
     };
     let out = Out {
         source: Source::Generated,
-        domain: req.domain.as_deref(),
+        domain: if req.valid {
+            HeaderValue::from_str(&req.name).ok()
+        } else {
+            None
+        },
         upstream: None,
         provenance: None,
         license: None,
@@ -383,18 +423,17 @@ fn fallback(app: &App, req: &Req, reason: FallbackReason) -> Response {
         reason: Some(reason),
         stale: false,
     };
-    let data = if reason.blocked_by().is_some() {
+    let icon = if reason.blocked_by().is_some() {
         app.warning_icon(req.style)
     } else {
-        app.identicon(&req.seed, req.style)
+        app.identicon(&req.name, req.style)
     };
-    let etag = format!("\"g-{}\"", &blake3::hash(&data).to_hex()[..20]);
-    image(data, Some(etag), req, profile, &out)
+    image(&icon, req, profile, &out)
 }
 
 struct Out<'a> {
     source: Source,
-    domain: Option<&'a str>,
+    domain: Option<HeaderValue>,
     upstream: Option<&'a str>,
     provenance: Option<&'static str>,
     license: Option<&'a str>,
@@ -404,48 +443,43 @@ struct Out<'a> {
     stale: bool,
 }
 
-fn image(
-    data: Bytes,
-    etag: Option<String>,
-    req: &Req,
-    profile: &CacheProfile,
-    out: &Out<'_>,
-) -> Response {
-    let not_modified =
-        matches!((&etag, &req.if_none_match), (Some(e), Some(inm)) if etag_matches(inm, e));
+fn image(icon: &Icon, req: &Req, profile: &CacheHeaders, out: &Out<'_>) -> Response {
+    let not_modified = match (&icon.etag, &req.if_none_match) {
+        (Some(e), Some(inm)) => match (inm.to_str(), e.to_str()) {
+            (Ok(inm), Ok(e)) => etag_matches(inm, e),
+            _ => false,
+        },
+        _ => false,
+    };
     let mut r = if not_modified {
         let mut r = Response::new(Body::empty());
         *r.status_mut() = StatusCode::NOT_MODIFIED;
         r
     } else {
-        let mut r = Response::new(Body::from(data));
+        let mut r = Response::new(Body::from(icon.data.clone()));
         r.headers_mut()
             .insert(CONTENT_TYPE, HeaderValue::from_static(SVG_MIME));
         r
     };
-    if let Some(e) = etag.and_then(|e| HeaderValue::from_str(&e).ok()) {
-        r.headers_mut().insert(ETAG, e);
+    if let Some(e) = &icon.etag {
+        r.headers_mut().insert(ETAG, e.clone());
     }
     decorate(&mut r, profile, out);
     r
 }
 
-fn decorate(r: &mut Response, profile: &CacheProfile, out: &Out<'_>) {
+fn decorate(r: &mut Response, profile: &CacheHeaders, out: &Out<'_>) {
     let h = r.headers_mut();
     let name = HeaderName::from_static;
-    if let Ok(v) = HeaderValue::from_str(&profile.browser) {
-        h.insert(CACHE_CONTROL, v);
-    }
-    if let Ok(v) = HeaderValue::from_str(&profile.cdn) {
-        h.insert(name(H_CDN_CACHE_CONTROL), v);
-    }
+    h.insert(CACHE_CONTROL, profile.browser.clone());
+    h.insert(name(H_CDN_CACHE_CONTROL), profile.cdn.clone());
     h.insert(
         name(H_SOURCE),
         HeaderValue::from_static(out.source.as_str()),
     );
     h.insert(name(H_STYLE), HeaderValue::from_static(out.style.as_str()));
-    if let Some(v) = out.domain.and_then(|d| HeaderValue::from_str(d).ok()) {
-        h.insert(name(H_DOMAIN), v);
+    if let Some(v) = &out.domain {
+        h.insert(name(H_DOMAIN), v.clone());
     }
     if let Some(shown) = out.shown {
         h.insert(name(H_VECTOR), HeaderValue::from_static(shown.vector));

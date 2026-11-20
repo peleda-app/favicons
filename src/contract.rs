@@ -54,15 +54,6 @@ pub enum Slot {
     Mono,
 }
 
-impl Slot {
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Slot::Color => "color",
-            Slot::Mono => "mono",
-        }
-    }
-}
-
 pub const H_CDN_CACHE_CONTROL: &str = "cdn-cache-control";
 
 pub const SVG_MIME: &str = "image/svg+xml";

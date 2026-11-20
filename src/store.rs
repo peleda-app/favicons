@@ -4,7 +4,8 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use anyhow::Context;
 use bytes::Bytes;
-use moka::future::Cache;
+use http::HeaderValue;
+use moka::sync::Cache;
 use object_store::path::Path;
 use object_store::{Attribute, Attributes, ObjectStore, ObjectStoreExt, PutOptions, PutPayload};
 use serde::{Deserialize, Serialize};
@@ -70,8 +71,47 @@ pub fn now() -> u64 {
         .map_or(0, |d| d.as_secs())
 }
 
-pub fn object_name(slot: Slot) -> String {
-    format!("{}.svg", slot.as_str())
+pub fn object_name(slot: Slot) -> &'static str {
+    match slot {
+        Slot::Color => "color.svg",
+        Slot::Mono => "mono.svg",
+    }
+}
+
+pub struct Icon {
+    pub data: Bytes,
+    pub etag: Option<HeaderValue>,
+    pub domain: Option<HeaderValue>,
+}
+
+impl Icon {
+    pub fn new(data: Bytes, etag: Option<&str>, domain: Option<&str>) -> Arc<Self> {
+        Arc::new(Self {
+            data,
+            etag: etag.and_then(|e| HeaderValue::from_str(&format!("\"{e}\"")).ok()),
+            domain: domain.and_then(|d| HeaderValue::from_str(d).ok()),
+        })
+    }
+
+    fn of(meta: &Meta, slot: Slot, data: Bytes) -> Arc<Self> {
+        Self::new(
+            data,
+            meta.etags.get(object_name(slot)).map(String::as_str),
+            Some(&meta.domain),
+        )
+    }
+}
+
+type IconCache = Cache<String, Arc<Icon>>;
+
+fn icon_cache(cfg: &CacheCfg) -> IconCache {
+    Cache::builder()
+        .max_capacity(cfg.memory_max_bytes / 2)
+        .weigher(|k: &String, v: &Arc<Icon>| {
+            (k.len() + v.data.len()).try_into().unwrap_or(u32::MAX)
+        })
+        .time_to_live(Duration::from_secs(cfg.memory_ttl_secs))
+        .build()
 }
 
 pub struct Store {
@@ -83,7 +123,8 @@ pub struct Store {
     object_cache_control: String,
     meta_mem: Cache<String, Arc<Meta>>,
     absent: Cache<String, ()>,
-    img_mem: Cache<String, Bytes>,
+    img_color: IconCache,
+    img_mono: IconCache,
 }
 
 impl Store {
@@ -107,12 +148,16 @@ impl Store {
                 .max_capacity(cfg.memory_meta_entries)
                 .time_to_live(Duration::from_secs(cfg.absent_ttl_secs.max(1)))
                 .build(),
-            img_mem: Cache::builder()
-                .max_capacity(cfg.memory_max_bytes)
-                .weigher(|k: &String, v: &Bytes| (k.len() + v.len()).try_into().unwrap_or(u32::MAX))
-                .time_to_live(Duration::from_secs(cfg.memory_ttl_secs))
-                .build(),
+            img_color: icon_cache(cfg),
+            img_mono: icon_cache(cfg),
         })
+    }
+
+    fn icons(&self, slot: Slot) -> &IconCache {
+        match slot {
+            Slot::Color => &self.img_color,
+            Slot::Mono => &self.img_mono,
+        }
     }
 
     pub fn has_backend(&self) -> bool {
@@ -137,7 +182,7 @@ impl Store {
     }
 
     pub async fn meta(&self, domain: &str) -> Option<Arc<Meta>> {
-        if let Some(m) = self.meta_mem.get(domain).await {
+        if let Some(m) = self.meta_mem.get(domain) {
             return Some(m);
         }
         let backend = self.backend.as_ref()?;
@@ -148,7 +193,7 @@ impl Store {
             Ok(Some(bytes)) => match serde_json::from_slice::<Meta>(&bytes) {
                 Ok(meta) if meta.domain == domain => {
                     let meta = Arc::new(meta);
-                    self.meta_mem.insert(domain.to_string(), meta.clone()).await;
+                    self.meta_mem.insert(domain.to_string(), meta.clone());
                     Some(meta)
                 }
                 _ => {
@@ -157,7 +202,7 @@ impl Store {
                 }
             },
             Ok(None) => {
-                self.absent.insert(domain.to_string(), ()).await;
+                self.absent.insert(domain.to_string(), ());
                 None
             }
             Err(e) => {
@@ -167,17 +212,21 @@ impl Store {
         }
     }
 
-    pub async fn image(&self, domain: &str, slot: Slot) -> Option<Bytes> {
-        let name = object_name(slot);
-        let key = format!("{domain}/{name}");
-        if let Some(b) = self.img_mem.get(&key).await {
-            return Some(b);
+    pub async fn image(&self, meta: &Meta, slot: Slot) -> Option<Arc<Icon>> {
+        let domain = meta.domain.as_str();
+        let cache = self.icons(slot);
+        if let Some(icon) = cache.get(domain) {
+            return Some(icon);
         }
         let backend = self.backend.as_ref()?;
-        match self.read(backend, &self.path(domain, &name)).await {
+        match self
+            .read(backend, &self.path(domain, object_name(slot)))
+            .await
+        {
             Ok(Some(b)) => {
-                self.img_mem.insert(key, b.clone()).await;
-                Some(b)
+                let icon = Icon::of(meta, slot, b);
+                cache.insert(domain.to_string(), icon.clone());
+                Some(icon)
             }
             Ok(None) => None,
             Err(e) => {
@@ -194,7 +243,7 @@ impl Store {
             let bytes = Bytes::from(data);
             if let Some(backend) = &self.backend {
                 let opts = self.put_options(SVG_MIME, &self.object_cache_control);
-                let path = self.path(&domain, &name);
+                let path = self.path(&domain, name);
                 let res = tokio::time::timeout(
                     self.timeout,
                     backend.put_opts(&path, PutPayload::from(bytes.clone()), opts),
@@ -204,7 +253,8 @@ impl Store {
                     tracing::warn!(domain, name, "storage write failed");
                 }
             }
-            self.img_mem.insert(format!("{domain}/{name}"), bytes).await;
+            self.icons(slot)
+                .insert(domain.clone(), Icon::of(&meta, slot, bytes));
         }
         if let Some(backend) = &self.backend {
             match serde_json::to_vec(&meta) {
@@ -226,8 +276,8 @@ impl Store {
                 Err(e) => tracing::warn!(domain, error = %e, "meta serialization failed"),
             }
         }
-        self.absent.invalidate(&domain).await;
-        self.meta_mem.insert(domain, Arc::new(meta)).await;
+        self.absent.invalidate(&domain);
+        self.meta_mem.insert(domain, Arc::new(meta));
     }
 
     fn put_options(&self, content_type: &str, cache_control: &str) -> PutOptions {
@@ -318,11 +368,7 @@ mod tests {
         let meta = fresh.meta("example.com").await.unwrap();
         assert_eq!(meta.color, Some(VectorOrigin::Traced));
         assert_eq!(
-            fresh
-                .image("example.com", Slot::Mono)
-                .await
-                .unwrap()
-                .as_ref(),
+            fresh.image(&meta, Slot::Mono).await.unwrap().data.as_ref(),
             [4, 5]
         );
         assert!(dir.join("v3/example.com/color.svg").exists());

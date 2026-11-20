@@ -32,17 +32,14 @@ impl ClientKeyer {
             IpSource::Peer => None,
             IpSource::XRealIp => header_ip("x-real-ip"),
             IpSource::CfConnectingIp => header_ip("cf-connecting-ip"),
-            IpSource::XForwardedFor => {
-                let hops: Vec<IpAddr> = headers
-                    .get_all("x-forwarded-for")
-                    .iter()
-                    .filter_map(|v| v.to_str().ok())
-                    .flat_map(|v| v.split(','))
-                    .filter_map(|s| s.trim().parse().ok())
-                    .collect();
-                let n = self.cfg.trusted_hops.max(1);
-                hops.len().checked_sub(n).and_then(|i| hops.get(i).copied())
-            }
+            IpSource::XForwardedFor => headers
+                .get_all("x-forwarded-for")
+                .iter()
+                .rev()
+                .filter_map(|v| v.to_str().ok())
+                .flat_map(|v| v.rsplit(','))
+                .filter_map(|s| s.trim().parse::<IpAddr>().ok())
+                .nth(self.cfg.trusted_hops.max(1) - 1),
         };
         picked.unwrap_or(peer)
     }
@@ -53,11 +50,10 @@ impl ClientKeyer {
             self.cfg.ipv4_prefix,
             self.cfg.ipv6_prefix,
         );
-        let bytes = match masked {
-            IpAddr::V4(v4) => v4.octets().to_vec(),
-            IpAddr::V6(v6) => v6.octets().to_vec(),
+        let h = match masked {
+            IpAddr::V4(v4) => blake3::keyed_hash(&self.secret, &v4.octets()),
+            IpAddr::V6(v6) => blake3::keyed_hash(&self.secret, &v6.octets()),
         };
-        let h = blake3::keyed_hash(&self.secret, &bytes);
         let mut out = [0u8; 8];
         out.copy_from_slice(&h.as_bytes()[..8]);
         u64::from_le_bytes(out)
@@ -183,6 +179,11 @@ mod tests {
             ..ClientIp::default()
         });
         assert_eq!(k.client_ip(peer, &h), "1.2.3.4".parse::<IpAddr>().unwrap());
+        h.append("x-forwarded-for", "9.9.9.9".parse().unwrap());
+        assert_eq!(k.client_ip(peer, &h), "10.0.0.1".parse::<IpAddr>().unwrap());
+        let mut junk = HeaderMap::new();
+        junk.insert("x-forwarded-for", "nope, 5.5.5.5".parse().unwrap());
+        assert_eq!(k.client_ip(peer, &junk), peer);
         assert_eq!(keyer(IpSource::Peer).client_ip(peer, &h), peer);
         assert_eq!(keyer(IpSource::CfConnectingIp).client_ip(peer, &h), peer);
     }

@@ -25,6 +25,9 @@ use std::process::ExitCode;
 use tokio::sync::watch;
 use tracing_subscriber::EnvFilter;
 
+#[global_allocator]
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 fn main() -> ExitCode {
     let mut args = std::env::args().skip(1).peekable();
     match args.peek().map(String::as_str) {
@@ -86,7 +89,11 @@ fn run_main(mut args: impl Iterator<Item = String>) -> anyhow::Result<()> {
             .block_on(sandbox::serve(&render.socket_path.clone(), render));
     }
 
-    tokio::runtime::Builder::new_multi_thread()
+    let mut runtime = tokio::runtime::Builder::new_multi_thread();
+    if let Some(n) = cfg.server.worker_threads {
+        runtime.worker_threads(n);
+    }
+    runtime
         .enable_all()
         .thread_stack_size(8 * 1024 * 1024)
         .max_blocking_threads(cfg.render.decode_concurrency * 2 + cfg.fetch.workers * 2 + 16)

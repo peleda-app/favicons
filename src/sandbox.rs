@@ -355,6 +355,19 @@ mod seccomp {
 }
 
 pub fn selftest(probe: &str) -> ExitCode {
+    if std::env::var_os(ALLOC_ENV.0).is_none() {
+        use std::os::unix::process::CommandExt;
+        let err = std::env::current_exe()
+            .map(|exe| {
+                std::process::Command::new(exe)
+                    .args(["sandbox-selftest", probe])
+                    .env(ALLOC_ENV.0, ALLOC_ENV.1)
+                    .exec()
+            })
+            .unwrap_or_else(|e| e);
+        eprintln!("re-exec failed: {err}");
+        return ExitCode::from(2);
+    }
     let cfg = RenderCfg {
         decode_timeout_ms: 120_000,
         ..RenderCfg::default()
@@ -489,10 +502,13 @@ fn sample_images() -> anyhow::Result<Vec<(&'static str, Vec<u8>)>> {
     Ok(out)
 }
 
+pub const ALLOC_ENV: (&str, &str) = ("MIMALLOC_ARENA_RESERVE", "8MiB");
+
 pub async fn run_worker(exe: &Path, request: &[u8], timeout: Duration) -> anyhow::Result<Vec<u8>> {
     let mut child = tokio::process::Command::new(exe)
         .arg("render-worker")
         .env_clear()
+        .env(ALLOC_ENV.0, ALLOC_ENV.1)
         .current_dir("/")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())

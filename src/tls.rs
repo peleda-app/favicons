@@ -9,6 +9,8 @@ use instant_acme::{
     Account, AccountCredentials, AuthorizationStatus, ChallengeType, Identifier, NewAccount,
     NewOrder, OrderStatus, RetryPolicy,
 };
+use rustls::pki_types::pem::PemObject;
+use rustls::pki_types::{CertificateDer, PrivateKeyDer};
 use rustls::server::{ClientHello, ResolvesServerCert};
 use rustls::sign::CertifiedKey;
 use tokio::sync::watch;
@@ -98,20 +100,18 @@ pub fn server_config(certs: Arc<CertStore>) -> anyhow::Result<rustls::ServerConf
 }
 
 fn certified_key(chain_pem: &str, key_pem: &str) -> anyhow::Result<CertifiedKey> {
-    let chain = rustls_pemfile::certs(&mut chain_pem.as_bytes())
+    let chain = CertificateDer::pem_slice_iter(chain_pem.as_bytes())
         .collect::<Result<Vec<_>, _>>()
         .context("parsing certificate chain")?;
     anyhow::ensure!(!chain.is_empty(), "certificate chain is empty");
-    let key = rustls_pemfile::private_key(&mut key_pem.as_bytes())
-        .context("parsing private key")?
-        .context("no private key found")?;
+    let key = PrivateKeyDer::from_pem_slice(key_pem.as_bytes()).context("parsing private key")?;
     let signer = rustls::crypto::ring::sign::any_supported_type(&key)
         .context("unsupported private key type")?;
     Ok(CertifiedKey::new(chain, signer))
 }
 
 fn not_after(chain_pem: &str) -> Option<SystemTime> {
-    let der = rustls_pemfile::certs(&mut chain_pem.as_bytes())
+    let der = CertificateDer::pem_slice_iter(chain_pem.as_bytes())
         .next()?
         .ok()?;
     let (_, cert) = x509_parser::parse_x509_certificate(&der).ok()?;

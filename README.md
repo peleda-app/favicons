@@ -102,7 +102,10 @@ x-icon-style: color
 x-icon-vector: original
 ```
 
-Docker (a ~20 MB `scratch` image with one static binary, running as uid 65534):
+Docker: `ghcr.io/peleda-app/favicons`, a `scratch` image for amd64 and arm64
+with one static binary, running as uid 65534 (7.3 MB to download). Tags:
+`latest` and `main` follow the main branch, `sha-<commit>` pins a build, and
+`1.2.3` / `1.2` appear for release tags.
 
 ```bash
 docker compose up -d
@@ -114,7 +117,7 @@ root, no capabilities and a seccomp-confined worker process per image. See
 images are still decoded in seccomp-confined child processes.
 
 ```bash
-docker run --rm -p 8080:8080 --read-only --cap-drop ALL --security-opt no-new-privileges -e FAVICONS_CACHE__STORAGE=s3://my-bucket/icons favicons
+docker run --rm -p 8080:8080 --read-only --cap-drop ALL --security-opt no-new-privileges -e FAVICONS_CACHE__STORAGE=s3://my-bucket/icons ghcr.io/peleda-app/favicons
 ```
 
 ## Documentation
@@ -195,39 +198,51 @@ writes the summary to the job page.
 
 ## Performance
 
-The same k6 suite on two very different machines. `SCALE=1` is ~1 400 rps
-across the four scenarios, `SCALE=2` doubles every rate, and so on. Every run
-kept **100%** of honest requests getting the real icon, had no 5xx, and
-rate-limited the attacking subnet. CPU is the favicons process alone.
+Measured with [wrk](https://github.com/wg/wrk) and
+[`loadtest/throughput.lua`](loadtest/throughput.lua), running on the same
+machine as the service and talking to it over loopback. Every request asks
+for a random popular icon in a random style from a random client subnet, so
+the subnet rate limiter does its normal work; the icons are already cached.
 
-**A weak, busy box:** `homeassistant-relay`, an Intel Celeron N3160 thin
-client (4 × 1.6 GHz, 3.5 GB RAM, 8 GB eMMC). It keeps running a Chromium wall
-panel, a Zigbee serial bridge and a BLE gateway, so favicons ran at low CPU
-priority with a 600 MB memory cap. Load came from a laptop on the LAN through
-an SSH tunnel, which costs this box more CPU than favicons itself.
+```bash
+wrk -t2 -c32 -d20s -s loadtest/throughput.lua http://127.0.0.1:8080
+```
 
-| Load | Throughput | p95 | p99 | favicons CPU | Memory peak |
-|------|-----------:|----:|----:|-------------:|------------:|
-| `SCALE=1` | 1 406 rps | 6.8 ms | 12.9 ms | 0.52 of 4 cores | 73 MB |
-| `SCALE=2` | 2 818 rps | 7.8 ms | 10.4 ms | 0.80 of 4 cores | 73 MB |
+| Machine | Peak | p99 | favicons CPU | Memory | What gave out |
+|---------|-----:|----:|-------------:|-------:|---------------|
+| Apple M3 Pro laptop (12 cores) | 170 395 rps | 0.29 ms | 3.5 cores | 47 MB | wrk and favicons sharing the 6 performance cores |
+| Intel Celeron N3160 thin client (4 × 1.6 GHz, 3.5 GB) | 10 843 rps | 6.2 ms | 2.0 cores | 63 MB | the CPU, half of it spent in the kernel's TCP stack |
 
-The other services there never noticed: the wall panel, Zigbee and BLE stayed
-up through every run.
+No run had a single socket error or non-2xx response.
 
-**A laptop:** Apple M3 Pro (12 cores, 36 GB), with k6 in Docker on the same
-machine. At `SCALE=8` k6 itself starts falling behind, so that row is a floor,
-not a ceiling.
+### Apple M3 Pro laptop
 
-| Load | Throughput | p95 | p99 | favicons CPU | Memory peak |
-|------|-----------:|----:|----:|-------------:|------------:|
-| `SCALE=1` | 1 410 rps | 2.2 ms | 4.6 ms | 0.35 cores | 49 MB |
-| `SCALE=2` | 2 821 rps | 2.0 ms | 4.2 ms | 0.34 cores | 72 MB |
-| `SCALE=4` | 5 640 rps | 1.7 ms | 3.9 ms | 0.50 cores | 87 MB |
-| `SCALE=8` | 11 277 rps | 1.2 ms | 3.5 ms | 0.47 cores | 98 MB |
+| Server threads | wrk | Throughput | p99 | p99.9 | favicons CPU | Memory |
+|---------------:|-----|-----------:|----:|------:|-------------:|-------:|
+| 12 (default) | 2 threads, 32 connections | 161 319 rps | 0.34 ms | 22.8 ms | 3.6 cores | 59 MB |
+| 6 | 2 threads, 32 connections | 170 395 rps | 0.29 ms | 0.45 ms | 3.5 cores | 47 MB |
+| 4 | 2 threads, 32 connections | 166 681 rps | 0.34 ms | 0.51 ms | 3.1 cores | 45 MB |
 
-Part of the CPU is fixed background work (fetching what the rate-limited
-attacker gets through), which is why the cost per request falls as load rises.
-These are cache hits and junk; fetching a new site's icon is bounded by
+More wrk threads or connections only lowered throughput, and four or six
+server threads did as well as twelve: wrk and favicons compete for the same 6
+performance cores. Roughly 170 000 rps is the ceiling of one laptop serving and
+loading itself; the service was not short of CPU.
+
+### Intel Celeron N3160 thin client
+
+favicons and wrk ran at low CPU priority.
+
+| Server threads | wrk | Throughput | p99 | p99.9 | favicons CPU | Memory |
+|---------------:|-----|-----------:|----:|------:|-------------:|-------:|
+| 4 (default) | 1 thread, 8 connections | 7 775 rps | 2.9 ms | 5.0 ms | 1.6 of 4 cores | 63 MB |
+| 4 (default) | 2 threads, 32 connections | 8 797–10 843 rps | 6.2–8.0 ms | 8.8–10.9 ms | 1.8–2.0 of 4 cores | 63 MB |
+| 2 | 2 threads, 64 connections | 9 446 rps | 10.3 ms | 11.0 ms | 1.7 of 4 cores | 55 MB |
+
+Here the box itself is the limit: during a run only 4% of its CPU was idle,
+and almost half went to the kernel moving packets over loopback (32% system,
+14% interrupts) rather than to favicons.
+
+These are cache hits. Fetching a new site's icon is bounded by
 `fetch.workers` and the network, not by these numbers.
 
 ## Development

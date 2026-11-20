@@ -303,29 +303,29 @@ x-icon-dark-mono-plate: #1d442b</pre></div>
 <section id="performance">
   <div class="eyebrow">performance</div>
   <h2>Small enough for a thin client.</h2>
-  <p class="sub">The k6 flood suite (cache hits, junk, an attacking subnet and honest clients at once) on two very different machines. Every run kept 100% of honest requests served with no errors.</p>
+  <p class="sub">wrk on the same machine as the service, asking for random cached icons from random client subnets with rate limiting on. No socket errors and no non-2xx responses in any run.</p>
   <div class="perf">
     <div class="machine">
       <h3>Celeron N3160 thin client</h3>
-      <p class="spec">4 × 1.6 GHz · 3.5 GB · 8 GB eMMC · also running a wall panel, a Zigbee bridge and a BLE gateway</p>
+      <p class="spec">4 × 1.6 GHz · 3.5 GB · 8 GB eMMC</p>
       <div class="figures">
-        <div><b>2 818</b><span>rps</span></div>
-        <div><b>10 ms</b><span>p99</span></div>
-        <div><b>0.8</b><span>of 4 cores</span></div>
-        <div><b>73 MB</b><span>memory</span></div>
+        <div><b>10 843</b><span>rps</span></div>
+        <div><b>6.2 ms</b><span>p99</span></div>
+        <div><b>2.0</b><span>of 4 cores</span></div>
+        <div><b>63 MB</b><span>memory</span></div>
       </div>
-      <p class="note">Low CPU priority, 600 MB cap, load over an SSH tunnel. The other services never noticed.</p>
+      <p class="note">The CPU gave out first, and half of it went to the kernel moving packets rather than to favicons.</p>
     </div>
     <div class="machine">
       <h3>Apple M3 Pro laptop</h3>
-      <p class="spec">12 cores · 36 GB · k6 running on the same machine</p>
+      <p class="spec">12 cores · 36 GB</p>
       <div class="figures">
-        <div><b>11 277</b><span>rps</span></div>
-        <div><b>3.5 ms</b><span>p99</span></div>
-        <div><b>0.5</b><span>cores</span></div>
-        <div><b>98 MB</b><span>memory</span></div>
+        <div><b>170 395</b><span>rps</span></div>
+        <div><b>0.29 ms</b><span>p99</span></div>
+        <div><b>3.5</b><span>of 12 cores</span></div>
+        <div><b>47 MB</b><span>memory</span></div>
       </div>
-      <p class="note">k6 became the bottleneck first, so this is a floor, not a ceiling.</p>
+      <p class="note">wrk and favicons shared the six performance cores; the service itself was not short of CPU.</p>
     </div>
   </div>
 </section>

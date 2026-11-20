@@ -77,6 +77,7 @@ fn run_main(mut args: impl Iterator<Item = String>) -> anyhow::Result<()> {
         tracing_subscriber::fmt().with_env_filter(filter).init();
     }
 
+    let _ = rustls::crypto::ring::default_provider().install_default();
     let cfg = config::Config::load(config_path.as_deref())?;
     if check_only {
         println!("config ok");

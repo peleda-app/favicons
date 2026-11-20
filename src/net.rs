@@ -126,6 +126,21 @@ pub struct HttpClient {
     urls: Arc<UrlPolicy>,
 }
 
+fn tls_config() -> anyhow::Result<rustls::ClientConfig> {
+    let roots = rustls::RootCertStore {
+        roots: webpki_roots::TLS_SERVER_ROOTS.to_vec(),
+    };
+    let mut config = rustls::ClientConfig::builder_with_provider(Arc::new(
+        rustls::crypto::ring::default_provider(),
+    ))
+    .with_safe_default_protocol_versions()
+    .context("tls protocol versions")?
+    .with_root_certificates(roots)
+    .with_no_client_auth();
+    config.alpn_protocols = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
+    Ok(config)
+}
+
 impl HttpClient {
     pub fn new(cfg: &Fetch, dns: Arc<SafeDns>, redirects: Redirects) -> anyhow::Result<Self> {
         let max_redirects = cfg.max_redirects;
@@ -154,6 +169,7 @@ impl HttpClient {
             .pool_idle_timeout(Duration::from_secs(15))
             .https_only(!urls.allow_http)
             .referer(false)
+            .tls_backend_preconfigured(tls_config()?)
             .build()
             .context("building http client")?;
         Ok(Self { client, urls })

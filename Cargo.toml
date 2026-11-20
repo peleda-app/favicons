@@ -23,12 +23,13 @@ hyper-util = { version = "0.1.21", features = ["server", "server-auto", "tokio",
 image = { version = "0.25", default-features = false, features = ["png", "ico", "jpeg", "gif", "webp", "bmp"] }
 mimalloc = { version = "0.1.52", default-features = false }
 moka = { version = "0.12", features = ["future", "sync"] }
-object_store = { version = "0.14", features = ["aws", "gcp", "azure"] }
+object_store = { version = "0.14", features = ["aws-base", "gcp-base", "azure-base", "reqwest", "ring"] }
 percent-encoding = "2"
 psl = "2"
 rand = "0.9"
-reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "http2", "charset", "json", "gzip", "brotli", "deflate"] }
+reqwest = { version = "0.13", default-features = false, features = ["rustls-no-provider", "http2", "charset", "json", "gzip", "brotli", "deflate"] }
 resvg = { version = "0.45", default-features = false }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
 rustix = { version = "1", features = ["process", "thread"] }
 scraper = { version = "0.23", default-features = false }
 serde = { version = "1", features = ["derive"] }
@@ -40,6 +41,7 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 url = "2"
 visioncortex = "0.8"
+webpki-roots = "1"
 
 [profile.release]
 lto = "thin"

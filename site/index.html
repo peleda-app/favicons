@@ -98,14 +98,21 @@ h2 { font-size: clamp(28px, 3.4vw, 38px); letter-spacing: -.025em; line-height: 
 .code .c { color: var(--dim); }
 .copy { position: absolute; top: 12px; right: 12px; border: 0; background: transparent; color: var(--dim); font: 13px var(--sans); cursor: pointer; padding: 4px 6px; border-radius: 6px; }
 .copy:hover { color: var(--text); }
-.bench { margin-top: 22px; color: var(--muted); font-size: 15px; }
-.bench b { color: var(--text); font-weight: 600; }
+.perf { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.machine { background: var(--surface); border-radius: 18px; padding: 24px; }
+.machine h3 { margin: 0 0 4px; font-size: 16px; font-weight: 600; }
+.machine .spec { margin: 0 0 22px; color: var(--dim); font-size: 13px; }
+.figures { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.figures b { display: block; font: 600 22px/1.2 var(--sans); letter-spacing: -.02em; color: var(--cream); }
+.figures span { font: 12px var(--mono); color: var(--muted); }
+.machine .note { margin: 20px 0 0; color: var(--muted); font-size: 14px; }
 
 footer { padding: 56px 0 64px; color: var(--dim); font-size: 14px; display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
 footer a { color: var(--muted); }
 
 @media (max-width: 860px) {
   .api { grid-template-columns: 1fr; }
+  .perf { grid-template-columns: 1fr; }
   .points { grid-template-columns: 1fr 1fr; }
   nav .links a:not(:last-child) { display: none; }
 }
@@ -115,6 +122,7 @@ footer a { color: var(--muted); }
   .grid { gap: 10px; }
   .points { grid-template-columns: 1fr; }
   .cell span { display: none; }
+  .figures { grid-template-columns: 1fr 1fr; }
 }
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }
@@ -132,6 +140,7 @@ footer a { color: var(--muted); }
   <div class="links">
     <a href="#api">API</a>
     <a href="#safety">Safety</a>
+    <a href="#performance">Performance</a>
     <a href="#self-host">Self-host</a>
     <a href="https://github.com/peleda-app/favicons">GitHub</a>
   </div>
@@ -201,6 +210,36 @@ footer a { color: var(--muted); }
   </div>
 </section>
 
+<section id="performance">
+  <div class="eyebrow">performance</div>
+  <h2>Small enough for a thin client.</h2>
+  <p class="sub">The k6 flood suite (cache hits, junk, an attacking subnet and honest clients at once) on two very different machines. Every run kept 100% of honest requests served with no errors.</p>
+  <div class="perf">
+    <div class="machine">
+      <h3>Celeron N3160 thin client</h3>
+      <p class="spec">4 × 1.6 GHz · 3.5 GB · 8 GB eMMC · also running a wall panel, a Zigbee bridge and a BLE gateway</p>
+      <div class="figures">
+        <div><b>2 818</b><span>rps</span></div>
+        <div><b>10 ms</b><span>p99</span></div>
+        <div><b>0.8</b><span>of 4 cores</span></div>
+        <div><b>73 MB</b><span>memory</span></div>
+      </div>
+      <p class="note">Low CPU priority, 600 MB cap, load over an SSH tunnel. The other services never noticed.</p>
+    </div>
+    <div class="machine">
+      <h3>Apple M3 Pro laptop</h3>
+      <p class="spec">12 cores · 36 GB · k6 running on the same machine</p>
+      <div class="figures">
+        <div><b>11 277</b><span>rps</span></div>
+        <div><b>3.5 ms</b><span>p99</span></div>
+        <div><b>0.5</b><span>cores</span></div>
+        <div><b>98 MB</b><span>memory</span></div>
+      </div>
+      <p class="note">k6 became the bottleneck first, so this is a floor, not a ceiling.</p>
+    </div>
+  </div>
+</section>
+
 <section id="self-host">
   <div class="eyebrow">self-host</div>
   <h2>Two containers, no network for the renderer.</h2>
@@ -209,9 +248,9 @@ git clone https://github.com/peleda-app/favicons
 cd favicons && docker compose up -d
 
 <span class="c"># check the sandbox on your kernel: each probe exits 159 (SIGSYS)</span>
-for p in fs write net exec; do docker run --rm favicons sandbox-selftest $p; done</pre></div>
-  <p class="bench">k6 suite: <b>~1 300 rps</b>, <b>p99 under 1 ms</b> on cache hits during a flood, <b>100%</b> of honest requests served while an attacking subnet is rate-limited.</p>
+for p in fs write net exec prctl; do docker run --rm favicons sandbox-selftest $p; done</pre></div>
 </section>
+
 
 <footer>
   <span>favicons · MIT</span>

@@ -185,8 +185,44 @@ run at once against a release build:
 
 It uses a local `k6` if installed, otherwise the `grafana/k6` Docker image. The
 `loadtest` workflow runs it weekly, on pushes to `main` and on demand, and
-writes the summary to the job page. On a laptop the suite sustains ~1 200 rps
-with p99 ≈ 6 ms.
+writes the summary to the job page.
+
+## Performance
+
+The same k6 suite on two very different machines. `SCALE=1` is ~1 400 rps
+across the four scenarios, `SCALE=2` doubles every rate, and so on. Every run
+kept **100%** of honest requests getting the real icon, had no 5xx, and
+rate-limited the attacking subnet. CPU is the favicons process alone.
+
+**A weak, busy box:** `homeassistant-relay`, an Intel Celeron N3160 thin
+client (4 × 1.6 GHz, 3.5 GB RAM, 8 GB eMMC). It keeps running a Chromium wall
+panel, a Zigbee serial bridge and a BLE gateway, so favicons ran at low CPU
+priority with a 600 MB memory cap. Load came from a laptop on the LAN through
+an SSH tunnel, which costs this box more CPU than favicons itself.
+
+| Load | Throughput | p95 | p99 | favicons CPU | Memory peak |
+|------|-----------:|----:|----:|-------------:|------------:|
+| `SCALE=1` | 1 406 rps | 6.8 ms | 12.9 ms | 0.52 of 4 cores | 73 MB |
+| `SCALE=2` | 2 818 rps | 7.8 ms | 10.4 ms | 0.80 of 4 cores | 73 MB |
+
+The other services there never noticed: the wall panel, Zigbee and BLE stayed
+up through every run.
+
+**A laptop:** Apple M3 Pro (12 cores, 36 GB), with k6 in Docker on the same
+machine. At `SCALE=8` k6 itself starts falling behind, so that row is a floor,
+not a ceiling.
+
+| Load | Throughput | p95 | p99 | favicons CPU | Memory peak |
+|------|-----------:|----:|----:|-------------:|------------:|
+| `SCALE=1` | 1 410 rps | 2.2 ms | 4.6 ms | 0.35 cores | 49 MB |
+| `SCALE=2` | 2 821 rps | 2.0 ms | 4.2 ms | 0.34 cores | 72 MB |
+| `SCALE=4` | 5 640 rps | 1.7 ms | 3.9 ms | 0.50 cores | 87 MB |
+| `SCALE=8` | 11 277 rps | 1.2 ms | 3.5 ms | 0.47 cores | 98 MB |
+
+Part of the CPU is fixed background work (fetching what the rate-limited
+attacker gets through), which is why the cost per request falls as load rises.
+These are cache hits and junk; fetching a new site's icon is bounded by
+`fetch.workers` and the network, not by these numbers.
 
 ## Development
 

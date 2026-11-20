@@ -355,7 +355,10 @@ mod seccomp {
 }
 
 pub fn selftest(probe: &str) -> ExitCode {
-    let cfg = RenderCfg::default();
+    let cfg = RenderCfg {
+        decode_timeout_ms: 120_000,
+        ..RenderCfg::default()
+    };
     let jobs = if probe == "render" {
         match sample_jobs(&cfg) {
             Ok(s) => s,

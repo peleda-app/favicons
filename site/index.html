@@ -194,7 +194,7 @@ footer a { color: var(--muted); }
   <div class="points">
     <div><h3>Sandboxed parsing</h3><p>HTML, manifests and images are handled in a throw-away seccomp process with no files, network or exec.</p></div>
     <div><h3>Clean SVG only</h3><p>An allowlist writer emits paths and gradients. Scripts, CSS and embedded images cannot be expressed.</p></div>
-    <div><h3>No SSRF</h3><p>Public addresses, ports 80 and 443, and every redirect and foreign host checked before connecting.</p></div>
+    <div><h3>No SSRF</h3><p>Public addresses over https on port 443 only, no links or redirects to raw IPs, and every foreign host vetted before connecting.</p></div>
     <div><h3>No read receipts</h3><p>Per-recipient subdomains collapse to the site. Users' IPs never reach it and are never logged.</p></div>
     <div><h3>Vetted domains</h3><p>Blocklists, domain age via RDAP and a filtering DNS resolver. Blocked sites get a warning icon.</p></div>
     <div><h3>Fair under load</h3><p>Per-subnet limits and a round-robin queue keep honest clients served during a flood.</p></div>

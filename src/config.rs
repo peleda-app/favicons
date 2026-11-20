@@ -43,6 +43,7 @@ impl Config {
     }
 
     fn validate(&self) -> anyhow::Result<()> {
+        let urls = crate::net::UrlPolicy::new(&self.fetch);
         for template in &self.upstream.providers {
             anyhow::ensure!(
                 template.matches("{domain}").count() == 1,
@@ -54,6 +55,41 @@ impl Config {
             anyhow::ensure!(
                 sample.scheme() == "https",
                 "upstream provider {template:?} must use https"
+            );
+            anyhow::ensure!(
+                urls.allows(&sample),
+                "upstream provider {template:?} is blocked by fetch.allowed_ports or fetch.allow_ip_hosts"
+            );
+        }
+        anyhow::ensure!(
+            !self.fetch.allowed_ports.is_empty() && !self.fetch.allowed_ports.contains(&0),
+            "fetch.allowed_ports must list at least one port, none of them 0"
+        );
+        let remote = self
+            .policy
+            .blocklists
+            .iter()
+            .map(|s| ("policy.blocklists", s.as_str()))
+            .chain([
+                (
+                    "policy.rdap_bootstrap_url",
+                    self.policy.rdap_bootstrap_url.as_str(),
+                ),
+                (
+                    "catalog.thesvg.index_url",
+                    self.catalog.thesvg.index_url.as_str(),
+                ),
+                (
+                    "catalog.thesvg.asset_base",
+                    self.catalog.thesvg.asset_base.as_str(),
+                ),
+            ])
+            .filter(|(_, s)| s.starts_with("http://") || s.starts_with("https://"));
+        for (key, raw) in remote {
+            let ok = url::Url::parse(raw).is_ok_and(|u| urls.allows(&u));
+            anyhow::ensure!(
+                ok,
+                "{key} {raw:?} is blocked by fetch.allow_http, fetch.allowed_ports or fetch.allow_ip_hosts"
             );
         }
         anyhow::ensure!(
@@ -183,6 +219,8 @@ pub struct Fetch {
     pub max_redirects: usize,
     pub max_candidates: usize,
     pub allow_http: bool,
+    pub allow_ip_hosts: bool,
+    pub allowed_ports: Vec<u16>,
     pub user_agent: String,
 }
 
@@ -202,7 +240,9 @@ impl Default for Fetch {
             max_icon_bytes: 1024 * 1024,
             max_redirects: 4,
             max_candidates: 6,
-            allow_http: true,
+            allow_http: false,
+            allow_ip_hosts: false,
+            allowed_ports: vec![443],
             user_agent: concat!(
                 "Mozilla/5.0 (compatible; favicons/",
                 env!("CARGO_PKG_VERSION"),
@@ -519,6 +559,32 @@ mod tests {
             },
             ..Config::default()
         }
+    }
+
+    #[test]
+    fn rejects_remote_sources_blocked_by_url_policy() {
+        Config::default().validate().unwrap();
+        assert!(
+            with_providers(&["https://icons.example:8443/{domain}"])
+                .validate()
+                .is_err()
+        );
+        assert!(
+            with_providers(&["https://203.0.113.10/{domain}"])
+                .validate()
+                .is_err()
+        );
+        let mut cfg = Config::default();
+        cfg.policy.blocklists = vec!["/etc/favicons/block.txt".into()];
+        cfg.validate().unwrap();
+        cfg.policy.blocklists = vec!["http://lists.example/block.txt".into()];
+        assert!(cfg.validate().is_err());
+        cfg.fetch.allow_http = true;
+        assert!(cfg.validate().is_err());
+        cfg.fetch.allowed_ports = vec![80, 443];
+        cfg.validate().unwrap();
+        cfg.fetch.allowed_ports = vec![];
+        assert!(cfg.validate().is_err());
     }
 
     #[test]

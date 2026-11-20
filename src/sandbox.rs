@@ -448,7 +448,11 @@ pub fn selftest(probe: &str) -> ExitCode {
 
 fn sample_jobs(cfg: &RenderCfg) -> anyhow::Result<Vec<(String, Job, Vec<u8>)>> {
     let scope = Scope {
-        allow_http: true,
+        urls: crate::net::UrlPolicy {
+            allow_http: true,
+            allow_ip_hosts: false,
+            ports: vec![80, 443],
+        },
         max_inline: 1024,
     };
     let mut jobs: Vec<(String, Job, Vec<u8>)> = sample_images()?
@@ -745,7 +749,11 @@ mod tests {
 
     fn scope() -> Scope {
         Scope {
-            allow_http: true,
+            urls: crate::net::UrlPolicy {
+                allow_http: true,
+                allow_ip_hosts: false,
+                ports: vec![80, 443],
+            },
             max_inline: 8,
         }
     }

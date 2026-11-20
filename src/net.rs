@@ -4,6 +4,7 @@ use std::time::Duration;
 
 use anyhow::{Context, bail};
 use reqwest::header::ACCEPT;
+use serde::{Deserialize, Serialize};
 use url::{Host, Url};
 
 use crate::config::Fetch;
@@ -51,21 +52,43 @@ fn is_public_v6(ip: Ipv6Addr) -> bool {
     }
 }
 
-pub fn is_fetchable_url(url: &Url, allow_http: bool) -> bool {
-    let scheme_ok = match url.scheme() {
-        "https" => true,
-        "http" => allow_http,
-        _ => false,
-    };
-    if !scheme_ok || !url.username().is_empty() || url.password().is_some() {
-        return false;
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct UrlPolicy {
+    pub allow_http: bool,
+    pub allow_ip_hosts: bool,
+    pub ports: Vec<u16>,
+}
+
+impl UrlPolicy {
+    pub fn new(cfg: &Fetch) -> Self {
+        Self {
+            allow_http: cfg.allow_http,
+            allow_ip_hosts: cfg.allow_ip_hosts,
+            ports: cfg.allowed_ports.clone(),
+        }
     }
-    if !matches!(url.port(), None | Some(80) | Some(443)) {
-        return false;
-    }
-    match url.host() {
-        Some(Host::Domain(d)) => crate::domain::is_valid_hostname(d.trim_end_matches('.')),
-        _ => false,
+
+    pub fn allows(&self, url: &Url) -> bool {
+        let scheme_ok = match url.scheme() {
+            "https" => true,
+            "http" => self.allow_http,
+            _ => false,
+        };
+        if !scheme_ok || !url.username().is_empty() || url.password().is_some() {
+            return false;
+        }
+        if !url
+            .port_or_known_default()
+            .is_some_and(|p| self.ports.contains(&p))
+        {
+            return false;
+        }
+        match url.host() {
+            Some(Host::Domain(d)) => crate::domain::is_valid_hostname(d.trim_end_matches('.')),
+            Some(Host::Ipv4(ip)) => self.allow_ip_hosts && is_public_ip(IpAddr::V4(ip)),
+            Some(Host::Ipv6(ip)) => self.allow_ip_hosts && is_public_ip(IpAddr::V6(ip)),
+            None => false,
+        }
     }
 }
 
@@ -100,19 +123,20 @@ pub enum Redirects {
 #[derive(Clone)]
 pub struct HttpClient {
     client: reqwest::Client,
-    allow_http: bool,
+    urls: Arc<UrlPolicy>,
 }
 
 impl HttpClient {
     pub fn new(cfg: &Fetch, dns: Arc<SafeDns>, redirects: Redirects) -> anyhow::Result<Self> {
         let max_redirects = cfg.max_redirects;
-        let allow_http = cfg.allow_http;
+        let urls = Arc::new(UrlPolicy::new(cfg));
+        let follow = urls.clone();
         let policy = match redirects {
             Redirects::Manual => reqwest::redirect::Policy::none(),
             Redirects::Follow => reqwest::redirect::Policy::custom(move |attempt| {
                 if attempt.previous().len() >= max_redirects {
                     attempt.error("too many redirects")
-                } else if !is_fetchable_url(attempt.url(), allow_http) {
+                } else if !follow.allows(attempt.url()) {
                     attempt.error("redirect target not allowed")
                 } else {
                     attempt.follow()
@@ -128,15 +152,15 @@ impl HttpClient {
             .timeout(cfg.request_timeout())
             .pool_max_idle_per_host(1)
             .pool_idle_timeout(Duration::from_secs(15))
-            .https_only(!allow_http)
+            .https_only(!urls.allow_http)
             .referer(false)
             .build()
             .context("building http client")?;
-        Ok(Self { client, allow_http })
+        Ok(Self { client, urls })
     }
 
-    pub fn allow_http(&self) -> bool {
-        self.allow_http
+    pub fn urls(&self) -> &UrlPolicy {
+        &self.urls
     }
 
     pub async fn get(&self, url: &Url, accept: &str, max: usize) -> Result<Fetched, FetchError> {
@@ -159,7 +183,7 @@ impl HttpClient {
         max_bytes: usize,
         truncate: bool,
     ) -> Result<Fetched, FetchError> {
-        if !is_fetchable_url(url, self.allow_http) {
+        if !self.urls.allows(url) {
             return Err(FetchError::Forbidden);
         }
         let mut resp = self
@@ -175,9 +199,7 @@ impl HttpClient {
                 .and_then(|v| v.to_str().ok())
                 .and_then(|loc| url.join(loc.trim()).ok());
             return match next {
-                Some(next) if is_fetchable_url(&next, self.allow_http) => {
-                    Err(FetchError::Redirect(next))
-                }
+                Some(next) if self.urls.allows(&next) => Err(FetchError::Redirect(next)),
                 Some(_) => Err(FetchError::Forbidden),
                 None => Err(FetchError::Status(resp.status().as_u16())),
             };
@@ -301,17 +323,36 @@ mod tests {
 
     #[test]
     fn validates_urls() {
-        let ok = |s: &str, http: bool| is_fetchable_url(&Url::parse(s).unwrap(), http);
-        assert!(ok("https://example.com/favicon.ico", false));
-        assert!(ok("http://example.com/favicon.ico", true));
-        assert!(!ok("http://example.com/favicon.ico", false));
-        assert!(!ok("https://127.0.0.1/", true));
-        assert!(!ok("https://[::1]/", true));
-        assert!(!ok("https://localhost/", true));
-        assert!(!ok("https://user:pw@example.com/", true));
-        assert!(!ok("https://example.com:6379/", true));
-        assert!(!ok("ftp://example.com/", true));
-        assert!(!ok("file:///etc/passwd", true));
-        assert!(!ok("https://2130706433/", true));
+        let strict = UrlPolicy::new(&Fetch::default());
+        let ok = |s: &str| strict.allows(&Url::parse(s).unwrap());
+        assert!(ok("https://example.com/favicon.ico"));
+        assert!(ok("https://example.com:443/favicon.ico"));
+        assert!(!ok("http://example.com/favicon.ico"));
+        assert!(!ok("https://example.com:8443/favicon.ico"));
+        assert!(!ok("https://example.com:80/"));
+        assert!(!ok("https://example.com:6379/"));
+        assert!(!ok("https://1.1.1.1/favicon.ico"));
+        assert!(!ok("https://[2606:4700:4700::1111]/favicon.ico"));
+        assert!(!ok("https://2130706433/"));
+        assert!(!ok("https://0x7f.1/"));
+        assert!(!ok("https://localhost/"));
+        assert!(!ok("https://user:pw@example.com/"));
+        assert!(!ok("ftp://example.com/"));
+        assert!(!ok("file:///etc/passwd"));
+
+        let loose = UrlPolicy {
+            allow_http: true,
+            allow_ip_hosts: true,
+            ports: vec![80, 443],
+        };
+        let ok = |s: &str| loose.allows(&Url::parse(s).unwrap());
+        assert!(ok("http://example.com/favicon.ico"));
+        assert!(ok("https://1.1.1.1/favicon.ico"));
+        assert!(ok("https://[2606:4700:4700::1111]/"));
+        assert!(!ok("https://127.0.0.1/"));
+        assert!(!ok("https://[::1]/"));
+        assert!(!ok("http://169.254.169.254/latest/meta-data/"));
+        assert!(!ok("https://2130706433/"));
+        assert!(!ok("https://example.com:6379/"));
     }
 }

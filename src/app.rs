@@ -201,15 +201,16 @@ impl App {
         let mut reachable = false;
         let mut manifest_declared = false;
 
-        let mut roots = vec![
+        let roots = [
             format!("https://{domain}/"),
             format!("https://www.{domain}/"),
+            format!("http://{domain}/"),
         ];
-        if f.allow_http {
-            roots.push(format!("http://{domain}/"));
-        }
         for root in roots {
             let Ok(url) = Url::parse(&root) else { continue };
+            if !self.client.urls().allows(&url) {
+                continue;
+            }
             match self
                 .get_checked(domain, &url, ACCEPT_HTML, f.max_html_bytes, true)
                 .await
@@ -333,13 +334,23 @@ impl App {
 
     fn scope(&self) -> Scope {
         Scope {
-            allow_http: self.client.allow_http(),
+            urls: self.client.urls().clone(),
             max_inline: self.cfg.fetch.max_icon_bytes,
         }
     }
 
     async fn host_allowed(&self, site: &str, url: &Url) -> Result<(), &'static str> {
         let host = url.host_str().ok_or("no host")?;
+        if !matches!(url.host(), Some(url::Host::Domain(_))) {
+            if !self.client.urls().allows(url) {
+                return Err("ip hosts not allowed");
+            }
+            return if self.policy.is_blocked(host, host) {
+                Err("blocklisted")
+            } else {
+                Ok(())
+            };
+        }
         let p = &self.cfg.policy;
         let n = normalize(host, p.collapse_private_suffixes, &p.deny_suffixes)
             .ok_or("not a public domain")?;

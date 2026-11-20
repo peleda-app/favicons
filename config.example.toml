@@ -39,7 +39,12 @@ max_manifest_bytes = 65536
 max_icon_bytes = 1048576
 max_redirects = 4
 max_candidates = 6
-allow_http = true
+# Every URL the service connects to (pages, manifests, icons, redirect hops,
+# upstream providers, blocklists, RDAP, the catalog) must pass these three.
+# Startup fails if a configured URL doesn't.
+allow_http = false            # plain http:// at all
+allowed_ports = [443]         # e.g. [80, 443] together with allow_http = true
+allow_ip_hosts = false        # links or redirects to https://203.0.113.7/; public addresses only even when true
 
 [render]
 # process  each image is decoded in a fresh seccomp-confined child process (default)

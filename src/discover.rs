@@ -6,17 +6,17 @@ use serde::{Deserialize, Serialize};
 use url::Url;
 
 use crate::contract::Theme;
-use crate::net::is_fetchable_url;
+use crate::net::UrlPolicy;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Scope {
-    pub allow_http: bool,
+    pub urls: UrlPolicy,
     pub max_inline: usize,
 }
 
 impl Scope {
     pub fn allows(&self, url: &Url) -> bool {
-        is_fetchable_url(url, self.allow_http)
+        self.urls.allows(url)
     }
 }
 
@@ -347,7 +347,11 @@ mod tests {
 
     fn scope(max_inline: usize) -> Scope {
         Scope {
-            allow_http: true,
+            urls: crate::net::UrlPolicy {
+                allow_http: true,
+                allow_ip_hosts: false,
+                ports: vec![80, 443],
+            },
             max_inline,
         }
     }
@@ -451,6 +455,38 @@ mod tests {
         ]);
         let ds: Vec<_> = ranked.iter().map(|c| c.declared).collect();
         assert_eq!(ds, [SIZE_ANY, 192, 16, 512], "dark-only icons go last");
+    }
+
+    #[test]
+    fn default_policy_drops_ip_hosts_other_ports_and_http() {
+        let strict = Scope {
+            urls: UrlPolicy::new(&crate::config::Fetch::default()),
+            max_inline: 0,
+        };
+        let html = br#"<head>
+            <link rel="icon" href="https://93.184.215.14/a.png" sizes="512x512">
+            <link rel="icon" href="https://[2606:4700:4700::1111]/b.png">
+            <link rel="icon" href="https://cdn.example.com:8443/c.png">
+            <link rel="icon" href="http://cdn.example.com/d.png">
+            <link rel="icon" href="https://cdn.example.com/e.png">
+            </head>"#;
+        let urls: Vec<String> = parse_html(html, &page(), &strict)
+            .icons
+            .iter()
+            .filter_map(|c| match &c.location {
+                Location::Remote(u) => Some(u.to_string()),
+                Location::Inline(_) => None,
+            })
+            .collect();
+        assert_eq!(urls, ["https://cdn.example.com/e.png"]);
+        let json =
+            br#"{"icons":[{"src":"https://1.1.1.1/m.png","sizes":"512x512"},{"src":"/ok.png"}]}"#;
+        let c = parse_manifest(json, &page(), &strict);
+        assert_eq!(c.len(), 1);
+        assert_eq!(
+            c[0].location,
+            Location::Remote(page().join("/ok.png").unwrap())
+        );
     }
 
     #[test]

@@ -40,8 +40,8 @@ DNS-over-HTTPS** (`security.cloudflare-dns.com`, 1.1.1.2 / 1.0.0.2):
 | `?domain=127.0.0.1`, `[::1]`, `2130706433`, `0x7f.1` | IP literals are rejected at input parsing; only DNS names with a known public suffix pass. |
 | DNS name resolving to `10.0.0.5`, `169.254.169.254`, `fd00::1`, … | Custom resolver drops every non-global address (RFC 1918, loopback, link-local, CGNAT, ULA, multicast, documentation, benchmarking, 6to4/NAT64/Teredo that embed private IPv4). If nothing public remains the connection is never opened. |
 | DNS rebinding (public on check, private on connect) | The filtered address list from the resolver **is** the connect target; there is no second lookup. |
-| Redirect to `http://127.0.0.1/` or `https://internal:6379/` | Redirects are never followed automatically. Each `Location` is validated (http(s) only, ports 80/443, no userinfo, no IP literals) and its host passes the full [foreign-host check](#8-assets-and-redirects-on-other-domains) before the next request. At most `fetch.max_redirects` hops. |
-| Icon `<link href>` / manifest `src` pointing inside | Same URL validation is applied to every discovered URL before it is queued. |
+| Redirect to `http://127.0.0.1/`, `https://203.0.113.7/` or `https://internal:6379/` | Redirects are never followed automatically. Each `Location` is validated before the next request: https only, port 443 only, no userinfo and no IP-address hosts by default (`fetch.allow_http`, `fetch.allowed_ports`, `fetch.allow_ip_hosts`; even with IP hosts allowed, only public addresses pass). Its host then passes the full [foreign-host check](#8-assets-and-redirects-on-other-domains). At most `fetch.max_redirects` hops. |
+| Icon `<link href>` / manifest `src` pointing inside, at an IP address or at another port | The same URL rules are sent into the sandboxed parser, so such URLs never even become candidates. |
 | Environment proxies (`HTTP_PROXY`) | Disabled (`no_proxy`). |
 
 ### 2. Resource exhaustion through fetched content
@@ -181,7 +181,8 @@ requested domain, before the request is made:
    for a day.
 4. Filtering DNS: a sinkholed host never gets a connection, because the
    resolver refuses it.
-5. SSRF rules: public addresses only, ports 80/443.
+5. SSRF rules: public addresses only, https on port 443, no IP-address hosts
+   (all three configurable in `[fetch]`).
 
 A rejected host is logged (`host rejected … reason=…`) and the next candidate
 is tried, usually the site's own `/apple-touch-icon.png` or `/favicon.ico`.

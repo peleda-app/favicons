@@ -32,6 +32,8 @@ request must not leak the user, crash a server or become an attack vector.
   are tried. The largest usable candidate wins. Icons on CDNs or other domains
   are used only after that host passes the same blocklist, domain-age, DNS-filter
   and SSRF checks as the requested domain, and so does every redirect hop.
+  By default only `https` on port 443 is used, and links or redirects to raw IP
+  addresses are ignored (`fetch.allowed_ports`, `fetch.allow_ip_hosts`).
 * **Pluggable cache.** `none` (memory only), local directory, S3 and S3-compatible
   stores, GCS, Azure. TTLs are separate for real icons, missing icons, failures
   and too-new domains.

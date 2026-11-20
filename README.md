@@ -156,6 +156,35 @@ worker  ─► domain age (RDAP) ─► stream HTML until </head> ─► manifes
         ─► sanitize SVG or trace bitmap (≤256 px) ─► storage + meta.json
 ```
 
+## HTTPS without a proxy
+
+favicons can terminate TLS itself and get its certificate from Let's Encrypt:
+
+```toml
+[tls]
+enabled = true
+domains = ["favicon.example.com"]
+contact = ["mailto:ops@example.com"]
+```
+
+It listens on `:443` and `:80`. Port 80 answers `http-01` challenges and
+redirects everything else to HTTPS. Until the first certificate arrives it
+serves a self-signed one; the account, key and certificate are kept in
+`tls.state_dir`, so restarts reuse them instead of hitting Let's Encrypt rate
+limits, and renewal runs in the background 30 days before expiry. Set
+`tls.cert` and `tls.key` to use a fixed certificate instead (for example a
+Cloudflare Origin CA certificate).
+
+Behind Cloudflare with **Full (strict)**, the first certificate needs the
+challenge to reach the origin over plain HTTP: if **Always Use HTTPS** is on,
+add a rule that turns it off for `/.well-known/acme-challenge/*`. Once a valid
+certificate exists, renewals work through either port.
+
+Static binaries for x86_64 and aarch64, identical to the ones in the image,
+are published with every build at
+`https://peleda-app.github.io/favicons/dl/<arch>/favicons` with a
+`favicons.sha256` next to them.
+
 ## Running on a small server
 
 The defaults suit a 1 vCPU / 512 MB box. Most of the protection comes from

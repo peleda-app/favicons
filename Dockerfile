@@ -9,9 +9,11 @@ RUN cargo build --release --locked \
 
 FROM scratch
 COPY --from=build /favicons /favicons
+COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 COPY --from=build --chown=65534:65534 /rootfs/ /
 COPY config.example.toml /etc/favicons/config.toml
 USER 65534:65534
-ENV FAVICONS_CONFIG=/etc/favicons/config.toml
+ENV FAVICONS_CONFIG=/etc/favicons/config.toml \
+    SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
 EXPOSE 8080
 ENTRYPOINT ["/favicons"]

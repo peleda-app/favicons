@@ -45,6 +45,7 @@ pub struct App {
     pub stats: Stats,
     generated: Cache<([u8; 32], Style), Arc<Icon>>,
     pub profiles: crate::http::Profiles,
+    pub challenges: Arc<crate::tls::Challenges>,
     generated_palettes: Cache<[u8; 32], Palette>,
     decode_slots: Arc<Semaphore>,
     pub request_slots: Arc<Semaphore>,
@@ -65,6 +66,7 @@ impl App {
         Ok(Arc::new(Self {
             store: Store::new(&cfg.cache, &cfg.http_cache)?,
             profiles: crate::http::Profiles::new(&cfg.http_cache)?,
+            challenges: Arc::new(crate::tls::Challenges::default()),
             generated_palettes: Cache::builder()
                 .max_capacity(10_000)
                 .time_to_idle(Duration::from_secs(3_600))

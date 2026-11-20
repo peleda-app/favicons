@@ -31,11 +31,52 @@ pub fn router(app: Arc<App>) -> Router {
     Router::new()
         .route("/v1/icon/{style}/{domain}", get(icon))
         .route("/v1/icon/{style}/{domain}/", get(icon_slash))
+        .route("/.well-known/acme-challenge/{token}", get(acme_challenge))
         .route("/healthz", get(|| async { "ok" }))
         .fallback(|| async { plain(StatusCode::NOT_FOUND, "not found") })
         .layer(middleware::from_fn_with_state(app.clone(), guard))
         .layer(middleware::map_response(security_headers))
         .with_state(app)
+}
+
+pub fn challenge_router(app: Arc<App>) -> Router {
+    Router::new()
+        .route("/.well-known/acme-challenge/{token}", get(acme_challenge))
+        .fallback(to_https)
+        .layer(middleware::map_response(security_headers))
+        .with_state(app)
+}
+
+async fn acme_challenge(State(app): State<Arc<App>>, Path(token): Path<String>) -> Response {
+    match app.challenges.get(&token) {
+        Some(key_authorization) => {
+            let mut r = Response::new(Body::from(key_authorization));
+            r.headers_mut()
+                .insert(CONTENT_TYPE, HeaderValue::from_static("text/plain"));
+            r.headers_mut()
+                .insert(CACHE_CONTROL, HeaderValue::from_static("no-store"));
+            r
+        }
+        None => plain(StatusCode::NOT_FOUND, "not found"),
+    }
+}
+
+async fn to_https(State(app): State<Arc<App>>, uri: Uri) -> Response {
+    let Some(host) = app.cfg.tls.domains.first() else {
+        return plain(StatusCode::NOT_FOUND, "not found");
+    };
+    let path = uri.path_and_query().map_or("/", |p| p.as_str());
+    match HeaderValue::from_str(&format!("https://{host}{path}")) {
+        Ok(loc) => {
+            let mut r = Response::new(Body::empty());
+            *r.status_mut() = StatusCode::PERMANENT_REDIRECT;
+            r.headers_mut().insert(LOCATION, loc);
+            r.headers_mut()
+                .insert(CACHE_CONTROL, HeaderValue::from_static("no-store"));
+            r
+        }
+        Err(_) => plain(StatusCode::BAD_REQUEST, "bad request"),
+    }
 }
 
 pub fn admin_router(app: Arc<App>) -> Router {

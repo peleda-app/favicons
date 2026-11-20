@@ -190,3 +190,20 @@ providers = []
 [identicon]
 # Change to make generated icons unique to your deployment.
 salt = ""
+
+[tls]
+# Serve HTTPS directly, with certificates from Let's Encrypt (ACME http-01).
+# The plain listener in [server] keeps working; point it at localhost if
+# everything should go through HTTPS.
+enabled = false
+listen = "[::]:443"
+http_listen = "[::]:80"           # answers ACME challenges, redirects the rest to https://domains[0]
+domains = []                      # e.g. ["favicon.example.com"]
+contact = []                      # e.g. ["mailto:ops@example.com"]
+directory = "https://acme-v02.api.letsencrypt.org/directory"
+# directory = "https://acme-staging-v02.api.letsencrypt.org/directory"   # for testing
+# directory_ca = "/etc/favicons/acme-root.pem"   # trust a private ACME server, e.g. Pebble
+state_dir = "/var/lib/favicons/acme"            # account, key and certificate; keep it across restarts
+renew_before_days = 30
+# cert = "/etc/favicons/origin.pem"   # use a fixed certificate (e.g. Cloudflare Origin CA) instead of ACME
+# key = "/etc/favicons/origin.key"

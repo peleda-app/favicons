@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::net::SocketAddr;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use figment::Figment;
@@ -23,6 +23,7 @@ pub struct Config {
     pub upstream: Upstream,
     pub bimi: Bimi,
     pub catalog: CatalogCfg,
+    pub tls: Tls,
 }
 
 impl Config {
@@ -43,6 +44,7 @@ impl Config {
     }
 
     fn validate(&self) -> anyhow::Result<()> {
+        self.tls.validate()?;
         let urls = crate::net::UrlPolicy::new(&self.fetch);
         for template in &self.upstream.providers {
             anyhow::ensure!(
@@ -482,6 +484,81 @@ impl Default for Dns {
             cache_size: 8_192,
             max_ttl_secs: 3_600,
         }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct Tls {
+    pub enabled: bool,
+    pub listen: SocketAddr,
+    pub http_listen: Option<SocketAddr>,
+    pub domains: Vec<String>,
+    pub contact: Vec<String>,
+    pub directory: String,
+    pub directory_ca: Option<PathBuf>,
+    pub state_dir: PathBuf,
+    pub renew_before_days: u64,
+    pub cert: Option<PathBuf>,
+    pub key: Option<PathBuf>,
+}
+
+impl Default for Tls {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            listen: SocketAddr::from((std::net::Ipv6Addr::UNSPECIFIED, 443)),
+            http_listen: Some(SocketAddr::from((std::net::Ipv6Addr::UNSPECIFIED, 80))),
+            domains: vec![],
+            contact: vec![],
+            directory: "https://acme-v02.api.letsencrypt.org/directory".into(),
+            directory_ca: None,
+            state_dir: PathBuf::from("/var/lib/favicons/acme"),
+            renew_before_days: 30,
+            cert: None,
+            key: None,
+        }
+    }
+}
+
+impl Tls {
+    pub fn acme(&self) -> bool {
+        self.enabled && self.cert.is_none()
+    }
+
+    fn validate(&self) -> anyhow::Result<()> {
+        if !self.enabled {
+            return Ok(());
+        }
+        anyhow::ensure!(
+            self.cert.is_some() == self.key.is_some(),
+            "tls.cert and tls.key go together"
+        );
+        if self.cert.is_some() {
+            return Ok(());
+        }
+        anyhow::ensure!(!self.domains.is_empty(), "tls.domains is required for ACME");
+        for d in &self.domains {
+            anyhow::ensure!(
+                crate::domain::is_valid_hostname(d) && d.contains('.'),
+                "tls.domains entry {d:?} is not a hostname"
+            );
+        }
+        for c in &self.contact {
+            anyhow::ensure!(
+                c.starts_with("mailto:"),
+                "tls.contact entry {c:?} must start with mailto:"
+            );
+        }
+        anyhow::ensure!(
+            self.directory.starts_with("https://"),
+            "tls.directory must be an https URL"
+        );
+        anyhow::ensure!(
+            self.renew_before_days > 0,
+            "tls.renew_before_days must be > 0"
+        );
+        Ok(())
     }
 }
 

@@ -17,6 +17,7 @@ mod render;
 mod sandbox;
 mod server;
 mod store;
+mod tls;
 mod trace;
 mod vector;
 
@@ -149,7 +150,37 @@ async fn run(cfg: config::Config) -> anyhow::Result<()> {
     }
 
     let server_cfg = app.cfg.server.clone();
-    server::serve(http::router(app), &server_cfg, rx).await
+    if app.cfg.tls.enabled {
+        let tls_cfg = app.cfg.tls.clone();
+        let tls = tls::Tls::load(&tls_cfg, app.challenges.clone())?;
+        let acceptor = tokio_rustls::TlsAcceptor::from(std::sync::Arc::new(tls::server_config(
+            tls.certs.clone(),
+        )?));
+        if tls_cfg.acme() {
+            tls.spawn_acme(tls_cfg.clone(), rx.clone());
+        }
+        if let Some(addr) = tls_cfg.http_listen {
+            let router = http::challenge_router(app.clone());
+            let cfg = server_cfg.clone();
+            let rx = rx.clone();
+            tokio::spawn(async move {
+                if let Err(e) = server::serve(router, addr, &cfg, None, rx).await {
+                    tracing::error!(%addr, error = %e, "http listener failed");
+                }
+            });
+        }
+        let router = http::router(app.clone());
+        let cfg = server_cfg.clone();
+        let rx_tls = rx.clone();
+        tokio::spawn(async move {
+            if let Err(e) =
+                server::serve(router, tls_cfg.listen, &cfg, Some(acceptor), rx_tls).await
+            {
+                tracing::error!(addr = %tls_cfg.listen, error = %e, "https listener failed");
+            }
+        });
+    }
+    server::serve(http::router(app), server_cfg.listen, &server_cfg, None, rx).await
 }
 
 async fn shutdown_signal() {

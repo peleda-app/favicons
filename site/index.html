@@ -20,10 +20,8 @@
   --dim: #66666f;
   --accent: #ffb38a;
   --cream: #fbf0df;
-  --ok: #8fd6a3;
-  --warn: #f2c66d;
-  --bad: #ff8a8a;
-  --tint: #ffb38a;
+  --tile: #f6f5f2;
+  --tint: #e8613c;
   --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
   --sans: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
 }
@@ -43,84 +41,44 @@ nav .links { margin-left: auto; display: flex; gap: 24px; font-size: 14px; }
 nav .links a { color: var(--muted); }
 nav .links a:hover { color: var(--text); text-decoration: none; }
 
-.hero { padding: 88px 0 72px; text-align: center; }
+.hero { padding: 80px 0 40px; text-align: center; }
 h1 { font-size: clamp(40px, 6.4vw, 72px); line-height: 1.05; letter-spacing: -.035em; margin: 0 0 22px; font-weight: 700; }
 h1 span { color: var(--cream); }
 .lead { max-width: 640px; margin: 0 auto; color: var(--muted); font-size: 18px; }
-.cmd { display: inline-flex; align-items: center; gap: 14px; margin-top: 36px; padding: 12px 14px 12px 20px; border-radius: 12px; background: var(--surface); font: 15px var(--mono); max-width: 100%; overflow-x: auto; white-space: nowrap; }
-.cmd .m { color: var(--accent); }
-.cmd .p { color: var(--dim); }
-.cmd button, .copy { border: 0; background: transparent; color: var(--dim); font: 13px var(--sans); cursor: pointer; padding: 4px 6px; border-radius: 6px; }
-.cmd button:hover, .copy:hover { color: var(--text); }
-.strip { display: flex; justify-content: center; gap: 18px; margin-top: 56px; flex-wrap: wrap; }
-.strip img { width: 40px; height: 40px; border-radius: 9px; opacity: .92; }
+
+.demo { position: relative; max-width: 720px; margin: 56px auto 0; padding: 22px; border-radius: 22px; background: var(--surface); text-align: left; user-select: none; }
+.controls { display: flex; align-items: center; gap: 18px; height: 40px; margin-bottom: 22px; }
+.toggle { display: inline-flex; padding: 3px; border-radius: 10px; background: var(--bg); flex: none; }
+.toggle button { border: 0; background: transparent; color: var(--muted); font: 13px var(--mono); padding: 7px 14px; border-radius: 7px; cursor: pointer; transition: background .2s, color .2s, transform .12s; }
+.toggle button[aria-pressed="true"] { background: var(--line); color: var(--text); }
+.toggle button.pressed { transform: scale(.94); }
+.hue { flex: 1; display: flex; align-items: center; gap: 12px; transition: opacity .3s; }
+.hue.off { opacity: .35; }
+.hue i { width: 18px; height: 18px; border-radius: 6px; background: var(--tint); flex: none; }
+input[type=range] { -webkit-appearance: none; appearance: none; flex: 1; height: 6px; margin: 0; border-radius: 999px; background: linear-gradient(90deg, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00); outline: none; }
+input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%; background: var(--tint); border: 3px solid var(--surface); box-shadow: 0 0 0 1px rgba(255,255,255,.25); cursor: grab; }
+input[type=range]::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: var(--tint); border: 3px solid var(--surface); cursor: grab; }
+.grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+.cell { position: relative; aspect-ratio: 1; border-radius: 16px; background: var(--tile); overflow: hidden; }
+.cell img, .cell .mask { position: absolute; inset: 22%; width: 56%; height: 56%; transition: opacity .45s ease, transform .45s ease; }
+.cell .mask { background-color: var(--tint); -webkit-mask: var(--src) center / contain no-repeat; mask: var(--src) center / contain no-repeat; opacity: 0; transform: scale(.9); }
+.demo.mono .cell img { opacity: 0; transform: scale(.9); }
+.demo.mono .cell .mask { opacity: 1; transform: none; }
+.cell span { position: absolute; left: 0; right: 0; bottom: 6px; text-align: center; font: 11px var(--mono); color: #8a8a90; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 6px; }
+.line { margin-top: 20px; height: 22px; font: 13px var(--mono); color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.line b { color: var(--accent); font-weight: 500; }
+.line em { color: var(--tint); font-style: normal; }
+.cursor { position: absolute; left: 0; top: 0; width: 22px; height: 22px; pointer-events: none; z-index: 2; transform: translate(-100px, -100px); filter: drop-shadow(0 2px 3px rgba(0,0,0,.5)); transition: opacity .3s; }
+.cursor .ring { position: absolute; left: -11px; top: -11px; width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--accent); opacity: 0; }
+.cursor.click .ring { animation: ring .45s ease-out; }
+@keyframes ring { from { opacity: .9; transform: scale(.4); } to { opacity: 0; transform: scale(1.6); } }
+.demo.manual .cursor { opacity: 0; }
+.hint { margin-top: 14px; text-align: center; font-size: 13px; color: var(--dim); }
 
 section { padding: 72px 0; }
 .eyebrow { font: 500 13px var(--mono); color: var(--accent); margin-bottom: 10px; }
 h2 { font-size: clamp(28px, 3.4vw, 38px); letter-spacing: -.025em; line-height: 1.15; margin: 0 0 12px; font-weight: 700; }
 .sub { color: var(--muted); max-width: 620px; margin: 0 0 36px; }
-
-.chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
-.chip { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px 6px 7px; border-radius: 999px; border: 1px solid transparent; background: var(--surface); color: var(--muted); font: 13px var(--mono); cursor: pointer; transition: color .15s, border-color .15s; }
-.chip img { width: 18px; height: 18px; border-radius: 4px; }
-.chip:hover { color: var(--text); }
-.chip[aria-pressed="true"] { color: var(--text); border-color: var(--accent); }
-
-.bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 22px; }
-.url { flex: 1; min-width: 240px; display: flex; align-items: center; gap: 10px; padding: 0 14px; height: 44px; border-radius: 10px; background: var(--surface); }
-.url small { font: 11px var(--mono); color: var(--dim); text-transform: uppercase; letter-spacing: .08em; }
-.url input { flex: 1; min-width: 0; border: 0; background: transparent; color: var(--text); font: 14px var(--mono); outline: none; cursor: default; }
-.toggle { display: inline-flex; padding: 3px; border-radius: 10px; background: var(--surface); }
-.toggle button { border: 0; background: transparent; color: var(--muted); font: 13px var(--mono); padding: 8px 14px; border-radius: 7px; cursor: pointer; }
-.toggle button[aria-pressed="true"] { background: var(--line); color: var(--text); }
-
-.result { display: grid; grid-template-columns: 200px 1fr; gap: 36px; align-items: start; }
-.preview { display: flex; flex-direction: column; gap: 14px; align-items: center; }
-.tile { width: 200px; height: 200px; border-radius: 18px; background: #f6f5f2; display: grid; place-items: center; }
-.tile img { width: 136px; height: 136px; }
-.sizes { display: flex; align-items: end; gap: 14px; }
-.sizes img:nth-child(1) { width: 16px; height: 16px; }
-.sizes img:nth-child(2) { width: 32px; height: 32px; }
-.sizes img:nth-child(3) { width: 48px; height: 48px; }
-.status { font: 14px var(--mono); margin-bottom: 4px; }
-.status .ok { color: var(--ok); }
-.status .warn { color: var(--warn); }
-.status .bad { color: var(--bad); }
-.req { font: 13px var(--mono); color: var(--dim); margin-bottom: 16px; word-break: break-all; }
-.req .hop { color: var(--warn); }
-dl.headers { margin: 0; font: 13px/1.9 var(--mono); }
-dl.headers div { display: flex; gap: 14px; }
-dl.headers dt { color: var(--dim); min-width: 190px; }
-dl.headers dd { margin: 0; color: var(--text); word-break: break-all; }
-.note { margin-top: 18px; color: var(--muted); font-size: 15px; }
-.note b { color: var(--text); font-weight: 600; }
-details { margin-top: 18px; }
-summary { cursor: pointer; color: var(--dim); font: 13px var(--mono); }
-summary:hover { color: var(--text); }
-pre { margin: 0; font: 13px/1.7 var(--mono); color: #cfcdc8; overflow-x: auto; }
-details pre { margin-top: 12px; padding: 16px 18px; background: var(--surface); border-radius: 10px; }
-
-.tint { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: start; }
-.picker { display: flex; align-items: center; gap: 16px; margin-bottom: 22px; }
-.swatch { position: relative; width: 52px; height: 52px; border-radius: 14px; background: var(--tint); flex: none; overflow: hidden; }
-.swatch input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
-.hex { font: 500 18px var(--mono); }
-.auto { margin-left: auto; font: 12px var(--mono); color: var(--dim); cursor: pointer; user-select: none; border: 0; background: transparent; }
-.auto[aria-pressed="true"] { color: var(--accent); }
-input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; height: 6px; border-radius: 999px; background: linear-gradient(90deg, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00); outline: none; margin: 0 0 28px; }
-input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%; background: var(--tint); border: 3px solid var(--bg); cursor: grab; }
-input[type=range]::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: var(--tint); border: 3px solid var(--bg); cursor: grab; }
-.masks { display: grid; grid-template-columns: repeat(6, 1fr); gap: 22px; }
-.mask { aspect-ratio: 1; background-color: var(--tint); -webkit-mask: var(--src) center / contain no-repeat; mask: var(--src) center / contain no-repeat; }
-.inline { margin-top: 28px; color: var(--muted); font-size: 15px; display: flex; gap: 18px; flex-wrap: wrap; }
-.inline span { display: inline-flex; align-items: center; gap: 8px; color: var(--tint); }
-.inline i { width: 16px; height: 16px; background-color: currentColor; -webkit-mask: var(--src) center / contain no-repeat; mask: var(--src) center / contain no-repeat; }
-.code { background: var(--surface); border-radius: 14px; padding: 20px 22px; position: relative; }
-.code .copy { position: absolute; top: 12px; right: 12px; }
-.code .c { color: var(--dim); }
-.code .k { color: #9fc4ff; }
-.code .v { color: var(--cream); }
-.code .t { color: var(--tint); font-weight: 500; }
 
 .api { display: grid; grid-template-columns: 1fr 1fr; gap: 48px 56px; }
 .endpoint { grid-column: 1 / -1; font: 18px var(--mono); }
@@ -135,6 +93,11 @@ input[type=range]::-moz-range-thumb { width: 14px; height: 14px; border-radius: 
 .points h3 { font-size: 16px; margin: 0 0 6px; font-weight: 600; }
 .points p { margin: 0; color: var(--muted); font-size: 15px; }
 
+.code { background: var(--surface); border-radius: 14px; padding: 20px 22px; position: relative; }
+.code pre { margin: 0; font: 13px/1.7 var(--mono); color: #cfcdc8; overflow-x: auto; }
+.code .c { color: var(--dim); }
+.copy { position: absolute; top: 12px; right: 12px; border: 0; background: transparent; color: var(--dim); font: 13px var(--sans); cursor: pointer; padding: 4px 6px; border-radius: 6px; }
+.copy:hover { color: var(--text); }
 .bench { margin-top: 22px; color: var(--muted); font-size: 15px; }
 .bench b { color: var(--text); font-weight: 600; }
 
@@ -142,18 +105,20 @@ footer { padding: 56px 0 64px; color: var(--dim); font-size: 14px; display: flex
 footer a { color: var(--muted); }
 
 @media (max-width: 860px) {
-  .result, .tint, .api { grid-template-columns: 1fr; }
+  .api { grid-template-columns: 1fr; }
   .points { grid-template-columns: 1fr 1fr; }
   nav .links a:not(:last-child) { display: none; }
 }
 @media (max-width: 560px) {
-  .hero { padding-top: 56px; }
+  .hero { padding-top: 48px; }
+  .demo { padding: 16px; }
+  .grid { gap: 10px; }
   .points { grid-template-columns: 1fr; }
-  .masks { grid-template-columns: repeat(3, 1fr); }
-  dl.headers div { flex-direction: column; gap: 0; }
-  .tile { width: 100%; }
+  .cell span { display: none; }
 }
-@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
 </style>
 </head>
 <body>
@@ -165,10 +130,9 @@ footer a { color: var(--muted); }
     favicons
   </a>
   <div class="links">
-    <a href="#try">Try it</a>
-    <a href="#tint">Mono</a>
     <a href="#api">API</a>
     <a href="#safety">Safety</a>
+    <a href="#self-host">Self-host</a>
     <a href="https://github.com/peleda-app/favicons">GitHub</a>
   </div>
 </nav>
@@ -176,54 +140,24 @@ footer a { color: var(--muted); }
 <header class="hero">
   <h1>Website icons,<br><span>safely.</span></h1>
   <p class="lead">One request turns any site's icon into a clean, compact SVG. It is sanitized or traced in a sandbox, fitted to its box, and cached, so your users never touch the site.</p>
-  <div class="cmd"><span class="m">GET</span><span><span class="p">/v1/icon/</span>color<span class="p">/</span>github.com</span><button data-copy="GET /v1/icon/color/github.com">copy</button></div>
-  <div class="strip" id="strip"></div>
-</header>
 
-<section id="try">
-  <div class="eyebrow">try it</div>
-  <h2>Real responses, recorded.</h2>
-  <p class="sub">Ten presets captured from a live instance. Pick one and flip the style; the address is fixed because this page has no backend.</p>
-
-  <div class="chips" id="chips" role="group" aria-label="Presets"></div>
-  <div class="bar">
-    <label class="url"><small>preset</small><input id="url" type="text" readonly aria-label="Request URL (read-only)"></label>
-    <div class="toggle" id="style" role="group" aria-label="Style"><button data-v="color" aria-pressed="true">color</button><button data-v="mono" aria-pressed="false">mono</button></div>
-  </div>
-
-  <div class="result">
-    <div class="preview">
-      <div class="tile"><img id="img" alt=""></div>
-      <div class="sizes"><img id="s16" alt=""><img id="s32" alt=""><img id="s48" alt=""></div>
-    </div>
-    <div>
-      <div class="status" id="status"></div>
-      <div class="req" id="req"></div>
-      <dl class="headers" id="headers"></dl>
-      <p class="note" id="note"></p>
-      <details><summary>raw response</summary><pre id="raw"></pre></details>
-    </div>
-  </div>
-</section>
-
-<section id="tint">
-  <div class="eyebrow">mono</div>
-  <h2>One shape, any colour.</h2>
-  <p class="sub"><code>/v1/icon/mono/{domain}</code> returns a single black path. Use it as a CSS mask and it takes whatever colour you give it.</p>
-  <div class="tint">
-    <div>
-      <div class="picker">
-        <label class="swatch" title="Pick a colour"><input type="color" id="color" value="#ffb38a" aria-label="Pick a colour"></label>
-        <span class="hex" id="hex">#FFB38A</span>
-        <button class="auto" id="auto" aria-pressed="true">auto</button>
+  <div class="demo" id="demo" aria-label="Interactive demo: colour and monochrome icons">
+    <div class="controls">
+      <div class="toggle" id="toggle" role="group" aria-label="Style">
+        <button data-v="color" aria-pressed="true">color</button>
+        <button data-v="mono" aria-pressed="false">mono</button>
       </div>
-      <input type="range" id="hue" min="0" max="360" value="22" aria-label="Hue">
-      <div class="masks" id="masks"></div>
-      <div class="inline" id="inline"></div>
+      <label class="hue off" id="huebox"><i></i><input type="range" id="hue" min="0" max="360" value="14" aria-label="Mask colour"></label>
     </div>
-    <div class="code"><button class="copy" id="copycss">copy</button><pre id="css"></pre></div>
+    <div class="grid" id="grid"></div>
+    <div class="line" id="line"></div>
+    <div class="cursor" id="cursor" aria-hidden="true">
+      <svg viewBox="0 0 22 22" width="22" height="22"><path d="M3 2l15 8.2-6.6 1.6 3.9 7.3-2.6 1.4-3.9-7.3L4 18z" fill="#fff" stroke="#141416" stroke-width="1.4" stroke-linejoin="round"/></svg>
+      <span class="ring"></span>
+    </div>
   </div>
-</section>
+  <p class="hint">Real responses from a live instance. Take the controls to try it yourself.</p>
+</header>
 
 <section id="api">
   <div class="eyebrow">api</div>
@@ -234,16 +168,16 @@ footer a { color: var(--muted); }
     <div>
       <h3>Behaviour</h3>
       <ul>
+        <li>Sources in order: the owner's BIMI logo, the theSVG catalog, the site itself.</li>
         <li>Subdomains, query strings, a trailing slash or <code>.svg</code> get a cacheable <code>301</code> to the registrable domain.</li>
-        <li>The site's own SVG is kept, sanitized to bare paths; bitmaps are traced, one path per colour.</li>
-        <li>Every icon is fitted edge to edge; a plain white backdrop counts as padding.</li>
+        <li>Every icon is fitted edge to edge. <code>mono</code> is a single black path for CSS masks.</li>
         <li>No real icon? You still get <code>200</code> with a generated one, and the headers say why.</li>
       </ul>
     </div>
     <div>
       <h3>Headers</h3>
       <ul>
-        <li><code>X-Icon-Source</code>cache, origin or generated</li>
+        <li><code>X-Icon-Provenance</code>bimi, thesvg, site or upstream</li>
         <li><code>X-Icon-Vector</code>original, traced or generated</li>
         <li><code>X-Icon-Fallback-Reason</code>queued, not-found, blocklisted, …</li>
         <li><code>X-Icon-Blocked</code>blocklist or dns-filter</li>
@@ -276,7 +210,7 @@ cd favicons && docker compose up -d
 
 <span class="c"># check the sandbox on your kernel: each probe exits 159 (SIGSYS)</span>
 for p in fs write net exec; do docker run --rm favicons sandbox-selftest $p; done</pre></div>
-  <p class="bench">k6 suite on a laptop: <b>~1 200 rps</b>, <b>p99 ≈ 3 ms</b> on cache hits during a flood, <b>100%</b> of honest requests served while an attacking subnet is rate-limited.</p>
+  <p class="bench">k6 suite: <b>~1 300 rps</b>, <b>p99 under 1 ms</b> on cache hits during a flood, <b>100%</b> of honest requests served while an attacking subnet is rate-limited.</p>
 </section>
 
 <footer>
@@ -288,145 +222,148 @@ for p in fs write net exec; do docker run --rm favicons sandbox-selftest $p; don
 <script>
 (() => {
   const $ = (s) => document.querySelector(s);
-  const HOST = "https://icons.example.com";
+  const demo = $("#demo");
+  const cursor = $("#cursor");
+  const hue = $("#hue");
   const esc = (v) => String(v).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-  const state = { preset: 0, style: "color" };
-  let presets = [];
-
-  const notes = {
-    blocklisted: "<b>Blocked.</b> The site is on a blocklist and was never contacted.",
-    "dns-blocked": "<b>Blocked by DNS.</b> The filtering resolver sinkholed this domain.",
-    "fetch-failed": "<b>Unreachable.</b> A deterministic identicon is served and the site is retried later.",
-    "invalid-domain": "<b>Not a public domain.</b> Rejected before anything else happens.",
-    "not-found": "<b>No icon.</b> The site answered but has nothing usable.",
-    "no-monochrome": "<b>No mono shape.</b> A generated mono icon is served instead.",
-  };
-
-  function describe(r) {
-    const h = r.headers;
-    const out = [];
-    if (r.redirect) out.push(`<b>301</b> to <code>${esc(h["x-icon-domain"])}</code>: every subdomain shares one cached icon, and the subdomain is never contacted.`);
-    const reason = h["x-icon-fallback-reason"];
-    if (reason) out.push(notes[reason] || `Fallback: <b>${esc(reason)}</b>.`);
-    else if (h["x-icon-provenance"] === "bimi") out.push("The owner's <b>BIMI</b> logo, published in DNS for mail clients, sanitized to paths.");
-    else if (h["x-icon-provenance"] === "thesvg") out.push(`A curated <b>theSVG</b> brand mark (${esc(h["x-icon-license"] || "")}), sanitized to paths.`);
-    else if (h["x-icon-vector"] === "original") out.push("The site's <b>own SVG</b>, sanitized to paths and gradients.");
-    else if (h["x-icon-vector"] === "traced") out.push("<b>Traced</b> from the site's largest bitmap.");
-    if (h["x-icon-mono-source"] && !reason) out.push(`Mono shape: <b>${esc(h["x-icon-mono-source"])}</b>.`);
-    return out.join(" ");
-  }
-
-  function render() {
-    const p = presets[state.preset];
-    const r = p.responses[state.style];
-    const h = r.headers;
-    $("#url").value = `${HOST}/v1/icon/${state.style}/${p.domain}`;
-    const reason = h["x-icon-fallback-reason"];
-    const cls = h["x-icon-blocked"] ? "bad" : reason ? "warn" : "ok";
-    $("#status").innerHTML = `<span class="${cls}">${r.status} OK</span> · ${esc(h["x-icon-source"])}${reason ? ` · ${esc(reason)}` : ""}`;
-    $("#req").innerHTML = r.redirect
-      ? `${esc(r.redirect.request)} <span class="hop">→ ${r.redirect.status}</span><br>${esc(r.request)}`
-      : esc(r.request);
-    $("#headers").innerHTML = Object.entries(h)
-      .filter(([k]) => k.startsWith("x-icon") || k === "content-type")
-      .map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`)
-      .join("");
-    for (const id of ["#img", "#s16", "#s32", "#s48"]) {
-      $(id).src = r.image;
-      $(id).alt = `${p.domain} icon`;
-    }
-    $("#note").innerHTML = describe(r);
-    const { image, ...raw } = r;
-    $("#raw").textContent = JSON.stringify(raw, null, 2);
-  }
-
-  function buildChips() {
-    $("#chips").innerHTML = presets
-      .map((p, i) => `<button class="chip" data-i="${i}" aria-pressed="${i === state.preset}" title="${esc(p.note)}"><img src="${esc(p.responses.color.image)}" alt="">${esc(p.domain)}</button>`)
-      .join("");
-    $("#chips").addEventListener("click", (e) => {
-      const b = e.target.closest(".chip");
-      if (!b) return;
-      state.preset = Number(b.dataset.i);
-      document.querySelectorAll(".chip").forEach((c) => c.setAttribute("aria-pressed", String(c === b)));
-      render();
-    });
-    $("#strip").innerHTML = presets.slice(0, 9).map((p) => `<img src="${esc(p.responses.color.image)}" alt="${esc(p.domain)}">`).join("");
-  }
-
-  $("#style").addEventListener("click", (e) => {
-    const b = e.target.closest("button");
-    if (!b) return;
-    state.style = b.dataset.v;
-    document.querySelectorAll("#style button").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
-    if (presets.length) render();
-  });
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let style = "color";
+  let first = "github.com";
+  let auto = !reduce;
 
   function hsl(h) {
-    const s = 0.85, l = 0.72;
+    const s = 0.78, l = 0.52;
     const k = (n) => (n + h / 30) % 12;
     const a = s * Math.min(l, 1 - l);
     const f = (n) => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
     return "#" + [f(0), f(8), f(4)].map((x) => Math.round(x * 255).toString(16).padStart(2, "0")).join("");
   }
 
-  const maskSet = () => presets.filter((p) => !p.responses.mono.headers["x-icon-fallback-reason"]).slice(0, 6);
-
-  function setTint(hex) {
-    document.documentElement.style.setProperty("--tint", hex);
-    $("#hex").textContent = hex.toUpperCase();
-    $("#color").value = hex;
-    const p = maskSet()[0] || presets[0];
-    const url = `${HOST}/v1/icon/mono/${p ? p.domain : "github.com"}`;
-    $("#css").innerHTML =
-`<span class="k">.site-icon</span> {
-  width: <span class="v">16px</span>;
-  height: <span class="v">16px</span>;
-  background-color: <span class="t">${hex}</span>;
-  mask: <span class="v">url("${esc(url)}")</span> center / contain no-repeat;
-}
-
-<span class="c">/* or follow the text colour */</span>
-<span class="k">.site-icon</span> { background-color: <span class="v">currentColor</span>; }`;
+  function paint() {
+    const colour = hsl(Number(hue.value));
+    document.documentElement.style.setProperty("--tint", colour);
+    $("#line").innerHTML = style === "mono"
+      ? `<b>GET</b> /v1/icon/mono/${esc(first)} · mask + background-color: <em>${colour}</em>`
+      : `<b>GET</b> /v1/icon/color/${esc(first)} · the site's own colours, as SVG`;
   }
 
-  function buildMasks() {
-    const set = maskSet();
-    $("#masks").innerHTML = set.map((p) => `<div class="mask" title="${esc(p.domain)}" style="--src:url('${esc(p.responses.mono.image)}')"></div>`).join("");
-    $("#inline").innerHTML = set.slice(0, 4).map((p) => `<span><i style="--src:url('${esc(p.responses.mono.image)}')"></i>${esc(p.responses.mono.headers["x-icon-domain"] || p.domain)}</span>`).join("");
+  function setStyle(v) {
+    style = v;
+    demo.classList.toggle("mono", v === "mono");
+    $("#huebox").classList.toggle("off", v !== "mono");
+    document.querySelectorAll("#toggle button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.v === v)));
+    paint();
   }
 
-  let raf = 0, hue = 22, last = 0;
-  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
-  function tick(t) {
-    if (t - last > 40) {
-      hue = (hue + 0.5) % 360;
-      $("#hue").value = Math.round(hue);
-      setTint(hsl(hue));
-      last = t;
+  function takeOver() {
+    if (!auto) return;
+    auto = false;
+    demo.classList.add("manual");
+  }
+
+  $("#toggle").addEventListener("click", (e) => {
+    const b = e.target.closest("button");
+    if (!b) return;
+    if (e.isTrusted) takeOver();
+    setStyle(b.dataset.v);
+  });
+  hue.addEventListener("pointerdown", takeOver);
+  hue.addEventListener("keydown", takeOver);
+  hue.addEventListener("input", () => {
+    if (style !== "mono") setStyle("mono");
+    paint();
+  });
+
+  const wait = (ms) => new Promise((resolve, reject) => setTimeout(() => (auto ? resolve() : reject(new Error("stopped"))), ms));
+  const ease = (t) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
+  let pos = { x: 0, y: 0 };
+
+  function place(x, y) {
+    pos = { x, y };
+    cursor.style.transform = `translate(${x}px, ${y}px)`;
+  }
+
+  function centerOf(el) {
+    const d = demo.getBoundingClientRect();
+    const r = el.getBoundingClientRect();
+    return { x: r.left - d.left + r.width / 2, y: r.top - d.top + r.height / 2 };
+  }
+
+  function thumbAt(value) {
+    const d = demo.getBoundingClientRect();
+    const r = hue.getBoundingClientRect();
+    const thumb = 18;
+    return { x: r.left - d.left + thumb / 2 + (value / 360) * (r.width - thumb), y: r.top - d.top + r.height / 2 };
+  }
+
+  function tween(ms, step) {
+    return new Promise((resolve, reject) => {
+      const start = performance.now();
+      const frame = (now) => {
+        if (!auto) return reject(new Error("stopped"));
+        const t = Math.min(1, (now - start) / ms);
+        step(ease(t));
+        if (t < 1) requestAnimationFrame(frame);
+        else resolve();
+      };
+      requestAnimationFrame(frame);
+    });
+  }
+
+  function moveTo(target, ms) {
+    const from = { ...pos };
+    return tween(ms, (t) => place(from.x + (target.x - from.x) * t, from.y + (target.y - from.y) * t));
+  }
+
+  async function click(button) {
+    cursor.classList.remove("click");
+    void cursor.offsetWidth;
+    cursor.classList.add("click");
+    button.classList.add("pressed");
+    await wait(120);
+    button.classList.remove("pressed");
+    button.click();
+  }
+
+  async function play() {
+    const rest = () => ({ x: demo.clientWidth - 60, y: demo.clientHeight - 40 });
+    const mono = document.querySelector('#toggle [data-v="mono"]');
+    const colour = document.querySelector('#toggle [data-v="color"]');
+    place(rest().x, rest().y);
+    try {
+      for (;;) {
+        await wait(1400);
+        await moveTo(centerOf(mono), 900);
+        await wait(200);
+        await click(mono);
+        await wait(900);
+        const startValue = Number(hue.value);
+        await moveTo(thumbAt(startValue), 700);
+        await wait(250);
+        const endValue = startValue < 180 ? startValue + 170 : startValue - 170;
+        await tween(2600, (t) => {
+          hue.value = startValue + (endValue - startValue) * t;
+          paint();
+          const p = thumbAt(Number(hue.value));
+          place(p.x, p.y);
+        });
+        await wait(900);
+        await moveTo(centerOf(colour), 900);
+        await wait(200);
+        await click(colour);
+        await wait(600);
+        await moveTo(rest(), 1000);
+        await wait(1200);
+      }
+    } catch {
+      demo.classList.add("manual");
     }
-    raf = requestAnimationFrame(tick);
   }
-  function setAuto(on) {
-    $("#auto").setAttribute("aria-pressed", String(on));
-    if (on && !raf && !reduce) {
-      hue = Number($("#hue").value);
-      raf = requestAnimationFrame(tick);
-    }
-    if (!on) {
-      cancelAnimationFrame(raf);
-      raf = 0;
-    }
-  }
-  $("#auto").addEventListener("click", () => setAuto(!raf));
-  $("#hue").addEventListener("input", (e) => { setAuto(false); setTint(hsl(Number(e.target.value))); });
-  $("#color").addEventListener("input", (e) => { setAuto(false); setTint(e.target.value); });
 
   document.addEventListener("click", (e) => {
-    const b = e.target.closest("[data-copy], #copycss");
+    const b = e.target.closest("[data-copy]");
     if (!b || !navigator.clipboard) return;
-    const text = b.id === "copycss" ? $("#css").textContent : b.dataset.copy;
-    navigator.clipboard.writeText(text).then(() => {
+    navigator.clipboard.writeText(b.dataset.copy).then(() => {
       const t = b.textContent;
       b.textContent = "copied";
       setTimeout(() => (b.textContent = t), 1200);
@@ -435,15 +372,23 @@ for p in fs write net exec; do docker run --rm favicons sandbox-selftest $p; don
 
   fetch("data/presets.json")
     .then((r) => r.json())
-    .then((data) => {
-      presets = data;
-      buildChips();
-      buildMasks();
-      render();
-      setTint("#ffb38a");
-      setAuto(!reduce);
+    .then((presets) => {
+      const picks = presets.filter((p) => p.domain !== "127.0.0.1" && p.domain !== "user-48213.github.io").slice(0, 8);
+      first = picks[0] ? picks[0].domain : first;
+      $("#grid").innerHTML = picks
+        .map((p) => {
+          const label = p.responses.color.headers["x-icon-domain"] || p.domain;
+          return `<div class="cell" title="${esc(label)}"><img src="${esc(p.responses.color.image)}" alt="${esc(label)}"><div class="mask" style="--src:url('${esc(p.responses.mono.image)}')"></div><span>${esc(label)}</span></div>`;
+        })
+        .join("");
+      setStyle("color");
+      if (auto) play();
+      else demo.classList.add("manual");
     })
-    .catch(() => { $("#note").textContent = "Could not load data/presets.json."; });
+    .catch(() => {
+      $("#line").textContent = "Could not load data/presets.json.";
+      demo.classList.add("manual");
+    });
 })();
 </script>
 </body>

@@ -112,8 +112,8 @@ docker run --rm -p 8080:8080 --read-only --cap-drop ALL --security-opt no-new-pr
 ## Documentation
 
 **[peleda-app.github.io/favicons](https://peleda-app.github.io/favicons/)** is an
-interactive one-pager. It has ten presets replaying real API responses, an
-animated colour picker that tints monochrome masks with live CSS, and the API
+one-pager. Its animated demo switches real recorded icons between colour and
+monochrome and tints the masks with a hue slider, and it carries the API
 reference. It is a static page in [`site/`](site), deployed by the `pages`
 workflow. Refresh the recorded responses from a running instance with:
 

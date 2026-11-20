@@ -8,6 +8,7 @@ pub struct Stats {
     pub requests: AtomicU64,
     pub served_cache: AtomicU64,
     pub served_redirect: AtomicU64,
+    pub canonical_redirects: AtomicU64,
     pub rate_limited: AtomicU64,
     pub shed: AtomicU64,
     pub fetch_ok: AtomicU64,
@@ -35,7 +36,7 @@ impl Stats {
         queue_len: usize,
         running: usize,
         blocked: usize,
-        aliases: usize,
+        catalog: usize,
     ) -> String {
         let g = |c: &AtomicU64| c.load(Ordering::Relaxed);
         let mut s = String::new();
@@ -43,6 +44,10 @@ impl Stats {
             ("favicons_requests_total", g(&self.requests)),
             ("favicons_served_cache_total", g(&self.served_cache)),
             ("favicons_served_redirect_total", g(&self.served_redirect)),
+            (
+                "favicons_canonical_redirects_total",
+                g(&self.canonical_redirects),
+            ),
             ("favicons_rate_limited_total", g(&self.rate_limited)),
             ("favicons_shed_total", g(&self.shed)),
             ("favicons_fetch_ok_total", g(&self.fetch_ok)),
@@ -68,7 +73,7 @@ impl Stats {
             ("favicons_queue_length", queue_len),
             ("favicons_fetch_running", running),
             ("favicons_blocklist_entries", blocked),
-            ("favicons_alias_entries", aliases),
+            ("favicons_catalog_entries", catalog),
         ] {
             let _ = writeln!(s, "# TYPE {name} gauge\n{name} {v}");
         }

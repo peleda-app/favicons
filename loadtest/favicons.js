@@ -16,8 +16,6 @@ const POPULAR = [
   "python.org",
   "kernel.org",
 ];
-const SIZES = [16, 32, 64, 128];
-const THEMES = ["light", "dark"];
 const STYLES = ["color", "mono"];
 
 const honestOk = new Rate("honest_real_icon");
@@ -92,11 +90,8 @@ export const options = {
   },
 };
 
-function icon(domain, ip, params = {}) {
-  const q = Object.entries(params)
-    .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
-    .join("&");
-  const res = http.get(`${BASE}/v1/icon/${domain}${q ? `?${q}` : ""}`, {
+function icon(domain, ip, style = "color") {
+  const res = http.get(`${BASE}/v1/icon/${style}/${domain}`, {
     headers: { "X-Forwarded-For": ip },
     tags: { name: "icon" },
     timeout: "10s",
@@ -110,7 +105,7 @@ export function setup() {
   const pending = new Set(POPULAR);
   while (pending.size > 0 && Date.now() < deadline) {
     for (const d of [...pending]) {
-      const res = icon(d, honestIp(), { size: 128 });
+      const res = icon(d, honestIp());
       const source = res.headers["X-Icon-Source"];
       const reason = res.headers["X-Icon-Fallback-Reason"];
       if (source === "cache" || source === "origin") pending.delete(d);
@@ -119,7 +114,7 @@ export function setup() {
     if (pending.size > 0) sleep(1);
   }
   const warm = POPULAR.filter((d) => {
-    const res = icon(d, honestIp(), { size: 32 });
+    const res = icon(d, honestIp());
     return res.headers["X-Icon-Source"] === "cache";
   });
   if (warm.length === 0) throw new Error("no popular domain could be warmed up");
@@ -127,11 +122,7 @@ export function setup() {
 }
 
 export function hotCache(data) {
-  const res = icon(pick(data.warm), honestIp(), {
-    size: pick(SIZES),
-    theme: pick(THEMES),
-    style: pick(STYLES),
-  });
+  const res = icon(pick(data.warm), honestIp(), pick(STYLES));
   check(res, {
     "hot: 200": (r) => r.status === 200,
     "hot: served from cache": (r) => r.headers["X-Icon-Source"] === "cache",
@@ -146,7 +137,7 @@ export function junkFlood() {
     () => `${randomLabel(12)}.blocked-loadtest.com`,
     () => `${randomLabel(40)}`,
   ])();
-  const res = icon(junk, honestIp(), { size: pick(SIZES) });
+  const res = icon(junk, honestIp());
   check(res, {
     "junk: answered without fetching": (r) =>
       r.status === 429 ||
@@ -155,7 +146,7 @@ export function junkFlood() {
 }
 
 export function attacker() {
-  const res = icon(`${randomLabel(10)}${randomLabel(6)}.com`, ATTACKER_IP(), { size: 128 });
+  const res = icon(`${randomLabel(10)}${randomLabel(6)}.com`, ATTACKER_IP());
   attackerLimited.add(res.status === 429);
   check(res, {
     "attacker: never a server error": (r) => r.status < 500 || r.status === 503,
@@ -163,7 +154,7 @@ export function attacker() {
 }
 
 export function honest(data) {
-  const res = icon(pick(data.warm), honestIp(), { size: pick(SIZES) });
+  const res = icon(pick(data.warm), honestIp(), pick(STYLES));
   honestOk.add(res.status === 200 && res.headers["X-Icon-Source"] === "cache");
 }
 

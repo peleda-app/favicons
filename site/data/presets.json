@@ -1,1471 +1,350 @@
 [
  {
   "domain": "github.com",
-  "note": "Pinned-tab mask icon, CDN asset",
+  "note": "theSVG catalog mark (CC0)",
   "responses": {
-   "color-light-16": {
-    "request": "GET /v1/icon/github.com?size=16&style=color&theme=light",
+   "color": {
+    "redirect": null,
+    "request": "GET /v1/icon/color/github.com",
     "status": 200,
     "headers": {
      "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
      "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"55773f5290000b8dae0d\"",
+     "content-type": "image/svg+xml",
+     "etag": "\"dd329d31a5cf5ee25f3e\"",
      "x-icon-domain": "github.com",
-     "x-icon-size": "16",
+     "x-icon-license": "CC0-1.0",
+     "x-icon-provenance": "thesvg",
      "x-icon-source": "cache",
      "x-icon-style": "color",
-     "x-icon-theme": "light"
+     "x-icon-vector": "original"
     },
-    "image": "icons/github-com/color-light-16.webp",
-    "bytes": 472
+    "image": "icons/github-com/color.svg",
+    "bytes": 858
    },
-   "color-light-32": {
-    "request": "GET /v1/icon/github.com?size=32&style=color&theme=light",
+   "mono": {
+    "redirect": null,
+    "request": "GET /v1/icon/mono/github.com",
     "status": 200,
     "headers": {
      "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
      "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"bcf737692215c8acec39\"",
+     "content-type": "image/svg+xml",
+     "etag": "\"1e58f80b9c8153ba2318\"",
      "x-icon-domain": "github.com",
-     "x-icon-size": "32",
-     "x-icon-source": "cache",
-     "x-icon-style": "color",
-     "x-icon-theme": "light"
-    },
-    "image": "icons/github-com/color-light-32.webp",
-    "bytes": 1072
-   },
-   "color-light-64": {
-    "request": "GET /v1/icon/github.com?size=64&style=color&theme=light",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
-     "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"5ae6878db892b287d6b3\"",
-     "x-icon-domain": "github.com",
-     "x-icon-size": "64",
-     "x-icon-source": "cache",
-     "x-icon-style": "color",
-     "x-icon-theme": "light"
-    },
-    "image": "icons/github-com/color-light-64.webp",
-    "bytes": 2450
-   },
-   "color-light-128": {
-    "request": "GET /v1/icon/github.com?size=128&style=color&theme=light",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
-     "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"05b4425e9d1c503ee17d\"",
-     "x-icon-domain": "github.com",
-     "x-icon-size": "128",
-     "x-icon-source": "cache",
-     "x-icon-style": "color",
-     "x-icon-theme": "light"
-    },
-    "image": "icons/github-com/color-light-128.webp",
-    "bytes": 5964
-   },
-   "color-dark-16": {
-    "request": "GET /v1/icon/github.com?size=16&style=color&theme=dark",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
-     "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"55773f5290000b8dae0d\"",
-     "x-icon-domain": "github.com",
-     "x-icon-size": "16",
-     "x-icon-source": "cache",
-     "x-icon-style": "color",
-     "x-icon-theme": "light"
-    },
-    "image": "icons/github-com/color-dark-16.webp",
-    "bytes": 472
-   },
-   "color-dark-32": {
-    "request": "GET /v1/icon/github.com?size=32&style=color&theme=dark",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
-     "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"bcf737692215c8acec39\"",
-     "x-icon-domain": "github.com",
-     "x-icon-size": "32",
-     "x-icon-source": "cache",
-     "x-icon-style": "color",
-     "x-icon-theme": "light"
-    },
-    "image": "icons/github-com/color-dark-32.webp",
-    "bytes": 1072
-   },
-   "color-dark-64": {
-    "request": "GET /v1/icon/github.com?size=64&style=color&theme=dark",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
-     "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"5ae6878db892b287d6b3\"",
-     "x-icon-domain": "github.com",
-     "x-icon-size": "64",
-     "x-icon-source": "cache",
-     "x-icon-style": "color",
-     "x-icon-theme": "light"
-    },
-    "image": "icons/github-com/color-dark-64.webp",
-    "bytes": 2450
-   },
-   "color-dark-128": {
-    "request": "GET /v1/icon/github.com?size=128&style=color&theme=dark",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
-     "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"05b4425e9d1c503ee17d\"",
-     "x-icon-domain": "github.com",
-     "x-icon-size": "128",
-     "x-icon-source": "cache",
-     "x-icon-style": "color",
-     "x-icon-theme": "light"
-    },
-    "image": "icons/github-com/color-dark-128.webp",
-    "bytes": 5964
-   },
-   "mono-16": {
-    "request": "GET /v1/icon/github.com?size=16&style=mono",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
-     "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"3b9621f439046d037136\"",
-     "x-icon-domain": "github.com",
+     "x-icon-license": "CC0-1.0",
      "x-icon-mono-source": "mask-icon",
-     "x-icon-size": "16",
+     "x-icon-provenance": "thesvg",
      "x-icon-source": "cache",
-     "x-icon-style": "mono"
+     "x-icon-style": "mono",
+     "x-icon-vector": "original"
     },
-    "image": "icons/github-com/mono-16.webp",
-    "bytes": 346
-   },
-   "mono-32": {
-    "request": "GET /v1/icon/github.com?size=32&style=mono",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
-     "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"b89770fc371e8a1ab3b7\"",
-     "x-icon-domain": "github.com",
-     "x-icon-mono-source": "mask-icon",
-     "x-icon-size": "32",
-     "x-icon-source": "cache",
-     "x-icon-style": "mono"
-    },
-    "image": "icons/github-com/mono-32.webp",
-    "bytes": 784
-   },
-   "mono-64": {
-    "request": "GET /v1/icon/github.com?size=64&style=mono",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
-     "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"6e1eb6de36a349908c84\"",
-     "x-icon-domain": "github.com",
-     "x-icon-mono-source": "mask-icon",
-     "x-icon-size": "64",
-     "x-icon-source": "cache",
-     "x-icon-style": "mono"
-    },
-    "image": "icons/github-com/mono-64.webp",
-    "bytes": 1732
-   },
-   "mono-128": {
-    "request": "GET /v1/icon/github.com?size=128&style=mono",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
-     "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"3d3c2cdaa755634a4215\"",
-     "x-icon-domain": "github.com",
-     "x-icon-mono-source": "mask-icon",
-     "x-icon-size": "128",
-     "x-icon-source": "cache",
-     "x-icon-style": "mono"
-    },
-    "image": "icons/github-com/mono-128.webp",
-    "bytes": 1426
+    "image": "icons/github-com/mono.svg",
+    "bytes": 848
    }
   }
  },
  {
   "domain": "wikipedia.org",
-  "note": "Classic apple-touch-icon",
+  "note": "Traced from the site's own icon",
   "responses": {
-   "color-light-16": {
-    "request": "GET /v1/icon/wikipedia.org?size=16&style=color&theme=light",
+   "color": {
+    "redirect": null,
+    "request": "GET /v1/icon/color/wikipedia.org",
     "status": 200,
     "headers": {
      "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
      "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"0a4e8970df8864c1bf9a\"",
+     "content-type": "image/svg+xml",
+     "etag": "\"d579b0e1d1c0dc6e8f5b\"",
      "x-icon-domain": "wikipedia.org",
-     "x-icon-size": "16",
+     "x-icon-provenance": "site",
      "x-icon-source": "cache",
      "x-icon-style": "color",
-     "x-icon-theme": "light"
+     "x-icon-vector": "traced"
     },
-    "image": "icons/wikipedia-org/color-light-16.webp",
-    "bytes": 186
+    "image": "icons/wikipedia-org/color.svg",
+    "bytes": 4521
    },
-   "color-light-32": {
-    "request": "GET /v1/icon/wikipedia.org?size=32&style=color&theme=light",
+   "mono": {
+    "redirect": null,
+    "request": "GET /v1/icon/mono/wikipedia.org",
     "status": 200,
     "headers": {
      "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
      "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"5a2243fe24b320e80476\"",
-     "x-icon-domain": "wikipedia.org",
-     "x-icon-size": "32",
-     "x-icon-source": "cache",
-     "x-icon-style": "color",
-     "x-icon-theme": "light"
-    },
-    "image": "icons/wikipedia-org/color-light-32.webp",
-    "bytes": 360
-   },
-   "color-light-64": {
-    "request": "GET /v1/icon/wikipedia.org?size=64&style=color&theme=light",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
-     "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"e7c8ff4d31d17c30a5f0\"",
-     "x-icon-domain": "wikipedia.org",
-     "x-icon-size": "64",
-     "x-icon-source": "cache",
-     "x-icon-style": "color",
-     "x-icon-theme": "light"
-    },
-    "image": "icons/wikipedia-org/color-light-64.webp",
-    "bytes": 840
-   },
-   "color-light-128": {
-    "request": "GET /v1/icon/wikipedia.org?size=128&style=color&theme=light",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
-     "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"e1d9d26e12d5cc9db232\"",
-     "x-icon-domain": "wikipedia.org",
-     "x-icon-size": "128",
-     "x-icon-source": "cache",
-     "x-icon-style": "color",
-     "x-icon-theme": "light"
-    },
-    "image": "icons/wikipedia-org/color-light-128.webp",
-    "bytes": 1972
-   },
-   "color-dark-16": {
-    "request": "GET /v1/icon/wikipedia.org?size=16&style=color&theme=dark",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
-     "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"0a4e8970df8864c1bf9a\"",
-     "x-icon-domain": "wikipedia.org",
-     "x-icon-size": "16",
-     "x-icon-source": "cache",
-     "x-icon-style": "color",
-     "x-icon-theme": "light"
-    },
-    "image": "icons/wikipedia-org/color-dark-16.webp",
-    "bytes": 186
-   },
-   "color-dark-32": {
-    "request": "GET /v1/icon/wikipedia.org?size=32&style=color&theme=dark",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
-     "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"5a2243fe24b320e80476\"",
-     "x-icon-domain": "wikipedia.org",
-     "x-icon-size": "32",
-     "x-icon-source": "cache",
-     "x-icon-style": "color",
-     "x-icon-theme": "light"
-    },
-    "image": "icons/wikipedia-org/color-dark-32.webp",
-    "bytes": 360
-   },
-   "color-dark-64": {
-    "request": "GET /v1/icon/wikipedia.org?size=64&style=color&theme=dark",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
-     "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"e7c8ff4d31d17c30a5f0\"",
-     "x-icon-domain": "wikipedia.org",
-     "x-icon-size": "64",
-     "x-icon-source": "cache",
-     "x-icon-style": "color",
-     "x-icon-theme": "light"
-    },
-    "image": "icons/wikipedia-org/color-dark-64.webp",
-    "bytes": 840
-   },
-   "color-dark-128": {
-    "request": "GET /v1/icon/wikipedia.org?size=128&style=color&theme=dark",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
-     "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"e1d9d26e12d5cc9db232\"",
-     "x-icon-domain": "wikipedia.org",
-     "x-icon-size": "128",
-     "x-icon-source": "cache",
-     "x-icon-style": "color",
-     "x-icon-theme": "light"
-    },
-    "image": "icons/wikipedia-org/color-dark-128.webp",
-    "bytes": 1972
-   },
-   "mono-16": {
-    "request": "GET /v1/icon/wikipedia.org?size=16&style=mono",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
-     "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"9957a528075ac7332c82\"",
+     "content-type": "image/svg+xml",
+     "etag": "\"a3514cf145bd1139d19f\"",
      "x-icon-domain": "wikipedia.org",
      "x-icon-mono-source": "derived",
-     "x-icon-size": "16",
+     "x-icon-provenance": "site",
      "x-icon-source": "cache",
-     "x-icon-style": "mono"
+     "x-icon-style": "mono",
+     "x-icon-vector": "traced"
     },
-    "image": "icons/wikipedia-org/mono-16.webp",
-    "bytes": 238
-   },
-   "mono-32": {
-    "request": "GET /v1/icon/wikipedia.org?size=32&style=mono",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
-     "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"d3e1ace5b90f6a23f900\"",
-     "x-icon-domain": "wikipedia.org",
-     "x-icon-mono-source": "derived",
-     "x-icon-size": "32",
-     "x-icon-source": "cache",
-     "x-icon-style": "mono"
-    },
-    "image": "icons/wikipedia-org/mono-32.webp",
-    "bytes": 426
-   },
-   "mono-64": {
-    "request": "GET /v1/icon/wikipedia.org?size=64&style=mono",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
-     "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"d950f75af8e08bc65a2d\"",
-     "x-icon-domain": "wikipedia.org",
-     "x-icon-mono-source": "derived",
-     "x-icon-size": "64",
-     "x-icon-source": "cache",
-     "x-icon-style": "mono"
-    },
-    "image": "icons/wikipedia-org/mono-64.webp",
-    "bytes": 922
-   },
-   "mono-128": {
-    "request": "GET /v1/icon/wikipedia.org?size=128&style=mono",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
-     "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"3341728e75fca377b51b\"",
-     "x-icon-domain": "wikipedia.org",
-     "x-icon-mono-source": "derived",
-     "x-icon-size": "128",
-     "x-icon-source": "cache",
-     "x-icon-style": "mono"
-    },
-    "image": "icons/wikipedia-org/mono-128.webp",
-    "bytes": 704
+    "image": "icons/wikipedia-org/mono.svg",
+    "bytes": 5073
    }
   }
  },
  {
   "domain": "spotify.com",
-  "note": "Icon on a foreign CDN, checked first",
+  "note": "Owner's BIMI logo from DNS",
   "responses": {
-   "color-light-16": {
-    "request": "GET /v1/icon/spotify.com?size=16&style=color&theme=light",
+   "color": {
+    "redirect": null,
+    "request": "GET /v1/icon/color/spotify.com",
     "status": 200,
     "headers": {
      "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
      "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"49a02944e2ad31c2067b\"",
+     "content-type": "image/svg+xml",
+     "etag": "\"f8d877053781b3aa857e\"",
      "x-icon-domain": "spotify.com",
-     "x-icon-size": "16",
+     "x-icon-provenance": "bimi",
      "x-icon-source": "cache",
      "x-icon-style": "color",
-     "x-icon-theme": "light"
+     "x-icon-vector": "original"
     },
-    "image": "icons/spotify-com/color-light-16.webp",
-    "bytes": 812
+    "image": "icons/spotify-com/color.svg",
+    "bytes": 868
    },
-   "color-light-32": {
-    "request": "GET /v1/icon/spotify.com?size=32&style=color&theme=light",
+   "mono": {
+    "redirect": null,
+    "request": "GET /v1/icon/mono/spotify.com",
     "status": 200,
     "headers": {
      "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
      "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"e699e26cc02449e0cc5d\"",
-     "x-icon-domain": "spotify.com",
-     "x-icon-size": "32",
-     "x-icon-source": "cache",
-     "x-icon-style": "color",
-     "x-icon-theme": "light"
-    },
-    "image": "icons/spotify-com/color-light-32.webp",
-    "bytes": 2082
-   },
-   "color-light-64": {
-    "request": "GET /v1/icon/spotify.com?size=64&style=color&theme=light",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
-     "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"d6a2d29b1c03ed6bd827\"",
-     "x-icon-domain": "spotify.com",
-     "x-icon-size": "64",
-     "x-icon-source": "cache",
-     "x-icon-style": "color",
-     "x-icon-theme": "light"
-    },
-    "image": "icons/spotify-com/color-light-64.webp",
-    "bytes": 4712
-   },
-   "color-light-128": {
-    "request": "GET /v1/icon/spotify.com?size=128&style=color&theme=light",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
-     "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"0d99312a52686fef0d29\"",
-     "x-icon-domain": "spotify.com",
-     "x-icon-size": "128",
-     "x-icon-source": "cache",
-     "x-icon-style": "color",
-     "x-icon-theme": "light"
-    },
-    "image": "icons/spotify-com/color-light-128.webp",
-    "bytes": 11078
-   },
-   "color-dark-16": {
-    "request": "GET /v1/icon/spotify.com?size=16&style=color&theme=dark",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
-     "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"49a02944e2ad31c2067b\"",
-     "x-icon-domain": "spotify.com",
-     "x-icon-size": "16",
-     "x-icon-source": "cache",
-     "x-icon-style": "color",
-     "x-icon-theme": "light"
-    },
-    "image": "icons/spotify-com/color-dark-16.webp",
-    "bytes": 812
-   },
-   "color-dark-32": {
-    "request": "GET /v1/icon/spotify.com?size=32&style=color&theme=dark",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
-     "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"e699e26cc02449e0cc5d\"",
-     "x-icon-domain": "spotify.com",
-     "x-icon-size": "32",
-     "x-icon-source": "cache",
-     "x-icon-style": "color",
-     "x-icon-theme": "light"
-    },
-    "image": "icons/spotify-com/color-dark-32.webp",
-    "bytes": 2082
-   },
-   "color-dark-64": {
-    "request": "GET /v1/icon/spotify.com?size=64&style=color&theme=dark",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
-     "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"d6a2d29b1c03ed6bd827\"",
-     "x-icon-domain": "spotify.com",
-     "x-icon-size": "64",
-     "x-icon-source": "cache",
-     "x-icon-style": "color",
-     "x-icon-theme": "light"
-    },
-    "image": "icons/spotify-com/color-dark-64.webp",
-    "bytes": 4712
-   },
-   "color-dark-128": {
-    "request": "GET /v1/icon/spotify.com?size=128&style=color&theme=dark",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
-     "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"0d99312a52686fef0d29\"",
-     "x-icon-domain": "spotify.com",
-     "x-icon-size": "128",
-     "x-icon-source": "cache",
-     "x-icon-style": "color",
-     "x-icon-theme": "light"
-    },
-    "image": "icons/spotify-com/color-dark-128.webp",
-    "bytes": 11078
-   },
-   "mono-16": {
-    "request": "GET /v1/icon/spotify.com?size=16&style=mono",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
-     "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"9328bd2b82e5070f72e8\"",
+     "content-type": "image/svg+xml",
+     "etag": "\"fd7955b315daf1ad6fcc\"",
      "x-icon-domain": "spotify.com",
      "x-icon-mono-source": "derived",
-     "x-icon-size": "16",
+     "x-icon-provenance": "bimi",
      "x-icon-source": "cache",
-     "x-icon-style": "mono"
+     "x-icon-style": "mono",
+     "x-icon-vector": "traced"
     },
-    "image": "icons/spotify-com/mono-16.webp",
-    "bytes": 334
-   },
-   "mono-32": {
-    "request": "GET /v1/icon/spotify.com?size=32&style=mono",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
-     "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"457406c35025dfe039ab\"",
-     "x-icon-domain": "spotify.com",
-     "x-icon-mono-source": "derived",
-     "x-icon-size": "32",
-     "x-icon-source": "cache",
-     "x-icon-style": "mono"
-    },
-    "image": "icons/spotify-com/mono-32.webp",
-    "bytes": 798
-   },
-   "mono-64": {
-    "request": "GET /v1/icon/spotify.com?size=64&style=mono",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
-     "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"76642a56d9e9ed9c90b0\"",
-     "x-icon-domain": "spotify.com",
-     "x-icon-mono-source": "derived",
-     "x-icon-size": "64",
-     "x-icon-source": "cache",
-     "x-icon-style": "mono"
-    },
-    "image": "icons/spotify-com/mono-64.webp",
-    "bytes": 1648
-   },
-   "mono-128": {
-    "request": "GET /v1/icon/spotify.com?size=128&style=mono",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
-     "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"3d45e170ff6a828fbfe6\"",
-     "x-icon-domain": "spotify.com",
-     "x-icon-mono-source": "derived",
-     "x-icon-size": "128",
-     "x-icon-source": "cache",
-     "x-icon-style": "mono"
-    },
-    "image": "icons/spotify-com/mono-128.webp",
-    "bytes": 1172
+    "image": "icons/spotify-com/mono.svg",
+    "bytes": 2552
    }
   }
  },
  {
   "domain": "figma.com",
-  "note": "Mono derived from a dark tile",
+  "note": "Owner's BIMI logo from DNS",
   "responses": {
-   "color-light-16": {
-    "request": "GET /v1/icon/figma.com?size=16&style=color&theme=light",
+   "color": {
+    "redirect": null,
+    "request": "GET /v1/icon/color/figma.com",
     "status": 200,
     "headers": {
      "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
      "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"a6b4f3d67defb09886a1\"",
+     "content-type": "image/svg+xml",
+     "etag": "\"5a1c404b47da687595f0\"",
      "x-icon-domain": "figma.com",
-     "x-icon-size": "16",
+     "x-icon-provenance": "bimi",
      "x-icon-source": "cache",
      "x-icon-style": "color",
-     "x-icon-theme": "light"
+     "x-icon-vector": "original"
     },
-    "image": "icons/figma-com/color-light-16.webp",
-    "bytes": 524
+    "image": "icons/figma-com/color.svg",
+    "bytes": 761
    },
-   "color-light-32": {
-    "request": "GET /v1/icon/figma.com?size=32&style=color&theme=light",
+   "mono": {
+    "redirect": null,
+    "request": "GET /v1/icon/mono/figma.com",
     "status": 200,
     "headers": {
      "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
      "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"162fd248b9317d8cd336\"",
-     "x-icon-domain": "figma.com",
-     "x-icon-size": "32",
-     "x-icon-source": "cache",
-     "x-icon-style": "color",
-     "x-icon-theme": "light"
-    },
-    "image": "icons/figma-com/color-light-32.webp",
-    "bytes": 1092
-   },
-   "color-light-64": {
-    "request": "GET /v1/icon/figma.com?size=64&style=color&theme=light",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
-     "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"d14b4a0fa95e119d1cae\"",
-     "x-icon-domain": "figma.com",
-     "x-icon-size": "64",
-     "x-icon-source": "cache",
-     "x-icon-style": "color",
-     "x-icon-theme": "light"
-    },
-    "image": "icons/figma-com/color-light-64.webp",
-    "bytes": 2090
-   },
-   "color-light-128": {
-    "request": "GET /v1/icon/figma.com?size=128&style=color&theme=light",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
-     "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"c36a7731ee530f7095b8\"",
-     "x-icon-domain": "figma.com",
-     "x-icon-size": "128",
-     "x-icon-source": "cache",
-     "x-icon-style": "color",
-     "x-icon-theme": "light"
-    },
-    "image": "icons/figma-com/color-light-128.webp",
-    "bytes": 3920
-   },
-   "color-dark-16": {
-    "request": "GET /v1/icon/figma.com?size=16&style=color&theme=dark",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
-     "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"a6b4f3d67defb09886a1\"",
-     "x-icon-domain": "figma.com",
-     "x-icon-size": "16",
-     "x-icon-source": "cache",
-     "x-icon-style": "color",
-     "x-icon-theme": "light"
-    },
-    "image": "icons/figma-com/color-dark-16.webp",
-    "bytes": 524
-   },
-   "color-dark-32": {
-    "request": "GET /v1/icon/figma.com?size=32&style=color&theme=dark",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
-     "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"162fd248b9317d8cd336\"",
-     "x-icon-domain": "figma.com",
-     "x-icon-size": "32",
-     "x-icon-source": "cache",
-     "x-icon-style": "color",
-     "x-icon-theme": "light"
-    },
-    "image": "icons/figma-com/color-dark-32.webp",
-    "bytes": 1092
-   },
-   "color-dark-64": {
-    "request": "GET /v1/icon/figma.com?size=64&style=color&theme=dark",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
-     "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"d14b4a0fa95e119d1cae\"",
-     "x-icon-domain": "figma.com",
-     "x-icon-size": "64",
-     "x-icon-source": "cache",
-     "x-icon-style": "color",
-     "x-icon-theme": "light"
-    },
-    "image": "icons/figma-com/color-dark-64.webp",
-    "bytes": 2090
-   },
-   "color-dark-128": {
-    "request": "GET /v1/icon/figma.com?size=128&style=color&theme=dark",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
-     "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"c36a7731ee530f7095b8\"",
-     "x-icon-domain": "figma.com",
-     "x-icon-size": "128",
-     "x-icon-source": "cache",
-     "x-icon-style": "color",
-     "x-icon-theme": "light"
-    },
-    "image": "icons/figma-com/color-dark-128.webp",
-    "bytes": 3920
-   },
-   "mono-16": {
-    "request": "GET /v1/icon/figma.com?size=16&style=mono",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
-     "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"4f29d874854194b5c620\"",
+     "content-type": "image/svg+xml",
+     "etag": "\"a88f5aab3f1380753bda\"",
      "x-icon-domain": "figma.com",
      "x-icon-mono-source": "derived",
-     "x-icon-size": "16",
+     "x-icon-provenance": "bimi",
      "x-icon-source": "cache",
-     "x-icon-style": "mono"
+     "x-icon-style": "mono",
+     "x-icon-vector": "traced"
     },
-    "image": "icons/figma-com/mono-16.webp",
-    "bytes": 260
-   },
-   "mono-32": {
-    "request": "GET /v1/icon/figma.com?size=32&style=mono",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
-     "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"c1ba41898a75684364c9\"",
-     "x-icon-domain": "figma.com",
-     "x-icon-mono-source": "derived",
-     "x-icon-size": "32",
-     "x-icon-source": "cache",
-     "x-icon-style": "mono"
-    },
-    "image": "icons/figma-com/mono-32.webp",
-    "bytes": 464
-   },
-   "mono-64": {
-    "request": "GET /v1/icon/figma.com?size=64&style=mono",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
-     "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"8890edb95e016350cde1\"",
-     "x-icon-domain": "figma.com",
-     "x-icon-mono-source": "derived",
-     "x-icon-size": "64",
-     "x-icon-source": "cache",
-     "x-icon-style": "mono"
-    },
-    "image": "icons/figma-com/mono-64.webp",
-    "bytes": 814
-   },
-   "mono-128": {
-    "request": "GET /v1/icon/figma.com?size=128&style=mono",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
-     "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"3e1037b5f1b59e0bc632\"",
-     "x-icon-domain": "figma.com",
-     "x-icon-mono-source": "derived",
-     "x-icon-size": "128",
-     "x-icon-source": "cache",
-     "x-icon-style": "mono"
-    },
-    "image": "icons/figma-com/mono-128.webp",
-    "bytes": 498
+    "image": "icons/figma-com/mono.svg",
+    "bytes": 1857
    }
   }
  },
  {
   "domain": "notion.so",
-  "note": "Mono derived from a light tile",
+  "note": "Owner's BIMI logo from DNS",
   "responses": {
-   "color-light-16": {
-    "request": "GET /v1/icon/notion.so?size=16&style=color&theme=light",
+   "color": {
+    "redirect": null,
+    "request": "GET /v1/icon/color/notion.so",
     "status": 200,
     "headers": {
      "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
      "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"e203e351b4341434e52f\"",
+     "content-type": "image/svg+xml",
+     "etag": "\"f69110307c9c46ad2bc4\"",
      "x-icon-domain": "notion.so",
-     "x-icon-size": "16",
+     "x-icon-provenance": "bimi",
      "x-icon-source": "cache",
      "x-icon-style": "color",
-     "x-icon-theme": "light"
+     "x-icon-vector": "original"
     },
-    "image": "icons/notion-so/color-light-16.webp",
-    "bytes": 278
+    "image": "icons/notion-so/color.svg",
+    "bytes": 1078
    },
-   "color-light-32": {
-    "request": "GET /v1/icon/notion.so?size=32&style=color&theme=light",
+   "mono": {
+    "redirect": null,
+    "request": "GET /v1/icon/mono/notion.so",
     "status": 200,
     "headers": {
      "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
      "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"a196dae2f178752e2b7e\"",
-     "x-icon-domain": "notion.so",
-     "x-icon-size": "32",
-     "x-icon-source": "cache",
-     "x-icon-style": "color",
-     "x-icon-theme": "light"
-    },
-    "image": "icons/notion-so/color-light-32.webp",
-    "bytes": 690
-   },
-   "color-light-64": {
-    "request": "GET /v1/icon/notion.so?size=64&style=color&theme=light",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
-     "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"b1be72e5f7278b3cc1e7\"",
-     "x-icon-domain": "notion.so",
-     "x-icon-size": "64",
-     "x-icon-source": "cache",
-     "x-icon-style": "color",
-     "x-icon-theme": "light"
-    },
-    "image": "icons/notion-so/color-light-64.webp",
-    "bytes": 1606
-   },
-   "color-light-128": {
-    "request": "GET /v1/icon/notion.so?size=128&style=color&theme=light",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
-     "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"422221083cdb9c23b25f\"",
-     "x-icon-domain": "notion.so",
-     "x-icon-size": "128",
-     "x-icon-source": "cache",
-     "x-icon-style": "color",
-     "x-icon-theme": "light"
-    },
-    "image": "icons/notion-so/color-light-128.webp",
-    "bytes": 3534
-   },
-   "color-dark-16": {
-    "request": "GET /v1/icon/notion.so?size=16&style=color&theme=dark",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
-     "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"e203e351b4341434e52f\"",
-     "x-icon-domain": "notion.so",
-     "x-icon-size": "16",
-     "x-icon-source": "cache",
-     "x-icon-style": "color",
-     "x-icon-theme": "light"
-    },
-    "image": "icons/notion-so/color-dark-16.webp",
-    "bytes": 278
-   },
-   "color-dark-32": {
-    "request": "GET /v1/icon/notion.so?size=32&style=color&theme=dark",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
-     "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"a196dae2f178752e2b7e\"",
-     "x-icon-domain": "notion.so",
-     "x-icon-size": "32",
-     "x-icon-source": "cache",
-     "x-icon-style": "color",
-     "x-icon-theme": "light"
-    },
-    "image": "icons/notion-so/color-dark-32.webp",
-    "bytes": 690
-   },
-   "color-dark-64": {
-    "request": "GET /v1/icon/notion.so?size=64&style=color&theme=dark",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
-     "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"b1be72e5f7278b3cc1e7\"",
-     "x-icon-domain": "notion.so",
-     "x-icon-size": "64",
-     "x-icon-source": "cache",
-     "x-icon-style": "color",
-     "x-icon-theme": "light"
-    },
-    "image": "icons/notion-so/color-dark-64.webp",
-    "bytes": 1606
-   },
-   "color-dark-128": {
-    "request": "GET /v1/icon/notion.so?size=128&style=color&theme=dark",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
-     "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"422221083cdb9c23b25f\"",
-     "x-icon-domain": "notion.so",
-     "x-icon-size": "128",
-     "x-icon-source": "cache",
-     "x-icon-style": "color",
-     "x-icon-theme": "light"
-    },
-    "image": "icons/notion-so/color-dark-128.webp",
-    "bytes": 3534
-   },
-   "mono-16": {
-    "request": "GET /v1/icon/notion.so?size=16&style=mono",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
-     "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"5568a733fc796edf50ed\"",
+     "content-type": "image/svg+xml",
+     "etag": "\"03c4c547f6a4504c3999\"",
      "x-icon-domain": "notion.so",
      "x-icon-mono-source": "derived",
-     "x-icon-size": "16",
+     "x-icon-provenance": "bimi",
      "x-icon-source": "cache",
-     "x-icon-style": "mono"
+     "x-icon-style": "mono",
+     "x-icon-vector": "traced"
     },
-    "image": "icons/notion-so/mono-16.webp",
-    "bytes": 334
-   },
-   "mono-32": {
-    "request": "GET /v1/icon/notion.so?size=32&style=mono",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
-     "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"9604e6b17ee05a787db3\"",
-     "x-icon-domain": "notion.so",
-     "x-icon-mono-source": "derived",
-     "x-icon-size": "32",
-     "x-icon-source": "cache",
-     "x-icon-style": "mono"
-    },
-    "image": "icons/notion-so/mono-32.webp",
-    "bytes": 758
-   },
-   "mono-64": {
-    "request": "GET /v1/icon/notion.so?size=64&style=mono",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
-     "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"0980746480dc1bda8d67\"",
-     "x-icon-domain": "notion.so",
-     "x-icon-mono-source": "derived",
-     "x-icon-size": "64",
-     "x-icon-source": "cache",
-     "x-icon-style": "mono"
-    },
-    "image": "icons/notion-so/mono-64.webp",
-    "bytes": 1588
-   },
-   "mono-128": {
-    "request": "GET /v1/icon/notion.so?size=128&style=mono",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
-     "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"2b27467b694121b08b26\"",
-     "x-icon-domain": "notion.so",
-     "x-icon-mono-source": "derived",
-     "x-icon-size": "128",
-     "x-icon-source": "cache",
-     "x-icon-style": "mono"
-    },
-    "image": "icons/notion-so/mono-128.webp",
-    "bytes": 850
+    "image": "icons/notion-so/mono.svg",
+    "bytes": 7163
    }
   }
  },
  {
-  "domain": "outlook.live.com",
-  "note": "Vaultwarden alias to microsoft.com",
+  "domain": "mail.google.com",
+  "note": "Subdomain: 301 to google.com",
   "responses": {
-   "color-light-16": {
-    "request": "GET /v1/icon/outlook.live.com?size=16&style=color&theme=light",
+   "color": {
+    "redirect": {
+     "request": "GET /v1/icon/color/mail.google.com",
+     "status": 301,
+     "headers": {
+      "cache-control": "public, max-age=2592000, immutable",
+      "cdn-cache-control": "public, max-age=31536000, immutable",
+      "location": "/v1/icon/color/google.com",
+      "x-icon-domain": "google.com",
+      "x-icon-source": "cache",
+      "x-icon-style": "color"
+     }
+    },
+    "request": "GET /v1/icon/color/google.com",
     "status": 200,
     "headers": {
      "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
      "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"d69088eb8922d0a35e31\"",
-     "x-icon-domain": "microsoft.com",
-     "x-icon-size": "16",
+     "content-type": "image/svg+xml",
+     "etag": "\"ab39bac489d2aae7055f\"",
+     "x-icon-domain": "google.com",
+     "x-icon-license": "CC0-1.0",
+     "x-icon-provenance": "thesvg",
      "x-icon-source": "cache",
      "x-icon-style": "color",
-     "x-icon-theme": "light"
+     "x-icon-vector": "traced"
     },
-    "image": "icons/outlook-live-com/color-light-16.webp",
-    "bytes": 388
+    "image": "icons/mail-google-com/color.svg",
+    "bytes": 3837
    },
-   "color-light-32": {
-    "request": "GET /v1/icon/outlook.live.com?size=32&style=color&theme=light",
+   "mono": {
+    "redirect": {
+     "request": "GET /v1/icon/mono/mail.google.com",
+     "status": 301,
+     "headers": {
+      "cache-control": "public, max-age=2592000, immutable",
+      "cdn-cache-control": "public, max-age=31536000, immutable",
+      "location": "/v1/icon/mono/google.com",
+      "x-icon-domain": "google.com",
+      "x-icon-source": "cache",
+      "x-icon-style": "mono"
+     }
+    },
+    "request": "GET /v1/icon/mono/google.com",
     "status": 200,
     "headers": {
      "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
      "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"0f0ba4a6843ea96c1419\"",
-     "x-icon-domain": "microsoft.com",
-     "x-icon-size": "32",
+     "content-type": "image/svg+xml",
+     "etag": "\"7fc36eed47442a6336b1\"",
+     "x-icon-domain": "google.com",
+     "x-icon-license": "CC0-1.0",
+     "x-icon-mono-source": "mask-icon",
+     "x-icon-provenance": "thesvg",
      "x-icon-source": "cache",
-     "x-icon-style": "color",
-     "x-icon-theme": "light"
+     "x-icon-style": "mono",
+     "x-icon-vector": "original"
     },
-    "image": "icons/outlook-live-com/color-light-32.webp",
-    "bytes": 434
-   },
-   "color-light-64": {
-    "request": "GET /v1/icon/outlook.live.com?size=64&style=color&theme=light",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
-     "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"01f525f6d4beb07a58e9\"",
-     "x-icon-domain": "microsoft.com",
-     "x-icon-size": "64",
-     "x-icon-source": "cache",
-     "x-icon-style": "color",
-     "x-icon-theme": "light"
-    },
-    "image": "icons/outlook-live-com/color-light-64.webp",
-    "bytes": 546
-   },
-   "color-light-128": {
-    "request": "GET /v1/icon/outlook.live.com?size=128&style=color&theme=light",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
-     "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"22f4a020df1a8cd39601\"",
-     "x-icon-domain": "microsoft.com",
-     "x-icon-size": "128",
-     "x-icon-source": "cache",
-     "x-icon-style": "color",
-     "x-icon-theme": "light"
-    },
-    "image": "icons/outlook-live-com/color-light-128.webp",
-    "bytes": 234
-   },
-   "color-dark-16": {
-    "request": "GET /v1/icon/outlook.live.com?size=16&style=color&theme=dark",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
-     "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"d69088eb8922d0a35e31\"",
-     "x-icon-domain": "microsoft.com",
-     "x-icon-size": "16",
-     "x-icon-source": "cache",
-     "x-icon-style": "color",
-     "x-icon-theme": "light"
-    },
-    "image": "icons/outlook-live-com/color-dark-16.webp",
-    "bytes": 388
-   },
-   "color-dark-32": {
-    "request": "GET /v1/icon/outlook.live.com?size=32&style=color&theme=dark",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
-     "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"0f0ba4a6843ea96c1419\"",
-     "x-icon-domain": "microsoft.com",
-     "x-icon-size": "32",
-     "x-icon-source": "cache",
-     "x-icon-style": "color",
-     "x-icon-theme": "light"
-    },
-    "image": "icons/outlook-live-com/color-dark-32.webp",
-    "bytes": 434
-   },
-   "color-dark-64": {
-    "request": "GET /v1/icon/outlook.live.com?size=64&style=color&theme=dark",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
-     "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"01f525f6d4beb07a58e9\"",
-     "x-icon-domain": "microsoft.com",
-     "x-icon-size": "64",
-     "x-icon-source": "cache",
-     "x-icon-style": "color",
-     "x-icon-theme": "light"
-    },
-    "image": "icons/outlook-live-com/color-dark-64.webp",
-    "bytes": 546
-   },
-   "color-dark-128": {
-    "request": "GET /v1/icon/outlook.live.com?size=128&style=color&theme=dark",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
-     "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"22f4a020df1a8cd39601\"",
-     "x-icon-domain": "microsoft.com",
-     "x-icon-size": "128",
-     "x-icon-source": "cache",
-     "x-icon-style": "color",
-     "x-icon-theme": "light"
-    },
-    "image": "icons/outlook-live-com/color-dark-128.webp",
-    "bytes": 234
-   },
-   "mono-16": {
-    "request": "GET /v1/icon/outlook.live.com?size=16&style=mono",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
-     "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"41eb0d6922f13dc1adec\"",
-     "x-icon-domain": "microsoft.com",
-     "x-icon-mono-source": "derived",
-     "x-icon-size": "16",
-     "x-icon-source": "cache",
-     "x-icon-style": "mono"
-    },
-    "image": "icons/outlook-live-com/mono-16.webp",
-    "bytes": 162
-   },
-   "mono-32": {
-    "request": "GET /v1/icon/outlook.live.com?size=32&style=mono",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
-     "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"8ce220293e1a5e7f2303\"",
-     "x-icon-domain": "microsoft.com",
-     "x-icon-mono-source": "derived",
-     "x-icon-size": "32",
-     "x-icon-source": "cache",
-     "x-icon-style": "mono"
-    },
-    "image": "icons/outlook-live-com/mono-32.webp",
-    "bytes": 178
-   },
-   "mono-64": {
-    "request": "GET /v1/icon/outlook.live.com?size=64&style=mono",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
-     "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"3d7108729469ecf9691e\"",
-     "x-icon-domain": "microsoft.com",
-     "x-icon-mono-source": "derived",
-     "x-icon-size": "64",
-     "x-icon-source": "cache",
-     "x-icon-style": "mono"
-    },
-    "image": "icons/outlook-live-com/mono-64.webp",
-    "bytes": 214
-   },
-   "mono-128": {
-    "request": "GET /v1/icon/outlook.live.com?size=128&style=mono",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
-     "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"ae3157e8f0f0d149fbbb\"",
-     "x-icon-domain": "microsoft.com",
-     "x-icon-mono-source": "derived",
-     "x-icon-size": "128",
-     "x-icon-source": "cache",
-     "x-icon-style": "mono"
-    },
-    "image": "icons/outlook-live-com/mono-128.webp",
-    "bytes": 136
+    "image": "icons/mail-google-com/mono.svg",
+    "bytes": 505
    }
   }
  },
  {
   "domain": "user-48213.github.io",
-  "note": "Tracking subdomain collapsed",
+  "note": "Tracking subdomain: 301 to github.io",
   "responses": {
-   "color-light-16": {
-    "request": "GET /v1/icon/user-48213.github.io?size=16&style=color&theme=light",
+   "color": {
+    "redirect": {
+     "request": "GET /v1/icon/color/user-48213.github.io",
+     "status": 301,
+     "headers": {
+      "cache-control": "public, max-age=2592000, immutable",
+      "cdn-cache-control": "public, max-age=31536000, immutable",
+      "location": "/v1/icon/color/github.io",
+      "x-icon-domain": "github.io",
+      "x-icon-source": "cache",
+      "x-icon-style": "color"
+     }
+    },
+    "request": "GET /v1/icon/color/github.io",
     "status": 200,
     "headers": {
      "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
      "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"2a4659eca31a2cba52f5\"",
+     "content-type": "image/svg+xml",
+     "etag": "\"01e997821ff691d0e5b3\"",
      "x-icon-domain": "github.io",
-     "x-icon-size": "16",
+     "x-icon-provenance": "site",
      "x-icon-source": "cache",
      "x-icon-style": "color",
-     "x-icon-theme": "light"
+     "x-icon-vector": "traced"
     },
-    "image": "icons/user-48213-github-io/color-light-16.webp",
-    "bytes": 528
+    "image": "icons/user-48213-github-io/color.svg",
+    "bytes": 4597
    },
-   "color-light-32": {
-    "request": "GET /v1/icon/user-48213.github.io?size=32&style=color&theme=light",
+   "mono": {
+    "redirect": {
+     "request": "GET /v1/icon/mono/user-48213.github.io",
+     "status": 301,
+     "headers": {
+      "cache-control": "public, max-age=2592000, immutable",
+      "cdn-cache-control": "public, max-age=31536000, immutable",
+      "location": "/v1/icon/mono/github.io",
+      "x-icon-domain": "github.io",
+      "x-icon-source": "cache",
+      "x-icon-style": "mono"
+     }
+    },
+    "request": "GET /v1/icon/mono/github.io",
     "status": 200,
     "headers": {
      "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
      "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"9628df5cdd0b03aa8421\"",
-     "x-icon-domain": "github.io",
-     "x-icon-size": "32",
-     "x-icon-source": "cache",
-     "x-icon-style": "color",
-     "x-icon-theme": "light"
-    },
-    "image": "icons/user-48213-github-io/color-light-32.webp",
-    "bytes": 930
-   },
-   "color-light-64": {
-    "request": "GET /v1/icon/user-48213.github.io?size=64&style=color&theme=light",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
-     "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"9628df5cdd0b03aa8421\"",
-     "x-icon-domain": "github.io",
-     "x-icon-size": "32",
-     "x-icon-source": "cache",
-     "x-icon-style": "color",
-     "x-icon-theme": "light"
-    },
-    "image": "icons/user-48213-github-io/color-light-64.webp",
-    "bytes": 930
-   },
-   "color-light-128": {
-    "request": "GET /v1/icon/user-48213.github.io?size=128&style=color&theme=light",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
-     "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"9628df5cdd0b03aa8421\"",
-     "x-icon-domain": "github.io",
-     "x-icon-size": "32",
-     "x-icon-source": "cache",
-     "x-icon-style": "color",
-     "x-icon-theme": "light"
-    },
-    "image": "icons/user-48213-github-io/color-light-128.webp",
-    "bytes": 930
-   },
-   "color-dark-16": {
-    "request": "GET /v1/icon/user-48213.github.io?size=16&style=color&theme=dark",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
-     "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"2a4659eca31a2cba52f5\"",
-     "x-icon-domain": "github.io",
-     "x-icon-size": "16",
-     "x-icon-source": "cache",
-     "x-icon-style": "color",
-     "x-icon-theme": "light"
-    },
-    "image": "icons/user-48213-github-io/color-dark-16.webp",
-    "bytes": 528
-   },
-   "color-dark-32": {
-    "request": "GET /v1/icon/user-48213.github.io?size=32&style=color&theme=dark",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
-     "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"9628df5cdd0b03aa8421\"",
-     "x-icon-domain": "github.io",
-     "x-icon-size": "32",
-     "x-icon-source": "cache",
-     "x-icon-style": "color",
-     "x-icon-theme": "light"
-    },
-    "image": "icons/user-48213-github-io/color-dark-32.webp",
-    "bytes": 930
-   },
-   "color-dark-64": {
-    "request": "GET /v1/icon/user-48213.github.io?size=64&style=color&theme=dark",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
-     "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"9628df5cdd0b03aa8421\"",
-     "x-icon-domain": "github.io",
-     "x-icon-size": "32",
-     "x-icon-source": "cache",
-     "x-icon-style": "color",
-     "x-icon-theme": "light"
-    },
-    "image": "icons/user-48213-github-io/color-dark-64.webp",
-    "bytes": 930
-   },
-   "color-dark-128": {
-    "request": "GET /v1/icon/user-48213.github.io?size=128&style=color&theme=dark",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
-     "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"9628df5cdd0b03aa8421\"",
-     "x-icon-domain": "github.io",
-     "x-icon-size": "32",
-     "x-icon-source": "cache",
-     "x-icon-style": "color",
-     "x-icon-theme": "light"
-    },
-    "image": "icons/user-48213-github-io/color-dark-128.webp",
-    "bytes": 930
-   },
-   "mono-16": {
-    "request": "GET /v1/icon/user-48213.github.io?size=16&style=mono",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
-     "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"f0673f508ae7eb4dfade\"",
+     "content-type": "image/svg+xml",
+     "etag": "\"8eb39d3b58ac8ee05129\"",
      "x-icon-domain": "github.io",
      "x-icon-mono-source": "derived",
-     "x-icon-size": "16",
+     "x-icon-provenance": "site",
      "x-icon-source": "cache",
-     "x-icon-style": "mono"
+     "x-icon-style": "mono",
+     "x-icon-vector": "traced"
     },
-    "image": "icons/user-48213-github-io/mono-16.webp",
-    "bytes": 330
-   },
-   "mono-32": {
-    "request": "GET /v1/icon/user-48213.github.io?size=32&style=mono",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
-     "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"25745055e6a32afb9af4\"",
-     "x-icon-domain": "github.io",
-     "x-icon-mono-source": "derived",
-     "x-icon-size": "32",
-     "x-icon-source": "cache",
-     "x-icon-style": "mono"
-    },
-    "image": "icons/user-48213-github-io/mono-32.webp",
-    "bytes": 584
-   },
-   "mono-64": {
-    "request": "GET /v1/icon/user-48213.github.io?size=64&style=mono",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
-     "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"25745055e6a32afb9af4\"",
-     "x-icon-domain": "github.io",
-     "x-icon-mono-source": "derived",
-     "x-icon-size": "32",
-     "x-icon-source": "cache",
-     "x-icon-style": "mono"
-    },
-    "image": "icons/user-48213-github-io/mono-64.webp",
-    "bytes": 584
-   },
-   "mono-128": {
-    "request": "GET /v1/icon/user-48213.github.io?size=128&style=mono",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=604800, stale-while-revalidate=86400",
-     "cdn-cache-control": "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
-     "content-type": "image/webp",
-     "etag": "\"25745055e6a32afb9af4\"",
-     "x-icon-domain": "github.io",
-     "x-icon-mono-source": "derived",
-     "x-icon-size": "32",
-     "x-icon-source": "cache",
-     "x-icon-style": "mono"
-    },
-    "image": "icons/user-48213-github-io/mono-128.webp",
-    "bytes": 584
+    "image": "icons/user-48213-github-io/mono.svg",
+    "bytes": 4771
    }
   }
  },
@@ -1473,245 +352,46 @@
   "domain": "evil-example.com",
   "note": "Blocklisted domain",
   "responses": {
-   "color-light-16": {
-    "request": "GET /v1/icon/evil-example.com?size=16&style=color&theme=light",
+   "color": {
+    "redirect": null,
+    "request": "GET /v1/icon/color/evil-example.com",
     "status": 200,
     "headers": {
      "cache-control": "public, max-age=86400",
      "cdn-cache-control": "public, max-age=86400, stale-if-error=86400",
-     "content-type": "image/webp",
-     "etag": "\"g-70035e48e18bdae8b176\"",
+     "content-type": "image/svg+xml",
+     "etag": "\"g-ff3c7daa10e87506f0f3\"",
      "x-icon-blocked": "blocklist",
      "x-icon-domain": "evil-example.com",
      "x-icon-fallback": "true",
      "x-icon-fallback-reason": "blocklisted",
-     "x-icon-size": "16",
      "x-icon-source": "generated",
      "x-icon-style": "color",
-     "x-icon-theme": "light"
+     "x-icon-vector": "generated"
     },
-    "image": "icons/evil-example-com/color-light-16.webp",
-    "bytes": 334
+    "image": "icons/evil-example-com/color.svg",
+    "bytes": 1270
    },
-   "color-light-32": {
-    "request": "GET /v1/icon/evil-example.com?size=32&style=color&theme=light",
+   "mono": {
+    "redirect": null,
+    "request": "GET /v1/icon/mono/evil-example.com",
     "status": 200,
     "headers": {
      "cache-control": "public, max-age=86400",
      "cdn-cache-control": "public, max-age=86400, stale-if-error=86400",
-     "content-type": "image/webp",
-     "etag": "\"g-851b74d01f99a85a592d\"",
-     "x-icon-blocked": "blocklist",
-     "x-icon-domain": "evil-example.com",
-     "x-icon-fallback": "true",
-     "x-icon-fallback-reason": "blocklisted",
-     "x-icon-size": "32",
-     "x-icon-source": "generated",
-     "x-icon-style": "color",
-     "x-icon-theme": "light"
-    },
-    "image": "icons/evil-example-com/color-light-32.webp",
-    "bytes": 542
-   },
-   "color-light-64": {
-    "request": "GET /v1/icon/evil-example.com?size=64&style=color&theme=light",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=86400",
-     "cdn-cache-control": "public, max-age=86400, stale-if-error=86400",
-     "content-type": "image/webp",
-     "etag": "\"g-e929eaa17e24f42880b0\"",
-     "x-icon-blocked": "blocklist",
-     "x-icon-domain": "evil-example.com",
-     "x-icon-fallback": "true",
-     "x-icon-fallback-reason": "blocklisted",
-     "x-icon-size": "64",
-     "x-icon-source": "generated",
-     "x-icon-style": "color",
-     "x-icon-theme": "light"
-    },
-    "image": "icons/evil-example-com/color-light-64.webp",
-    "bytes": 910
-   },
-   "color-light-128": {
-    "request": "GET /v1/icon/evil-example.com?size=128&style=color&theme=light",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=86400",
-     "cdn-cache-control": "public, max-age=86400, stale-if-error=86400",
-     "content-type": "image/webp",
-     "etag": "\"g-21b8afb1b01a52728b25\"",
-     "x-icon-blocked": "blocklist",
-     "x-icon-domain": "evil-example.com",
-     "x-icon-fallback": "true",
-     "x-icon-fallback-reason": "blocklisted",
-     "x-icon-size": "128",
-     "x-icon-source": "generated",
-     "x-icon-style": "color",
-     "x-icon-theme": "light"
-    },
-    "image": "icons/evil-example-com/color-light-128.webp",
-    "bytes": 1742
-   },
-   "color-dark-16": {
-    "request": "GET /v1/icon/evil-example.com?size=16&style=color&theme=dark",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=86400",
-     "cdn-cache-control": "public, max-age=86400, stale-if-error=86400",
-     "content-type": "image/webp",
-     "etag": "\"g-21d138dc3389b7ac7a27\"",
-     "x-icon-blocked": "blocklist",
-     "x-icon-domain": "evil-example.com",
-     "x-icon-fallback": "true",
-     "x-icon-fallback-reason": "blocklisted",
-     "x-icon-size": "16",
-     "x-icon-source": "generated",
-     "x-icon-style": "color",
-     "x-icon-theme": "dark"
-    },
-    "image": "icons/evil-example-com/color-dark-16.webp",
-    "bytes": 342
-   },
-   "color-dark-32": {
-    "request": "GET /v1/icon/evil-example.com?size=32&style=color&theme=dark",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=86400",
-     "cdn-cache-control": "public, max-age=86400, stale-if-error=86400",
-     "content-type": "image/webp",
-     "etag": "\"g-075670f06a283a70e32a\"",
-     "x-icon-blocked": "blocklist",
-     "x-icon-domain": "evil-example.com",
-     "x-icon-fallback": "true",
-     "x-icon-fallback-reason": "blocklisted",
-     "x-icon-size": "32",
-     "x-icon-source": "generated",
-     "x-icon-style": "color",
-     "x-icon-theme": "dark"
-    },
-    "image": "icons/evil-example-com/color-dark-32.webp",
-    "bytes": 532
-   },
-   "color-dark-64": {
-    "request": "GET /v1/icon/evil-example.com?size=64&style=color&theme=dark",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=86400",
-     "cdn-cache-control": "public, max-age=86400, stale-if-error=86400",
-     "content-type": "image/webp",
-     "etag": "\"g-7b6cee4eae51e0a4497f\"",
-     "x-icon-blocked": "blocklist",
-     "x-icon-domain": "evil-example.com",
-     "x-icon-fallback": "true",
-     "x-icon-fallback-reason": "blocklisted",
-     "x-icon-size": "64",
-     "x-icon-source": "generated",
-     "x-icon-style": "color",
-     "x-icon-theme": "dark"
-    },
-    "image": "icons/evil-example-com/color-dark-64.webp",
-    "bytes": 896
-   },
-   "color-dark-128": {
-    "request": "GET /v1/icon/evil-example.com?size=128&style=color&theme=dark",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=86400",
-     "cdn-cache-control": "public, max-age=86400, stale-if-error=86400",
-     "content-type": "image/webp",
-     "etag": "\"g-090c876fa3ac7ffefe8a\"",
-     "x-icon-blocked": "blocklist",
-     "x-icon-domain": "evil-example.com",
-     "x-icon-fallback": "true",
-     "x-icon-fallback-reason": "blocklisted",
-     "x-icon-size": "128",
-     "x-icon-source": "generated",
-     "x-icon-style": "color",
-     "x-icon-theme": "dark"
-    },
-    "image": "icons/evil-example-com/color-dark-128.webp",
-    "bytes": 1726
-   },
-   "mono-16": {
-    "request": "GET /v1/icon/evil-example.com?size=16&style=mono",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=86400",
-     "cdn-cache-control": "public, max-age=86400, stale-if-error=86400",
-     "content-type": "image/webp",
-     "etag": "\"g-a40bf9e5cfd8908f4169\"",
+     "content-type": "image/svg+xml",
+     "etag": "\"g-03fe0b367ec3b891f421\"",
      "x-icon-blocked": "blocklist",
      "x-icon-domain": "evil-example.com",
      "x-icon-fallback": "true",
      "x-icon-fallback-reason": "blocklisted",
      "x-icon-mono-source": "generated",
-     "x-icon-size": "16",
      "x-icon-source": "generated",
-     "x-icon-style": "mono"
+     "x-icon-style": "mono",
+     "x-icon-vector": "generated"
     },
-    "image": "icons/evil-example-com/mono-16.webp",
-    "bytes": 146
-   },
-   "mono-32": {
-    "request": "GET /v1/icon/evil-example.com?size=32&style=mono",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=86400",
-     "cdn-cache-control": "public, max-age=86400, stale-if-error=86400",
-     "content-type": "image/webp",
-     "etag": "\"g-d25cff6e02d9d4ffa474\"",
-     "x-icon-blocked": "blocklist",
-     "x-icon-domain": "evil-example.com",
-     "x-icon-fallback": "true",
-     "x-icon-fallback-reason": "blocklisted",
-     "x-icon-mono-source": "generated",
-     "x-icon-size": "32",
-     "x-icon-source": "generated",
-     "x-icon-style": "mono"
-    },
-    "image": "icons/evil-example-com/mono-32.webp",
-    "bytes": 150
-   },
-   "mono-64": {
-    "request": "GET /v1/icon/evil-example.com?size=64&style=mono",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=86400",
-     "cdn-cache-control": "public, max-age=86400, stale-if-error=86400",
-     "content-type": "image/webp",
-     "etag": "\"g-8a67f34cb81c90963646\"",
-     "x-icon-blocked": "blocklist",
-     "x-icon-domain": "evil-example.com",
-     "x-icon-fallback": "true",
-     "x-icon-fallback-reason": "blocklisted",
-     "x-icon-mono-source": "generated",
-     "x-icon-size": "64",
-     "x-icon-source": "generated",
-     "x-icon-style": "mono"
-    },
-    "image": "icons/evil-example-com/mono-64.webp",
-    "bytes": 190
-   },
-   "mono-128": {
-    "request": "GET /v1/icon/evil-example.com?size=128&style=mono",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=86400",
-     "cdn-cache-control": "public, max-age=86400, stale-if-error=86400",
-     "content-type": "image/webp",
-     "etag": "\"g-b0f76d8ba4482ead7e0e\"",
-     "x-icon-blocked": "blocklist",
-     "x-icon-domain": "evil-example.com",
-     "x-icon-fallback": "true",
-     "x-icon-fallback-reason": "blocklisted",
-     "x-icon-mono-source": "generated",
-     "x-icon-size": "128",
-     "x-icon-source": "generated",
-     "x-icon-style": "mono"
-    },
-    "image": "icons/evil-example-com/mono-128.webp",
-    "bytes": 288
+    "image": "icons/evil-example-com/mono.svg",
+    "bytes": 371
    }
   }
  },
@@ -1719,233 +399,44 @@
   "domain": "nope-zzzq-xx.com",
   "note": "Unreachable site, identicon",
   "responses": {
-   "color-light-16": {
-    "request": "GET /v1/icon/nope-zzzq-xx.com?size=16&style=color&theme=light",
+   "color": {
+    "redirect": null,
+    "request": "GET /v1/icon/color/nope-zzzq-xx.com",
     "status": 200,
     "headers": {
      "cache-control": "public, max-age=300",
      "cdn-cache-control": "public, max-age=60",
-     "content-type": "image/webp",
-     "etag": "\"g-3d3471173eb133b24ef0\"",
+     "content-type": "image/svg+xml",
+     "etag": "\"g-168555080ed58c0ca168\"",
      "x-icon-domain": "nope-zzzq-xx.com",
      "x-icon-fallback": "true",
      "x-icon-fallback-reason": "fetch-failed",
-     "x-icon-size": "16",
      "x-icon-source": "generated",
      "x-icon-style": "color",
-     "x-icon-theme": "light"
+     "x-icon-vector": "generated"
     },
-    "image": "icons/nope-zzzq-xx-com/color-light-16.webp",
-    "bytes": 312
+    "image": "icons/nope-zzzq-xx-com/color.svg",
+    "bytes": 1556
    },
-   "color-light-32": {
-    "request": "GET /v1/icon/nope-zzzq-xx.com?size=32&style=color&theme=light",
+   "mono": {
+    "redirect": null,
+    "request": "GET /v1/icon/mono/nope-zzzq-xx.com",
     "status": 200,
     "headers": {
      "cache-control": "public, max-age=300",
      "cdn-cache-control": "public, max-age=60",
-     "content-type": "image/webp",
-     "etag": "\"g-4975b946f871cdc059cd\"",
-     "x-icon-domain": "nope-zzzq-xx.com",
-     "x-icon-fallback": "true",
-     "x-icon-fallback-reason": "fetch-failed",
-     "x-icon-size": "32",
-     "x-icon-source": "generated",
-     "x-icon-style": "color",
-     "x-icon-theme": "light"
-    },
-    "image": "icons/nope-zzzq-xx-com/color-light-32.webp",
-    "bytes": 434
-   },
-   "color-light-64": {
-    "request": "GET /v1/icon/nope-zzzq-xx.com?size=64&style=color&theme=light",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=300",
-     "cdn-cache-control": "public, max-age=60",
-     "content-type": "image/webp",
-     "etag": "\"g-4d60b4c6238d81a10dce\"",
-     "x-icon-domain": "nope-zzzq-xx.com",
-     "x-icon-fallback": "true",
-     "x-icon-fallback-reason": "fetch-failed",
-     "x-icon-size": "64",
-     "x-icon-source": "generated",
-     "x-icon-style": "color",
-     "x-icon-theme": "light"
-    },
-    "image": "icons/nope-zzzq-xx-com/color-light-64.webp",
-    "bytes": 606
-   },
-   "color-light-128": {
-    "request": "GET /v1/icon/nope-zzzq-xx.com?size=128&style=color&theme=light",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=300",
-     "cdn-cache-control": "public, max-age=60",
-     "content-type": "image/webp",
-     "etag": "\"g-f5728db8ff4a08fcb2a7\"",
-     "x-icon-domain": "nope-zzzq-xx.com",
-     "x-icon-fallback": "true",
-     "x-icon-fallback-reason": "fetch-failed",
-     "x-icon-size": "128",
-     "x-icon-source": "generated",
-     "x-icon-style": "color",
-     "x-icon-theme": "light"
-    },
-    "image": "icons/nope-zzzq-xx-com/color-light-128.webp",
-    "bytes": 1048
-   },
-   "color-dark-16": {
-    "request": "GET /v1/icon/nope-zzzq-xx.com?size=16&style=color&theme=dark",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=300",
-     "cdn-cache-control": "public, max-age=60",
-     "content-type": "image/webp",
-     "etag": "\"g-caaceccb705051c75c24\"",
-     "x-icon-domain": "nope-zzzq-xx.com",
-     "x-icon-fallback": "true",
-     "x-icon-fallback-reason": "fetch-failed",
-     "x-icon-size": "16",
-     "x-icon-source": "generated",
-     "x-icon-style": "color",
-     "x-icon-theme": "dark"
-    },
-    "image": "icons/nope-zzzq-xx-com/color-dark-16.webp",
-    "bytes": 308
-   },
-   "color-dark-32": {
-    "request": "GET /v1/icon/nope-zzzq-xx.com?size=32&style=color&theme=dark",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=300",
-     "cdn-cache-control": "public, max-age=60",
-     "content-type": "image/webp",
-     "etag": "\"g-e8ad2bee8cece1e85bb2\"",
-     "x-icon-domain": "nope-zzzq-xx.com",
-     "x-icon-fallback": "true",
-     "x-icon-fallback-reason": "fetch-failed",
-     "x-icon-size": "32",
-     "x-icon-source": "generated",
-     "x-icon-style": "color",
-     "x-icon-theme": "dark"
-    },
-    "image": "icons/nope-zzzq-xx-com/color-dark-32.webp",
-    "bytes": 428
-   },
-   "color-dark-64": {
-    "request": "GET /v1/icon/nope-zzzq-xx.com?size=64&style=color&theme=dark",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=300",
-     "cdn-cache-control": "public, max-age=60",
-     "content-type": "image/webp",
-     "etag": "\"g-3bb7e6a79c6f48370a89\"",
-     "x-icon-domain": "nope-zzzq-xx.com",
-     "x-icon-fallback": "true",
-     "x-icon-fallback-reason": "fetch-failed",
-     "x-icon-size": "64",
-     "x-icon-source": "generated",
-     "x-icon-style": "color",
-     "x-icon-theme": "dark"
-    },
-    "image": "icons/nope-zzzq-xx-com/color-dark-64.webp",
-    "bytes": 610
-   },
-   "color-dark-128": {
-    "request": "GET /v1/icon/nope-zzzq-xx.com?size=128&style=color&theme=dark",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=300",
-     "cdn-cache-control": "public, max-age=60",
-     "content-type": "image/webp",
-     "etag": "\"g-07855e9379600e99c3d0\"",
-     "x-icon-domain": "nope-zzzq-xx.com",
-     "x-icon-fallback": "true",
-     "x-icon-fallback-reason": "fetch-failed",
-     "x-icon-size": "128",
-     "x-icon-source": "generated",
-     "x-icon-style": "color",
-     "x-icon-theme": "dark"
-    },
-    "image": "icons/nope-zzzq-xx-com/color-dark-128.webp",
-    "bytes": 1038
-   },
-   "mono-16": {
-    "request": "GET /v1/icon/nope-zzzq-xx.com?size=16&style=mono",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=300",
-     "cdn-cache-control": "public, max-age=60",
-     "content-type": "image/webp",
-     "etag": "\"g-1b90c56b68edc948ca72\"",
+     "content-type": "image/svg+xml",
+     "etag": "\"g-409e59faa771290fde9f\"",
      "x-icon-domain": "nope-zzzq-xx.com",
      "x-icon-fallback": "true",
      "x-icon-fallback-reason": "fetch-failed",
      "x-icon-mono-source": "generated",
-     "x-icon-size": "16",
      "x-icon-source": "generated",
-     "x-icon-style": "mono"
+     "x-icon-style": "mono",
+     "x-icon-vector": "generated"
     },
-    "image": "icons/nope-zzzq-xx-com/mono-16.webp",
-    "bytes": 138
-   },
-   "mono-32": {
-    "request": "GET /v1/icon/nope-zzzq-xx.com?size=32&style=mono",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=300",
-     "cdn-cache-control": "public, max-age=60",
-     "content-type": "image/webp",
-     "etag": "\"g-f4d080cd35814bee8202\"",
-     "x-icon-domain": "nope-zzzq-xx.com",
-     "x-icon-fallback": "true",
-     "x-icon-fallback-reason": "fetch-failed",
-     "x-icon-mono-source": "generated",
-     "x-icon-size": "32",
-     "x-icon-source": "generated",
-     "x-icon-style": "mono"
-    },
-    "image": "icons/nope-zzzq-xx-com/mono-32.webp",
-    "bytes": 140
-   },
-   "mono-64": {
-    "request": "GET /v1/icon/nope-zzzq-xx.com?size=64&style=mono",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=300",
-     "cdn-cache-control": "public, max-age=60",
-     "content-type": "image/webp",
-     "etag": "\"g-8822290dd1406cfd11df\"",
-     "x-icon-domain": "nope-zzzq-xx.com",
-     "x-icon-fallback": "true",
-     "x-icon-fallback-reason": "fetch-failed",
-     "x-icon-mono-source": "generated",
-     "x-icon-size": "64",
-     "x-icon-source": "generated",
-     "x-icon-style": "mono"
-    },
-    "image": "icons/nope-zzzq-xx-com/mono-64.webp",
-    "bytes": 148
-   },
-   "mono-128": {
-    "request": "GET /v1/icon/nope-zzzq-xx.com?size=128&style=mono",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=300",
-     "cdn-cache-control": "public, max-age=60",
-     "content-type": "image/webp",
-     "etag": "\"g-df7f722edcd8f47d945d\"",
-     "x-icon-domain": "nope-zzzq-xx.com",
-     "x-icon-fallback": "true",
-     "x-icon-fallback-reason": "fetch-failed",
-     "x-icon-mono-source": "generated",
-     "x-icon-size": "128",
-     "x-icon-source": "generated",
-     "x-icon-style": "mono"
-    },
-    "image": "icons/nope-zzzq-xx-com/mono-128.webp",
-    "bytes": 150
+    "image": "icons/nope-zzzq-xx-com/mono.svg",
+    "bytes": 426
    }
   }
  },
@@ -1953,221 +444,42 @@
   "domain": "127.0.0.1",
   "note": "Not a public domain",
   "responses": {
-   "color-light-16": {
-    "request": "GET /v1/icon/127.0.0.1?size=16&style=color&theme=light",
+   "color": {
+    "redirect": null,
+    "request": "GET /v1/icon/color/127.0.0.1",
     "status": 200,
     "headers": {
      "cache-control": "public, max-age=86400",
      "cdn-cache-control": "public, max-age=86400, stale-if-error=86400",
-     "content-type": "image/webp",
-     "etag": "\"g-d8518fa34c746234e278\"",
+     "content-type": "image/svg+xml",
+     "etag": "\"g-bfffe6e16dcadce88b01\"",
      "x-icon-fallback": "true",
      "x-icon-fallback-reason": "invalid-domain",
-     "x-icon-size": "16",
      "x-icon-source": "generated",
      "x-icon-style": "color",
-     "x-icon-theme": "light"
+     "x-icon-vector": "generated"
     },
-    "image": "icons/127-0-0-1/color-light-16.webp",
-    "bytes": 284
+    "image": "icons/127-0-0-1/color.svg",
+    "bytes": 1429
    },
-   "color-light-32": {
-    "request": "GET /v1/icon/127.0.0.1?size=32&style=color&theme=light",
+   "mono": {
+    "redirect": null,
+    "request": "GET /v1/icon/mono/127.0.0.1",
     "status": 200,
     "headers": {
      "cache-control": "public, max-age=86400",
      "cdn-cache-control": "public, max-age=86400, stale-if-error=86400",
-     "content-type": "image/webp",
-     "etag": "\"g-a026c8828018c55ea5f5\"",
-     "x-icon-fallback": "true",
-     "x-icon-fallback-reason": "invalid-domain",
-     "x-icon-size": "32",
-     "x-icon-source": "generated",
-     "x-icon-style": "color",
-     "x-icon-theme": "light"
-    },
-    "image": "icons/127-0-0-1/color-light-32.webp",
-    "bytes": 398
-   },
-   "color-light-64": {
-    "request": "GET /v1/icon/127.0.0.1?size=64&style=color&theme=light",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=86400",
-     "cdn-cache-control": "public, max-age=86400, stale-if-error=86400",
-     "content-type": "image/webp",
-     "etag": "\"g-09ae66987ef490a2437b\"",
-     "x-icon-fallback": "true",
-     "x-icon-fallback-reason": "invalid-domain",
-     "x-icon-size": "64",
-     "x-icon-source": "generated",
-     "x-icon-style": "color",
-     "x-icon-theme": "light"
-    },
-    "image": "icons/127-0-0-1/color-light-64.webp",
-    "bytes": 554
-   },
-   "color-light-128": {
-    "request": "GET /v1/icon/127.0.0.1?size=128&style=color&theme=light",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=86400",
-     "cdn-cache-control": "public, max-age=86400, stale-if-error=86400",
-     "content-type": "image/webp",
-     "etag": "\"g-0df3b3652fbebaf50ee1\"",
-     "x-icon-fallback": "true",
-     "x-icon-fallback-reason": "invalid-domain",
-     "x-icon-size": "128",
-     "x-icon-source": "generated",
-     "x-icon-style": "color",
-     "x-icon-theme": "light"
-    },
-    "image": "icons/127-0-0-1/color-light-128.webp",
-    "bytes": 980
-   },
-   "color-dark-16": {
-    "request": "GET /v1/icon/127.0.0.1?size=16&style=color&theme=dark",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=86400",
-     "cdn-cache-control": "public, max-age=86400, stale-if-error=86400",
-     "content-type": "image/webp",
-     "etag": "\"g-92ce1b83441fe7c8fdf0\"",
-     "x-icon-fallback": "true",
-     "x-icon-fallback-reason": "invalid-domain",
-     "x-icon-size": "16",
-     "x-icon-source": "generated",
-     "x-icon-style": "color",
-     "x-icon-theme": "dark"
-    },
-    "image": "icons/127-0-0-1/color-dark-16.webp",
-    "bytes": 280
-   },
-   "color-dark-32": {
-    "request": "GET /v1/icon/127.0.0.1?size=32&style=color&theme=dark",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=86400",
-     "cdn-cache-control": "public, max-age=86400, stale-if-error=86400",
-     "content-type": "image/webp",
-     "etag": "\"g-7ace02076430c31cc455\"",
-     "x-icon-fallback": "true",
-     "x-icon-fallback-reason": "invalid-domain",
-     "x-icon-size": "32",
-     "x-icon-source": "generated",
-     "x-icon-style": "color",
-     "x-icon-theme": "dark"
-    },
-    "image": "icons/127-0-0-1/color-dark-32.webp",
-    "bytes": 380
-   },
-   "color-dark-64": {
-    "request": "GET /v1/icon/127.0.0.1?size=64&style=color&theme=dark",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=86400",
-     "cdn-cache-control": "public, max-age=86400, stale-if-error=86400",
-     "content-type": "image/webp",
-     "etag": "\"g-64c093f420cb120d5c3f\"",
-     "x-icon-fallback": "true",
-     "x-icon-fallback-reason": "invalid-domain",
-     "x-icon-size": "64",
-     "x-icon-source": "generated",
-     "x-icon-style": "color",
-     "x-icon-theme": "dark"
-    },
-    "image": "icons/127-0-0-1/color-dark-64.webp",
-    "bytes": 534
-   },
-   "color-dark-128": {
-    "request": "GET /v1/icon/127.0.0.1?size=128&style=color&theme=dark",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=86400",
-     "cdn-cache-control": "public, max-age=86400, stale-if-error=86400",
-     "content-type": "image/webp",
-     "etag": "\"g-a23a39f5d0942e60a779\"",
-     "x-icon-fallback": "true",
-     "x-icon-fallback-reason": "invalid-domain",
-     "x-icon-size": "128",
-     "x-icon-source": "generated",
-     "x-icon-style": "color",
-     "x-icon-theme": "dark"
-    },
-    "image": "icons/127-0-0-1/color-dark-128.webp",
-    "bytes": 890
-   },
-   "mono-16": {
-    "request": "GET /v1/icon/127.0.0.1?size=16&style=mono",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=86400",
-     "cdn-cache-control": "public, max-age=86400, stale-if-error=86400",
-     "content-type": "image/webp",
-     "etag": "\"g-c38016119fbd868e2825\"",
+     "content-type": "image/svg+xml",
+     "etag": "\"g-9a8e62b52a9fbb1e4cf6\"",
      "x-icon-fallback": "true",
      "x-icon-fallback-reason": "invalid-domain",
      "x-icon-mono-source": "generated",
-     "x-icon-size": "16",
      "x-icon-source": "generated",
-     "x-icon-style": "mono"
+     "x-icon-style": "mono",
+     "x-icon-vector": "generated"
     },
-    "image": "icons/127-0-0-1/mono-16.webp",
-    "bytes": 132
-   },
-   "mono-32": {
-    "request": "GET /v1/icon/127.0.0.1?size=32&style=mono",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=86400",
-     "cdn-cache-control": "public, max-age=86400, stale-if-error=86400",
-     "content-type": "image/webp",
-     "etag": "\"g-98c4595903cdc5b8edf6\"",
-     "x-icon-fallback": "true",
-     "x-icon-fallback-reason": "invalid-domain",
-     "x-icon-mono-source": "generated",
-     "x-icon-size": "32",
-     "x-icon-source": "generated",
-     "x-icon-style": "mono"
-    },
-    "image": "icons/127-0-0-1/mono-32.webp",
-    "bytes": 134
-   },
-   "mono-64": {
-    "request": "GET /v1/icon/127.0.0.1?size=64&style=mono",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=86400",
-     "cdn-cache-control": "public, max-age=86400, stale-if-error=86400",
-     "content-type": "image/webp",
-     "etag": "\"g-abdf0a1d6938104ba595\"",
-     "x-icon-fallback": "true",
-     "x-icon-fallback-reason": "invalid-domain",
-     "x-icon-mono-source": "generated",
-     "x-icon-size": "64",
-     "x-icon-source": "generated",
-     "x-icon-style": "mono"
-    },
-    "image": "icons/127-0-0-1/mono-64.webp",
-    "bytes": 138
-   },
-   "mono-128": {
-    "request": "GET /v1/icon/127.0.0.1?size=128&style=mono",
-    "status": 200,
-    "headers": {
-     "cache-control": "public, max-age=86400",
-     "cdn-cache-control": "public, max-age=86400, stale-if-error=86400",
-     "content-type": "image/webp",
-     "etag": "\"g-8961438d154a9a41912c\"",
-     "x-icon-fallback": "true",
-     "x-icon-fallback-reason": "invalid-domain",
-     "x-icon-mono-source": "generated",
-     "x-icon-size": "128",
-     "x-icon-source": "generated",
-     "x-icon-style": "mono"
-    },
-    "image": "icons/127-0-0-1/mono-128.webp",
-    "bytes": 140
+    "image": "icons/127-0-0-1/mono.svg",
+    "bytes": 325
    }
   }
  }

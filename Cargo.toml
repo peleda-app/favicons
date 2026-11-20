@@ -38,6 +38,7 @@ tower = { version = "0.5", features = ["util"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 url = "2"
+visioncortex = "0.8"
 
 [profile.release]
 lto = "thin"

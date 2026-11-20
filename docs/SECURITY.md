@@ -63,8 +63,8 @@ DNS-over-HTTPS** (`security.cloudflare-dns.com`, 1.1.1.2 / 1.0.0.2):
 ### 3. Malicious images (decoder exploits, bombs, polyglots)
 
 * All decoders are memory-safe Rust (`image`, `png`, `zune-jpeg`, `image-webp`,
-  `gif`, `resvg`/`usvg`). No libpng, libwebp, ImageMagick or librsvg; the WebP
-  encoder is pure Rust as well (lossless only, which is why output is lossless). The crate
+  `gif`, `resvg`/`usvg`, `visioncortex` for tracing). No libpng, libwebp,
+  ImageMagick, Potrace or librsvg. The crate
   itself is built with `unsafe_code = "forbid"`.
 * Format is chosen by magic bytes, never by `Content-Type`. Only PNG, ICO,
   JPEG, GIF (first frame), WebP, BMP and SVG are accepted. TIFF, AVIF, HEIC and
@@ -84,9 +84,9 @@ DNS-over-HTTPS** (`security.cloudflare-dns.com`, 1.1.1.2 / 1.0.0.2):
   dies with that process.
 * At most `render.decode_concurrency` workers run at once, each with a
   `render.decode_timeout_ms` deadline after which it is killed.
-* **Nothing is ever passed through.** Every icon is decoded to raw RGBA and
-  re-encoded as a fresh lossless WebP (or PNG). Metadata chunks, trailing payloads, polyglot
-  HTML/JS, embedded scripts in SVG: none of it survives.
+* **Nothing is ever passed through.** Every icon is rebuilt as a new SVG, either
+  re-serialized from the parsed vector or traced from decoded pixels. Metadata
+  chunks, trailing payloads, polyglot HTML/JS and embedded scripts don't survive.
 
 ### 4. Malicious SVG
 
@@ -97,15 +97,28 @@ SVG is the riskiest format, so it gets extra rules:
 * `usvg` is built without text and system fonts. External references
   (`<image href>`, file paths, `http:`, `data:`) resolve to nothing: an SVG
   can't read local files or make network requests.
-* SVG is rasterised to a 128×128 canvas and served as WebP/PNG. The service never
-  serves `image/svg+xml`, so script inside an SVG can't run in a viewer.
+* The output SVG is written by an **allowlist serializer**, not by copying or
+  filtering the input. It can only emit `<svg>`, `<defs>`, `<path>` (`fill`,
+  `fill-opacity`, `fill-rule`, `d`), `<linearGradient>`, `<radialGradient>` and
+  `<stop>`, with numeric values and `#rrggbb` colours. Scripts, `<style>` and CSS
+  (including `@media` and `@import`), `<foreignObject>`, `<image>` and base64
+  payloads, links, event handlers, animations, text, filters, masks and external
+  references have no way to be expressed in it.
+* Everything the serializer drops is detected. If the re-rendered result differs
+  from the original by more than `render.svg_fidelity`, the icon is traced from
+  pixels instead of shipping a half-broken vector.
+* **Second check outside the sandbox.** The parent re-parses every SVG the worker
+  returns with a strict scanner: element and attribute allowlists per nesting
+  level, value character classes, `url(#gN)` only, no comments, entities, text
+  nodes or extra roots, and a size cap. A compromised worker can't smuggle markup
+  through.
 * Set `render.svg = false` to disable SVG completely.
 
 ### 5. Responses abused against users
 
-* Always `Content-Type: image/webp` (or `image/png`) + `X-Content-Type-Options: nosniff`.
-* `Content-Security-Policy: default-src 'none'; sandbox`: even a top-level
-  navigation to the URL can't run anything.
+* Always `Content-Type: image/svg+xml` + `X-Content-Type-Options: nosniff`.
+* `Content-Security-Policy: default-src 'none'; style-src 'none'; script-src 'none'; sandbox`:
+  even if a browser opens the SVG as a document, nothing can execute or load.
 * No cookies, no `Set-Cookie`, `Referrer-Policy: no-referrer`.
 * `Access-Control-Allow-Origin: *` without credentials, so pages can draw the
   icon on a canvas without leaking anything.
@@ -184,6 +197,8 @@ The service must not become a read-receipt or tracking oracle.
 | Per-recipient subdomains (`u-48213.spam.tld`) used as a read receipt | Input is collapsed to the **registrable domain** (eTLD+1) using the Public Suffix List. Subdomains are never resolved or fetched. Private PSL sections (`*.github.io`, `*.workers.dev`, …) are collapsed too (`policy.collapse_private_suffixes`), so tenant subdomains on shared platforms don't leak. |
 | One fresh registrable domain per recipient | Domain-age gate plus blocklists. The fetch is also shared across all users and cached for `cache.ttl_secs`, so at most one request per domain per TTL ever reaches the sender. |
 | Timing correlation ("the icon was fetched 2 s after I sent the mail") | Queue + shared cache + `stale-while-revalidate` mean origin fetches aren't tied to a specific user request. Run behind a CDN to decouple further. |
+| BIMI and catalog | BIMI is a TXT lookup through the DoH resolver plus a download from the host the record names, which passes every foreign-host check. The theSVG index and icons come from GitHub (`raw.githubusercontent.com`) and reveal only which brand slug is being fetched. |
+| Upstream providers | Off by default. When enabled, the registrable domain (never the user, never the subdomain) is sent to the configured third-party service, and only for sites that have no usable icon of their own. The result is cached like any other icon. |
 | Our own logs | Raw client IPs are never logged or stored. Rate limiting uses `blake3_keyed(random_per_process_key, subnet)`. The key never leaves memory and changes on restart, so even a memory dump can't be joined with other data across restarts. |
 | Referer / cookies to origins | Outbound requests send no `Referer`, no cookies and a fixed User-Agent. |
 

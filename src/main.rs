@@ -1,5 +1,6 @@
 mod age;
 mod app;
+mod catalog;
 mod config;
 mod contract;
 mod discover;
@@ -15,6 +16,8 @@ mod render;
 mod sandbox;
 mod server;
 mod store;
+mod trace;
+mod vector;
 
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -108,6 +111,7 @@ async fn run(cfg: config::Config) -> anyhow::Result<()> {
         _ => {}
     }
     app.spawn_policy_reloader();
+    app.spawn_catalog_reloader();
     app.spawn_workers();
 
     let (tx, rx) = watch::channel(false);

@@ -14,65 +14,89 @@ BASE = (sys.argv[1] if len(sys.argv) > 1 else "http://127.0.0.1:8080").rstrip("/
 OUT = pathlib.Path(__file__).parent
 
 PRESETS = [
-    ("github.com", "Pinned-tab mask icon, CDN asset"),
-    ("wikipedia.org", "Classic apple-touch-icon"),
-    ("spotify.com", "Icon on a foreign CDN, checked first"),
-    ("figma.com", "Mono derived from a dark tile"),
-    ("notion.so", "Mono derived from a light tile"),
-    ("outlook.live.com", "Vaultwarden alias to microsoft.com"),
-    ("user-48213.github.io", "Tracking subdomain collapsed"),
+    ("github.com", "theSVG catalog mark (CC0)"),
+    ("wikipedia.org", "Traced from the site's own icon"),
+    ("spotify.com", "Owner's BIMI logo from DNS"),
+    ("figma.com", "Owner's BIMI logo from DNS"),
+    ("notion.so", "Owner's BIMI logo from DNS"),
+    ("mail.google.com", "Subdomain: 301 to google.com"),
+    ("user-48213.github.io", "Tracking subdomain: 301 to github.io"),
     ("evil-example.com", "Blocklisted domain"),
     ("nope-zzzq-xx.com", "Unreachable site, identicon"),
     ("127.0.0.1", "Not a public domain"),
 ]
-SIZES = [16, 32, 64, 128]
-KEEP = ("content-type", "etag", "cache-control", "cdn-cache-control")
+KEEP = ("content-type", "etag", "cache-control", "cdn-cache-control", "location")
+
+
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, *args, **kwargs):
+        return None
+
+
+OPENER = urllib.request.build_opener(NoRedirect)
 
 
 def get(path):
     req = urllib.request.Request(BASE + path, headers={"X-Forwarded-For": "198.51.100.7"})
     try:
-        with urllib.request.urlopen(req, timeout=30) as r:
+        with OPENER.open(req, timeout=30) as r:
             return r.status, dict(r.headers.items()), r.read()
     except urllib.error.HTTPError as e:
         return e.code, dict(e.headers.items()), e.read()
+
+
+def kept(headers):
+    out = {k.lower(): v for k, v in headers.items() if k.lower() in KEEP or k.lower().startswith("x-icon-")}
+    return dict(sorted(out.items()))
+
+
+def location(headers):
+    return next(v for k, v in headers.items() if k.lower() == "location")
 
 
 def slug(domain):
     return domain.replace(".", "-")
 
 
+def warm(path):
+    for _ in range(40):
+        status, headers, _ = get(path)
+        if status in (301, 302):
+            path = location(headers)
+            continue
+        if headers.get("x-icon-fallback-reason") not in ("queued", "overloaded"):
+            return
+        time.sleep(1)
+
+
 def main():
     presets = []
     for domain, note in PRESETS:
-        path = f"/v1/icon/{domain}?size=128"
-        for _ in range(40):
-            status, headers, _ = get(path)
-            if headers.get("x-icon-fallback-reason") not in ("queued", "overloaded"):
-                break
-            time.sleep(1)
+        warm(f"/v1/icon/color/{domain}")
         responses = {}
-        variants = [("color", t, s) for t in ("light", "dark") for s in SIZES]
-        variants += [("mono", "light", s) for s in SIZES]
-        for style, theme, size in variants:
-            query = f"size={size}&style={style}" + (f"&theme={theme}" if style == "color" else "")
-            status, headers, body = get(f"/v1/icon/{domain}?{query}")
-            key = f"{style}-{theme}-{size}" if style == "color" else f"mono-{size}"
-            ext = "webp" if headers.get("content-type") == "image/webp" else "png"
-            image = f"icons/{slug(domain)}/{key}.{ext}"
+        for style in ("color", "mono"):
+            path = f"/v1/icon/{style}/{domain}"
+            status, headers, body = get(path)
+            redirect = None
+            if status in (301, 302):
+                redirect = {"request": f"GET {path}", "status": status, "headers": kept(headers)}
+                path = location(headers)
+                status, headers, body = get(path)
+            image = f"icons/{slug(domain)}/{style}.svg"
             (OUT / image).parent.mkdir(parents=True, exist_ok=True)
             (OUT / image).write_bytes(body)
-            kept = {k.lower(): v for k, v in headers.items() if k.lower() in KEEP or k.lower().startswith("x-icon-")}
-            responses[key] = {
-                "request": f"GET /v1/icon/{domain}?{query}",
+            responses[style] = {
+                "redirect": redirect,
+                "request": f"GET {path}",
                 "status": status,
-                "headers": dict(sorted(kept.items())),
+                "headers": kept(headers),
                 "image": image,
                 "bytes": len(body),
             }
         presets.append({"domain": domain, "note": note, "responses": responses})
-        first = responses["color-light-128"]["headers"]
-        print(f"{domain:24} {first.get('x-icon-source')} {first.get('x-icon-fallback-reason', '')}")
+        first = responses["color"]
+        hop = f"301 -> {first['redirect']['headers'].get('location')}" if first["redirect"] else ""
+        print(f"{domain:24} {first['headers'].get('x-icon-source')} {first['headers'].get('x-icon-fallback-reason', '')} {hop}")
     (OUT / "data").mkdir(exist_ok=True)
     (OUT / "data" / "presets.json").write_text(json.dumps(presets, indent=1) + "\n")
 

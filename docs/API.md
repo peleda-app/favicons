@@ -1,27 +1,95 @@
 # HTTP API contract (v1)
 
-## `GET /v1/icon/{domain}`
+## `GET /v1/icon/{style}/{domain}`
 
-`HEAD` is also supported.
+`HEAD` is also supported. There are no query parameters.
 
-`{domain}` may be a bare host (`mail.example.com`), a host with a `.webp` or `.png` suffix
-(`example.com.webp`) or a URL-encoded URL (`https%3A%2F%2Fexample.com%2Fpath`).
-It is always reduced to a **registrable domain** (eTLD+1) before anything else
-happens. See [Privacy](SECURITY.md#privacy).
+| Segment | Values | Meaning |
+|---------|--------|---------|
+| `style` | `color`, `mono` | `mono` returns a [monochrome mask](#monochrome-icons). Anything else is `404`. |
+| `domain` | a registrable domain (eTLD+1) | The site whose icon you want. |
 
-### Query parameters
+### Where icons come from
 
-| Name       | Values                     | Default     | Meaning |
-|------------|----------------------------|-------------|---------|
-| `size`     | integer                    | `32`        | Snapped down to the largest size enabled in `render.sizes` (default `16`, `32`, `64`, `128`). Values below the smallest enabled size become that size. |
-| `theme`    | `light`, `dark`            | `light`     | Preferred variant. When the site has no variant for this theme, the other one is served and `X-Icon-Theme` says which. |
-| `style`    | `color`, `mono`            | `color`     | `mono` returns a [monochrome mask](#monochrome-icons). `theme` is ignored for `mono`. |
-| `fallback` | `generated`, `none`, `404` | `generated` | `generated` always returns an image. `none` / `404` return `404` with an empty body and the same headers, so clients can draw their own placeholder. |
+Sources are tried in this order, and the first usable one wins:
+
+1. **BIMI** (`bimi.enabled`, on by default). The domain's
+   `default._bimi.<domain>` TXT record names the logo its owner publishes for
+   mail clients, often backed by a Verified Mark Certificate. The service does
+   not validate the certificate; the record itself is the owner's statement.
+2. **theSVG catalog** (`catalog.thesvg`, off by default). Curated brand SVGs.
+   The index is synced daily, and an entry matches only when its `url` is the
+   site's root. Only the configured licenses are used (`CC0-1.0` by default),
+   and the license is returned in `X-Icon-License`. The catalog's `mono` variant
+   becomes the monochrome icon.
+3. **The site itself**: `<link rel=icon>`, manifests, `mask-icon`, `/favicon.ico`.
+4. **Upstream providers**, if configured (see below).
+
+When BIMI or the catalog delivers an icon, the site's own pages are not fetched
+at all. Every source, curated or not, is untrusted input: it gets the same host
+checks, sandboxed parsing and allowlist serializer.
+
+Brand logos are trademarks regardless of the license of the SVG file. Showing a
+site's own mark next to its address is the usual use, but check whether your use
+case is covered.
+
+### Upstream providers
+
+Optional and off by default. When the site itself offers no usable icon, or
+cannot be reached, the URL templates in `upstream.providers` are tried in order,
+with `{domain}` replaced by the registrable domain:
+
+```toml
+[upstream]
+providers = [
+  "https://favicon.vemetric.com/{domain}?size=256&format=webp",
+  "https://icons.duckduckgo.com/ip3/{domain}.ico",
+  "https://www.google.com/s2/favicons?domain={domain}&sz=64",
+]
+```
+
+> **Examples only.** These URLs are only examples of the template format. They are third-party
+services with their own terms of use, which may not allow this kind of access.
+Check their terms before enabling one, or point this at a service you run
+yourself.
+
+Upstream responses get the same treatment as any foreign host: https only, SSRF
+rules, blocklists, domain age, DNS filter, checked redirects, size caps. A
+non-2xx answer (several services answer `404` for unknown domains) moves on to
+the next provider. The image is vectorized in the sandbox like any other bitmap,
+and the response carries `X-Icon-Upstream`. The monochrome variant is derived
+from it as usual.
+
+### Canonical URLs
+
+Every icon has exactly one URL: `/v1/icon/{style}/{registrable domain}`. Any
+other form gets a permanent redirect there, without fetching anything:
+
+| Request | Redirects to |
+|---------|--------------|
+| `/v1/icon/color/super-domain.evil-example.com` | `/v1/icon/color/evil-example.com` |
+| `/v1/icon/color/EXAMPLE.com`, `…/example.com.` | `/v1/icon/color/example.com` |
+| `/v1/icon/mono/example.com.svg` | `/v1/icon/mono/example.com` |
+| `/v1/icon/color/https%3A%2F%2Fwww.example.co.uk%2Fpath` | `/v1/icon/color/example.co.uk` |
+| `/v1/icon/color/example.com?anything` | `/v1/icon/color/example.com` |
+| `/v1/icon/mono/example.com/` | `/v1/icon/mono/example.com` |
+
+The redirect is `301` with `http_cache.canonical` headers (`immutable`, a month in
+browsers, a year in CDNs), so browsers and CDNs remember it and keep one cached
+copy per site instead of one per subdomain or URL variant. The subdomain itself is
+never resolved or fetched (see [Privacy](SECURITY.md#privacy)).
+
+With `cache.redirect_to_public_url = true` and the icon already in storage, the
+non-canonical request is answered with a single `302` straight to the stored
+object instead of two hops.
+
+Inputs that are not public domains (IP literals, `localhost`, unknown TLDs) are
+not redirected; they get a generated icon with reason `invalid-domain`.
 
 ### Monochrome icons
 
-`style=mono` returns a single-colour version: **black (`#000`) on transparent,
-with the shape entirely in the alpha channel**. It is meant for CSS masks, so
+`/v1/icon/mono/{domain}` returns a single-colour SVG: **one black (`#000`) path on
+transparency**. It is meant for CSS masks, so
 the consumer picks the colour:
 
 ```css
@@ -29,8 +97,8 @@ the consumer picks the colour:
   width: 16px;
   height: 16px;
   background-color: currentColor;
-  -webkit-mask: url("https://icons.example.com/v1/icon/github.com?style=mono&size=32") center / contain no-repeat;
-  mask: url("https://icons.example.com/v1/icon/github.com?style=mono&size=32") center / contain no-repeat;
+  -webkit-mask: url("https://icons.example.com/v1/icon/mono/github.com") center / contain no-repeat;
+  mask: url("https://icons.example.com/v1/icon/mono/github.com") center / contain no-repeat;
 }
 ```
 
@@ -46,21 +114,32 @@ When the site has a colour icon but no shape could be derived from it (too
 little contrast), the response is a generated mono icon with reason
 `no-monochrome`.
 
-### Size fallback
+### Vector output
 
-The service never upscales by more than 10%. When the source is smaller than the
-requested size, the largest available size **not above** the request is served.
-When even 16 px is not available, the smallest stored size is served.
-`X-Icon-Size` always contains the real pixel size of the body.
+Every response body is an SVG produced by the service, never the site's own file:
+
+| `X-Icon-Vector` | Meaning |
+|-----------------|---------|
+| `original` | The site published an SVG (`rel=icon type=image/svg+xml`, `mask-icon`, manifest). It was parsed in the sandbox and **re-serialized by an allowlist writer**: only `<path>` with solid fills, linear and radial gradients survive. Strokes become outlines and transforms are baked into coordinates. The result is rendered and compared with the original; if too much was lost (patterns, masks, clip paths), the icon is traced instead. |
+| `traced` | Traced from the largest bitmap the site offers (capped at `render.trace_max_px`, 256 px). The bitmap is resampled to 512 px and reduced to a palette of at most 12 dominant colours, with anti-aliasing blends dropped, then traced into stacked spline paths. Shapes of one colour become one path where z-order allows. Smooth bitmap gradients become a few flat bands. |
+| `generated` | Identicon or blocked-domain warning, drawn as vector. |
+
+Every SVG is `128×128` (`viewBox="0 0 128 128"`) and scales to any size on the
+client. Its content is **fitted to the box**: scaled until it touches the edges
+on its longer side, then centred. A full-size plain white backdrop counts as
+padding and is removed first, so a logo on a white app tile ends up as large as a
+logo without padding. Coloured tiles are part of the design and kept. Output is
+capped at `render.max_output_svg_bytes` (48 KiB).
 
 ### Responses
 
 | Status | When |
 |--------|------|
-| `200`  | Real icon (`X-Icon-Source: cache` or `origin`) or generated fallback (`X-Icon-Source: generated`). Body is `image/webp` (lossless) or `image/png` depending on `render.format`, always re-encoded by the service. |
-| `302`  | `cache.redirect_to_public_url = true` and the icon exists in storage. `Location` points to `{cache.public_base_url}/v1/{domain}/{theme}-{size}.{webp|png}`. |
+| `200`  | Real icon (`X-Icon-Source: cache` or `origin`) or generated fallback (`X-Icon-Source: generated`). Body is always `image/svg+xml`, generated by the service. |
+| `301`  | Non-canonical URL; see [Canonical URLs](#canonical-urls). |
+| `302`  | `cache.redirect_to_public_url = true` and the icon exists in storage. `Location` points to `{cache.public_base_url}/v3/{domain}/{color|mono}.svg`. |
 | `304`  | `If-None-Match` matched `ETag`. |
-| `404`  | `fallback=none` and no real icon is available. |
+| `404`  | Unknown style or path. |
 | `429`  | The per-subnet rate limit was exceeded. Short `text/plain` body, `Retry-After: 1`, `Cache-Control: no-store`. |
 | `503`  | Load shedding or request timeout. Short `text/plain` body, `Cache-Control: no-store` (`Retry-After: 1` when shed). |
 
@@ -68,16 +147,18 @@ When even 16 px is not available, the smallest stored size is served.
 
 | Header | Values | Present |
 |--------|--------|---------|
-| `Content-Type` | `image/webp` or `image/png` | 200 |
+| `Content-Type` | `image/svg+xml` | 200 |
 | `ETag` | `"<hash>"` for real icons, `"g-<hash>"` for generated ones | 200, 304 |
 | `Cache-Control` | Browser directive from the matching `http_cache.*` profile | always |
 | `CDN-Cache-Control` | CDN directive from the matching `http_cache.*` profile ([RFC 9213](https://www.rfc-editor.org/rfc/rfc9213)) | 200, 302, 304, 404 |
 | `X-Icon-Source` | `cache`, `origin`, `generated` | 200, 302, 304, 404 |
-| `X-Icon-Domain` | Canonical registrable domain after aliasing, e.g. `microsoft.com` for `outlook.live.com` | when the input was valid |
+| `X-Icon-Domain` | Registrable domain that was served | when the input was valid |
 | `X-Icon-Style` | `color`, `mono` | always on icon responses |
-| `X-Icon-Theme` | `light`, `dark` | 200, 302, 304 for `style=color` |
-| `X-Icon-Mono-Source` | `mask-icon`, `derived`, `generated` | `style=mono` |
-| `X-Icon-Size` | `16`, `32`, `64`, `128` | 200, 302, 304 |
+| `X-Icon-Mono-Source` | `mask-icon`, `derived`, `generated` | `mono` |
+| `X-Icon-Vector` | `original`, `traced`, `generated` | 200, 302, 304 |
+| `X-Icon-Provenance` | `bimi`, `thesvg`, `site`, `upstream` | real icons: where the shape came from |
+| `X-Icon-License` | SPDX id, e.g. `CC0-1.0` | icons from the theSVG catalog |
+| `X-Icon-Upstream` | host of the upstream provider, e.g. `icons.duckduckgo.com` | when the icon came from [an upstream provider](#upstream-providers) |
 | `X-Icon-Fallback` | `true` | when a generated icon (or 404) is returned |
 | `X-Icon-Fallback-Reason` | see below | when `X-Icon-Fallback` is present |
 | `X-Icon-Stale` | `true` | the cached entry is past its TTL; a refresh was queued |
@@ -99,17 +180,21 @@ Every response also carries `X-Content-Type-Options: nosniff`,
 | `domain-too-new` | `fallback_stable` | RDAP registration date is younger than `policy.min_domain_age_days`. |
 | `blocklisted` | `fallback_stable` | The host or one of its parents is on a configured blocklist. `X-Icon-Blocked: blocklist`. |
 | `dns-blocked` | `fallback_stable` | The filtering DNS resolver sinkholed the domain (answered `0.0.0.0`). `X-Icon-Blocked: dns-filter`. |
-| `no-monochrome` | `fallback_stable` | `style=mono` was requested, the site has a colour icon, but neither a mask icon nor a usable derived shape exists. |
+| `no-monochrome` | `fallback_stable` | `mono` was requested, the site has a colour icon, but neither a mask icon nor a usable derived shape exists. |
 | `invalid-domain` | `fallback_stable` | Not a public, registrable DNS name (IP literals, `localhost`, unknown TLDs, `.onion`, …). |
 
 Blocked domains (`blocklisted`, `dns-blocked`) get a fixed **warning icon**: a red
-rounded square with a white exclamation mark, the same for every domain, in a
-slightly brighter red for `theme=dark`. Clients can match on `X-Icon-Blocked`
+square (a red gradient with a warm highlight) and a white exclamation mark, the
+same for every domain. Clients can match on `X-Icon-Blocked`
 to show their own warning UI.
 
 All other generated icons are deterministic: `blake3(identicon.salt || 0x00 || canonical_domain)`
-seeds a symmetric 5×5 pattern, so the same domain always gets the same image
-on every instance that shares the salt.
+seeds a symmetric 5×5 white pattern on a layered background: a linear gradient
+plus three soft radial glows. The seed picks a harmonious hue scheme (hues stay
+within about 100° of each other, so overlaps never turn muddy), the gradient
+direction, and the position, size and colour of every glow. Lightness is capped
+on yellow and green hues so the white pattern stays readable. The same domain
+always gets the same image on every instance that shares the salt.
 
 ### Caching guidance for clients
 
@@ -129,19 +214,19 @@ Prometheus text format. Enable with `server.admin_listen`. Never expose it publi
 | Metric | Type |
 |--------|------|
 | `favicons_requests_total` | counter |
-| `favicons_served_cache_total`, `favicons_served_redirect_total` | counter |
+| `favicons_served_cache_total`, `favicons_served_redirect_total`, `favicons_canonical_redirects_total` | counter |
 | `favicons_rate_limited_total`, `favicons_shed_total` | counter |
 | `favicons_fetch_{ok,not_found,failed,too_new}_total` | counter |
 | `favicons_decode_errors_total` | counter |
 | `favicons_fallback_total{reason}` | counter |
 | `favicons_queue_length`, `favicons_fetch_running` | gauge |
-| `favicons_blocklist_entries`, `favicons_alias_entries` | gauge |
+| `favicons_blocklist_entries` | gauge |
 
 ## Storage layout
 
 ```
-{prefix}/v1/{domain}/meta.json
-{prefix}/v1/{domain}/{light|dark|mono}-{16|32|64|128}.{webp|png}
+{prefix}/v3/{domain}/meta.json
+{prefix}/v3/{domain}/{color|mono}.svg
 ```
 
 `meta.json`:
@@ -151,17 +236,14 @@ Prometheus text format. Enable with `server.admin_listen`. Never expose it publi
   "domain": "github.com",
   "fetched_at": 1795132800,
   "status": "ok",
-  "format": "webp",
-  "light": [16, 32, 64, 128],
-  "dark": [],
-  "mono": [16, 32, 64, 128],
+  "color": "original",
+  "mono": "original",
   "mono_source": "mask-icon",
-  "etags": { "light-16.webp": "…", "light-32.webp": "…" }
+  "etags": { "color.svg": "…", "mono.svg": "…" }
 }
 ```
 
-`status` is one of `ok`, `not-found`, `fetch-failed`, `too-new`, `blocked`. `format` records
-the encoding the objects were written in, so changing `render.format` doesn't
-break existing entries; they switch format on their next refresh. Image objects are
-written with their `Content-Type` and `Cache-Control` from `http_cache.icon.browser`
+`status` is one of `ok`, `not-found`, `fetch-failed`, `too-new`, `blocked`. Each
+slot holds the vector origin (`original` / `traced`) or `null`. Objects are written
+with `Content-Type: image/svg+xml` and `Cache-Control` from `http_cache.icon.browser`
 (S3/GCS/Azure only), so a public bucket behind a CDN serves them correctly.

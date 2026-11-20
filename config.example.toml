@@ -47,19 +47,19 @@ allow_http = true
 sandbox = "process"
 socket_path = "/run/favicons/render.sock"
 worker_memory_bytes = 268435456
-# Sizes to render and store; any non-empty subset of 16, 32, 64, 128.
-# Requests snap to the nearest allowed size. A source smaller than every
-# allowed size is upscaled to the smallest one, e.g. sizes = [128].
-sizes = [16, 32, 64, 128]
+# Largest source bitmap used for tracing; larger ones are downscaled first.
+# Tracing itself runs on a 512 px resample with a palette of up to 12 colours.
+trace_max_px = 256
+max_output_svg_bytes = 49152
+# Max mean difference between a site's SVG and our sanitized copy before tracing instead.
+svg_fidelity = 0.02
 decode_concurrency = 2
-decode_timeout_ms = 3000
+decode_timeout_ms = 5000
 max_source_dimension = 1024
 max_alloc_bytes = 33554432
 max_svg_bytes = 262144
 max_svg_depth = 48
 svg = true
-# webp (lossless, default) | png. Outlook for Windows can't show WebP; use png for it.
-format = "webp"
 
 [cache]
 # none                      memory only (lost on restart)
@@ -99,6 +99,10 @@ cdn = "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=60
 browser = "public, max-age=86400"
 cdn = "public, max-age=86400"
 
+[http_cache.canonical]           # 301 from non-canonical URLs to /v1/icon/{style}/{domain}
+browser = "public, max-age=2592000, immutable"
+cdn = "public, max-age=31536000, immutable"
+
 [http_cache.fallback_transient]   # queued, overloaded, fetch-failed
 browser = "public, max-age=300"
 cdn = "public, max-age=60"
@@ -117,19 +121,12 @@ deny_suffixes = ["onion", "arpa", "i2p"]
 # Local paths or URLs; hosts, adblock (||domain^) and plain-domain formats.
 blocklists = []
 allowlist = []
-# Bitwarden/Vaultwarden "equivalent domains" JSON. Multiple sources are merged.
-aliases = ["https://raw.githubusercontent.com/dani-garcia/vaultwarden/main/src/static/global_domains.json"]
-# When a group contains one of these, it becomes the canonical domain for the group.
-alias_preferred = ["microsoft.com", "google.com", "apple.com", "amazon.com", "yahoo.com"]
 reload_secs = 21600
 max_list_bytes = 67108864
 # Also applied to every foreign host an icon, manifest or redirect points to. 0 disables.
 min_domain_age_days = 30
 unknown_domain_age = "allow"   # allow | block when RDAP has no answer
 rdap_bootstrap_url = "https://data.iana.org/rdap/dns.json"
-
-[policy.alias_overrides]
-# "live.com" = "microsoft.com"
 
 [dns]
 # cloudflare-security  1.1.1.2 / 1.0.0.2, Cloudflare with malware blocking (default)
@@ -144,6 +141,45 @@ protocol = "https"            # https (DoH, port 443) | tls (DoT, port 853) | ud
 path = "/dns-query"
 cache_size = 8192
 max_ttl_secs = 3600
+
+[bimi]
+# Look up the domain's BIMI record (default._bimi.<domain> TXT, over the DoH
+# resolver above) and use the logo the owner publishes for mail clients. It is
+# tried before anything else and goes through the usual checks and sanitizer.
+enabled = true
+
+[catalog.thesvg]
+# Curated brand SVGs from theSVG (https://github.com/GLINCKER/thesvg). The index
+# is re-downloaded every reload_secs; icons are fetched lazily, one at a time.
+# A domain matches only when the entry's url points at that site's root.
+enabled = false
+index_url = "https://raw.githubusercontent.com/GLINCKER/thesvg/main/src/data/icons.json"
+asset_base = "https://raw.githubusercontent.com/GLINCKER/thesvg/main/public/"
+# Licenses are per icon in theSVG. CC0 needs no attribution. Adding "MIT" or
+# "Apache-2.0" also requires you to credit the authors where you show the icons.
+licenses = ["CC0-1.0"]
+collections = ["brands"]
+reload_secs = 86400
+max_index_bytes = 16777216
+
+[upstream]
+# Optional third-party sources, tried in order only when the site itself has no
+# usable icon or cannot be reached. {domain} is replaced by the registrable
+# domain. Each URL must be https and passes the same checks as any foreign host
+# (SSRF rules, blocklists, domain age, DNS filter, every redirect hop). The image
+# is traced into our own SVG in the sandbox; responses are never passed through.
+#
+# Privacy: the domain is sent to that service. Disabled by default.
+#
+# EXAMPLES ONLY. These are third-party services with their own terms of use,
+# which may not allow this kind of access. Check their terms before enabling
+# one, or point this at a service you run yourself.
+providers = []
+# providers = [
+#   "https://favicon.vemetric.com/{domain}?size=256&format=webp",
+#   "https://icons.duckduckgo.com/ip3/{domain}.ico",
+#   "https://www.google.com/s2/favicons?domain={domain}&sz=64",
+# ]
 
 [identicon]
 # Change to make generated icons unique to your deployment.

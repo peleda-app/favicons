@@ -20,6 +20,9 @@ pub struct Config {
     pub policy: Policy,
     pub dns: Dns,
     pub identicon: Identicon,
+    pub upstream: Upstream,
+    pub bimi: Bimi,
+    pub catalog: CatalogCfg,
 }
 
 impl Config {
@@ -28,30 +31,31 @@ impl Config {
         if let Some(p) = path {
             fig = fig.merge(Toml::file_exact(p));
         }
-        let mut cfg: Config = fig
+        let cfg: Config = fig
             .merge(
                 Env::prefixed("FAVICONS_")
                     .split("__")
                     .ignore(&["log", "log_format", "config"]),
             )
             .extract()?;
-        cfg.render.sizes.sort_unstable();
-        cfg.render.sizes.dedup();
         cfg.validate()?;
         Ok(cfg)
     }
 
     fn validate(&self) -> anyhow::Result<()> {
-        anyhow::ensure!(
-            !self.render.sizes.is_empty()
-                && self
-                    .render
-                    .sizes
-                    .iter()
-                    .all(|s| crate::contract::SIZES.contains(s)),
-            "render.sizes must be a non-empty subset of {:?}",
-            crate::contract::SIZES
-        );
+        for template in &self.upstream.providers {
+            anyhow::ensure!(
+                template.matches("{domain}").count() == 1,
+                "upstream provider {template:?} must contain {{domain}} exactly once"
+            );
+            let sample = Upstream::url(template, "example.com").ok_or_else(|| {
+                anyhow::anyhow!("upstream provider {template:?} is not a valid URL")
+            })?;
+            anyhow::ensure!(
+                sample.scheme() == "https",
+                "upstream provider {template:?} must use https"
+            );
+        }
         anyhow::ensure!(self.fetch.workers > 0, "fetch.workers must be > 0");
         anyhow::ensure!(
             self.fetch.queue_capacity > 0,
@@ -232,7 +236,6 @@ pub struct Render {
     pub sandbox: SandboxMode,
     pub socket_path: std::path::PathBuf,
     pub worker_memory_bytes: u64,
-    pub sizes: Vec<u32>,
     pub decode_concurrency: usize,
     pub decode_timeout_ms: u64,
     pub max_source_dimension: u32,
@@ -240,7 +243,9 @@ pub struct Render {
     pub max_svg_bytes: usize,
     pub max_svg_depth: usize,
     pub svg: bool,
-    pub format: crate::contract::OutputFormat,
+    pub trace_max_px: u32,
+    pub max_output_svg_bytes: usize,
+    pub svg_fidelity: f32,
 }
 
 impl Default for Render {
@@ -249,15 +254,16 @@ impl Default for Render {
             sandbox: SandboxMode::Process,
             socket_path: "/run/favicons/render.sock".into(),
             worker_memory_bytes: 256 * 1024 * 1024,
-            sizes: crate::contract::SIZES.to_vec(),
             decode_concurrency: 2,
-            decode_timeout_ms: 3_000,
+            decode_timeout_ms: 5_000,
             max_source_dimension: 1024,
             max_alloc_bytes: 32 * 1024 * 1024,
             max_svg_bytes: 256 * 1024,
             max_svg_depth: 48,
             svg: true,
-            format: crate::contract::OutputFormat::Webp,
+            trace_max_px: 256,
+            max_output_svg_bytes: 48 * 1024,
+            svg_fidelity: 0.02,
         }
     }
 }
@@ -323,6 +329,7 @@ impl CacheProfile {
 pub struct HttpCache {
     pub icon: CacheProfile,
     pub redirect: CacheProfile,
+    pub canonical: CacheProfile,
     pub fallback_transient: CacheProfile,
     pub fallback_stable: CacheProfile,
     pub error: CacheProfile,
@@ -336,6 +343,10 @@ impl Default for HttpCache {
                 "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
             ),
             redirect: CacheProfile::new("public, max-age=86400", "public, max-age=86400"),
+            canonical: CacheProfile::new(
+                "public, max-age=2592000, immutable",
+                "public, max-age=31536000, immutable",
+            ),
             fallback_transient: CacheProfile::new("public, max-age=300", "public, max-age=60"),
             fallback_stable: CacheProfile::new(
                 "public, max-age=86400",
@@ -360,9 +371,6 @@ pub struct Policy {
     pub deny_suffixes: Vec<String>,
     pub blocklists: Vec<String>,
     pub allowlist: Vec<String>,
-    pub aliases: Vec<String>,
-    pub alias_preferred: Vec<String>,
-    pub alias_overrides: HashMap<String, String>,
     pub reload_secs: u64,
     pub max_list_bytes: usize,
     pub min_domain_age_days: u32,
@@ -377,20 +385,6 @@ impl Default for Policy {
             deny_suffixes: vec!["onion".into(), "arpa".into(), "i2p".into()],
             blocklists: vec![],
             allowlist: vec![],
-            aliases: vec![
-                "https://raw.githubusercontent.com/dani-garcia/vaultwarden/main/src/static/global_domains.json"
-                    .into(),
-            ],
-            alias_preferred: [
-                "microsoft.com",
-                "google.com",
-                "apple.com",
-                "amazon.com",
-                "yahoo.com",
-            ]
-            .map(String::from)
-            .to_vec(),
-            alias_overrides: HashMap::new(),
             reload_secs: 6 * 3_600,
             max_list_bytes: 64 * 1024 * 1024,
             min_domain_age_days: 30,
@@ -445,8 +439,115 @@ impl Default for Dns {
     }
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct Bimi {
+    pub enabled: bool,
+}
+
+impl Default for Bimi {
+    fn default() -> Self {
+        Self { enabled: true }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
+#[serde(default, deny_unknown_fields)]
+pub struct CatalogCfg {
+    pub thesvg: TheSvg,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct TheSvg {
+    pub enabled: bool,
+    pub index_url: String,
+    pub asset_base: String,
+    pub licenses: Vec<String>,
+    pub collections: Vec<String>,
+    pub reload_secs: u64,
+    pub max_index_bytes: usize,
+}
+
+impl Default for TheSvg {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            index_url: "https://raw.githubusercontent.com/GLINCKER/thesvg/main/src/data/icons.json"
+                .into(),
+            asset_base: "https://raw.githubusercontent.com/GLINCKER/thesvg/main/public/".into(),
+            licenses: vec!["CC0-1.0".into()],
+            collections: vec!["brands".into()],
+            reload_secs: 86_400,
+            max_index_bytes: 16 * 1024 * 1024,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
+#[serde(default, deny_unknown_fields)]
+pub struct Upstream {
+    pub providers: Vec<String>,
+}
+
+impl Upstream {
+    pub fn url(template: &str, domain: &str) -> Option<url::Url> {
+        url::Url::parse(&template.replacen("{domain}", domain, 1)).ok()
+    }
+}
+
 #[derive(Debug, Clone, Deserialize, Default)]
 #[serde(default, deny_unknown_fields)]
 pub struct Identicon {
     pub salt: String,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn with_providers(providers: &[&str]) -> Config {
+        Config {
+            upstream: Upstream {
+                providers: providers.iter().map(|s| s.to_string()).collect(),
+            },
+            ..Config::default()
+        }
+    }
+
+    #[test]
+    fn validates_upstream_templates() {
+        with_providers(&[
+            "https://favicon.vemetric.com/{domain}?size=256&format=webp",
+            "https://icons.duckduckgo.com/ip3/{domain}.ico",
+            "https://www.google.com/s2/favicons?domain={domain}&sz=64",
+        ])
+        .validate()
+        .unwrap();
+        assert!(
+            with_providers(&["https://icons.example/static.ico"])
+                .validate()
+                .is_err()
+        );
+        assert!(
+            with_providers(&["http://icons.example/{domain}"])
+                .validate()
+                .is_err()
+        );
+        assert!(
+            with_providers(&["https://x/{domain}/{domain}"])
+                .validate()
+                .is_err()
+        );
+        assert!(with_providers(&["not a url {domain}"]).validate().is_err());
+        assert_eq!(
+            Upstream::url(
+                "https://icons.duckduckgo.com/ip3/{domain}.ico",
+                "github.com"
+            )
+            .unwrap()
+            .as_str(),
+            "https://icons.duckduckgo.com/ip3/github.com.ico"
+        );
+    }
 }

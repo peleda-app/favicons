@@ -1,21 +1,281 @@
 use std::io::Cursor;
 
 use anyhow::{Context, ensure};
-use image::codecs::png::{CompressionType, FilterType, PngEncoder};
-use image::codecs::webp::WebPEncoder;
 use image::imageops::{self, FilterType as Resample};
-use image::{ExtendedColorType, ImageEncoder, ImageFormat, ImageReader, Limits, RgbaImage};
-use resvg::{tiny_skia, usvg};
+use image::{ImageFormat, ImageReader, Limits, RgbaImage};
+use resvg::usvg;
 
 use crate::config::Render as RenderCfg;
-use crate::contract::{MonoSource, OutputFormat, SIZES, Theme};
+use crate::contract::MonoSource;
+use crate::trace;
+use crate::vector::{self, VIEW, Vector, VectorOrigin};
 
 const MAX_ASPECT: u32 = 4;
+const WORK_PX: u32 = 512;
+const MAX_PALETTE: usize = 12;
 
-#[derive(Debug, Clone)]
-pub struct Variant {
-    pub size: u32,
-    pub data: Vec<u8>,
+pub fn vectorize(bytes: &[u8], cfg: &RenderCfg) -> anyhow::Result<Vector> {
+    ensure!(
+        !is_compressed_container(bytes),
+        "compressed containers are not accepted"
+    );
+    if sniff_svg(bytes) {
+        let tree = checked_svg(bytes, cfg)?;
+        let original = vector::render(&tree, VIEW)?;
+        if let Ok(clean) = vector::clean_tree(&tree, false, false)
+            && clean.svg.len() <= cfg.max_output_svg_bytes
+            && fidelity(&original, &clean.svg)? <= allowed_loss(cfg, clean.lossy)
+        {
+            return Ok(Vector {
+                svg: finish(&clean.svg, cfg)?,
+                origin: VectorOrigin::Original,
+            });
+        }
+        let raster = vector::render(&tree, WORK_PX)?;
+        return Ok(Vector {
+            svg: finish(&trace_color(&raster, cfg)?, cfg)?,
+            origin: VectorOrigin::Traced,
+        });
+    }
+    let img = prepare_raster(decode_raster(bytes, cfg)?, cfg);
+    Ok(Vector {
+        svg: finish(&trace_color(&img, cfg)?, cfg)?,
+        origin: VectorOrigin::Traced,
+    })
+}
+
+pub fn vectorize_mono(bytes: &[u8], cfg: &RenderCfg, source: MonoSource) -> anyhow::Result<Vector> {
+    ensure!(
+        !is_compressed_container(bytes),
+        "compressed containers are not accepted"
+    );
+    let rgba = if sniff_svg(bytes) {
+        let tree = checked_svg(bytes, cfg)?;
+        if source == MonoSource::MaskIcon
+            && let Ok(clean) = vector::clean_tree(&tree, true, false)
+            && clean.svg.len() <= cfg.max_output_svg_bytes
+        {
+            let original = monochrome(&vector::render(&tree, VIEW)?, MonoSource::MaskIcon)?;
+            if fidelity(&original, &clean.svg)? <= allowed_loss(cfg, clean.lossy) {
+                return Ok(Vector {
+                    svg: finish(&clean.svg, cfg)?,
+                    origin: VectorOrigin::Original,
+                });
+            }
+        }
+        vector::render(&tree, WORK_PX)?
+    } else {
+        prepare_raster(decode_raster(bytes, cfg)?, cfg)
+    };
+    let mask = monochrome(&rgba, source)?;
+    Ok(Vector {
+        svg: finish(&trace_mask(&mask, cfg)?, cfg)?,
+        origin: VectorOrigin::Traced,
+    })
+}
+
+fn finish(svg: &str, cfg: &RenderCfg) -> anyhow::Result<String> {
+    let fitted = vector::fit(svg)?;
+    ensure!(
+        fitted.len() <= cfg.max_output_svg_bytes,
+        "svg too large after fitting"
+    );
+    Ok(fitted)
+}
+
+fn allowed_loss(cfg: &RenderCfg, lossy: bool) -> f32 {
+    if lossy {
+        cfg.svg_fidelity / 2.0
+    } else {
+        cfg.svg_fidelity
+    }
+}
+
+fn trace_side(cfg: &RenderCfg) -> u32 {
+    cfg.trace_max_px.clamp(64, 512)
+}
+
+fn fidelity(reference: &RgbaImage, svg: &str) -> anyhow::Result<f32> {
+    let rendered = vector::render(&vector::parse(svg.as_bytes())?, VIEW)?;
+    Ok(vector::difference(reference, &rendered))
+}
+
+fn checked_svg(bytes: &[u8], cfg: &RenderCfg) -> anyhow::Result<usvg::Tree> {
+    ensure!(cfg.svg, "svg disabled");
+    ensure!(bytes.len() <= cfg.max_svg_bytes, "svg too large");
+    ensure!(!contains_ci(bytes, b"<!entity"), "svg entities not allowed");
+    ensure!(
+        markup_depth(bytes) <= cfg.max_svg_depth,
+        "svg nesting too deep"
+    );
+    let tree = vector::parse(bytes)?;
+    let size = tree.size();
+    let (w, h) = (size.width(), size.height());
+    ensure!(
+        w.is_finite() && h.is_finite() && w > 0.0 && h > 0.0,
+        "svg has no size"
+    );
+    ensure!(
+        w.max(h) <= w.min(h) * MAX_ASPECT as f32,
+        "aspect ratio too extreme"
+    );
+    Ok(tree)
+}
+
+fn prepare_raster(img: RgbaImage, cfg: &RenderCfg) -> RgbaImage {
+    let square = pad_square(img);
+    let max = trace_side(cfg);
+    if square.width() > max {
+        imageops::resize(&square, max, max, Resample::Lanczos3)
+    } else {
+        square
+    }
+}
+
+fn reference(img: &RgbaImage) -> RgbaImage {
+    match img.width() {
+        w if w == VIEW => img.clone(),
+        w if w < VIEW => imageops::resize(img, VIEW, VIEW, Resample::Nearest),
+        _ => imageops::resize(img, VIEW, VIEW, Resample::Lanczos3),
+    }
+}
+
+fn resize_premultiplied(img: &RgbaImage, side: u32) -> RgbaImage {
+    if img.width() == side && img.height() == side {
+        return img.clone();
+    }
+    let mut pre = img.clone();
+    for p in pre.pixels_mut() {
+        let a = u16::from(p[3]);
+        for c in 0..3 {
+            p[c] = ((u16::from(p[c]) * a + 127) / 255) as u8;
+        }
+    }
+    let mut out = imageops::resize(&pre, side, side, Resample::CatmullRom);
+    for p in out.pixels_mut() {
+        let a = u16::from(p[3]);
+        for c in 0..3 {
+            if let Some(v) = (u16::from(p[c]) * 255 + a / 2).checked_div(a) {
+                p[c] = v.min(255) as u8;
+            }
+        }
+    }
+    out
+}
+
+fn rgb_distance(a: &[f32; 3], b: &[f32; 3]) -> f32 {
+    (0..3).map(|c| (a[c] - b[c]).powi(2)).sum::<f32>().sqrt() / 441.67
+}
+
+fn is_between(c: &[f32; 3], a: &[f32; 3], b: &[f32; 3]) -> bool {
+    let ab = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
+    let len2: f32 = ab.iter().map(|v| v * v).sum();
+    if len2 < 1.0 {
+        return false;
+    }
+    let t = (0..3).map(|i| (c[i] - a[i]) * ab[i]).sum::<f32>() / len2;
+    if !(0.1..=0.9).contains(&t) {
+        return false;
+    }
+    let on_segment = [a[0] + ab[0] * t, a[1] + ab[1] * t, a[2] + ab[2] * t];
+    rgb_distance(c, &on_segment) < 0.06
+}
+
+pub fn quantize(img: &RgbaImage, max_colors: usize) -> RgbaImage {
+    let mut hist = std::collections::HashMap::<u16, (u32, [u32; 3])>::new();
+    let mut opaque = 0u32;
+    for p in img.pixels().filter(|p| p[3] >= 128) {
+        opaque += 1;
+        let key = (u16::from(p[0] >> 3) << 10) | (u16::from(p[1] >> 3) << 5) | u16::from(p[2] >> 3);
+        let e = hist.entry(key).or_insert((0, [0; 3]));
+        e.0 += 1;
+        for c in 0..3 {
+            e.1[c] += u32::from(p[c]);
+        }
+    }
+    let mut bins: Vec<(u32, [f32; 3])> = hist
+        .into_values()
+        .map(|(n, sum)| (n, sum.map(|v| v as f32 / n as f32)))
+        .collect();
+    bins.sort_by_key(|b| std::cmp::Reverse(b.0));
+    let mut palette: Vec<[f32; 3]> = Vec::new();
+    let min_share = (opaque / 200).max(1);
+    for (n, colour) in bins {
+        if palette.len() >= max_colors || (n < min_share && !palette.is_empty()) {
+            break;
+        }
+        let distinct = palette.iter().all(|p| rgb_distance(p, &colour) > 0.08);
+        let blend = palette
+            .iter()
+            .enumerate()
+            .any(|(i, a)| palette[i + 1..].iter().any(|b| is_between(&colour, a, b)));
+        if distinct && !blend {
+            palette.push(colour);
+        }
+    }
+    let mut out = img.clone();
+    for p in out.pixels_mut() {
+        if p[3] < 128 {
+            *p = image::Rgba([0, 0, 0, 0]);
+            continue;
+        }
+        let nearest = palette
+            .iter()
+            .min_by(|a, b| {
+                let d = |q: &&[f32; 3]| {
+                    (0..3)
+                        .map(|c| (q[c] - f32::from(p[c])).powi(2))
+                        .sum::<f32>()
+                };
+                d(a).total_cmp(&d(b))
+            })
+            .copied()
+            .unwrap_or([f32::from(p[0]), f32::from(p[1]), f32::from(p[2])]);
+        *p = image::Rgba([nearest[0] as u8, nearest[1] as u8, nearest[2] as u8, 255]);
+    }
+    out
+}
+
+fn traced(raw: &str, black: bool, disjoint: bool, cfg: &RenderCfg) -> anyhow::Result<String> {
+    let clean = vector::clean_tree(&vector::parse(raw.as_bytes())?, black, disjoint)?;
+    ensure!(
+        clean.svg.len() <= cfg.max_output_svg_bytes,
+        "traced svg too large"
+    );
+    Ok(clean.svg)
+}
+
+fn trace_color(img: &RgbaImage, cfg: &RenderCfg) -> anyhow::Result<String> {
+    ensure!(
+        img.pixels().any(|p| p[3] >= 128),
+        "image is fully transparent"
+    );
+    let reference = reference(img);
+    let work = quantize(&resize_premultiplied(img, WORK_PX), MAX_PALETTE);
+    let mut best: Option<(f32, String)> = None;
+    for p in [trace::BALANCED, trace::FINE] {
+        let Ok(svg) = traced(&trace::color(&work, &p), false, false, cfg) else {
+            continue;
+        };
+        let d = fidelity(&reference, &svg)?;
+        let better = match &best {
+            None => true,
+            Some((bd, bs)) => d + 0.004 < *bd || (d <= *bd + 0.004 && svg.len() < bs.len()),
+        };
+        if better {
+            best = Some((d, svg));
+        }
+    }
+    match best {
+        Some((_, svg)) => Ok(svg),
+        None => traced(&trace::color(&work, &trace::COARSE), false, false, cfg),
+    }
+}
+
+fn trace_mask(mask: &RgbaImage, cfg: &RenderCfg) -> anyhow::Result<String> {
+    let work = resize_premultiplied(mask, WORK_PX);
+    traced(&trace::binary(&work, &trace::BALANCED), true, true, cfg)
+        .or_else(|_| traced(&trace::binary(&work, &trace::COARSE), true, true, cfg))
 }
 
 pub fn sniff_svg(bytes: &[u8]) -> bool {
@@ -29,34 +289,6 @@ pub fn sniff_svg(bytes: &[u8]) -> bool {
         && text.contains("<svg")
 }
 
-pub fn render_variants(bytes: &[u8], cfg: &RenderCfg) -> anyhow::Result<Vec<Variant>> {
-    let (img, scalable) = decode_any(bytes, cfg)?;
-    variants_from(img, scalable, cfg)
-}
-
-pub fn render_mono(
-    bytes: &[u8],
-    cfg: &RenderCfg,
-    source: MonoSource,
-) -> anyhow::Result<Vec<Variant>> {
-    let (img, scalable) = decode_any(bytes, cfg)?;
-    let mask = monochrome(&pad_square(img), source)?;
-    variants_from(mask, scalable, cfg)
-}
-
-fn decode_any(bytes: &[u8], cfg: &RenderCfg) -> anyhow::Result<(RgbaImage, bool)> {
-    ensure!(
-        !is_compressed_container(bytes),
-        "compressed containers are not accepted"
-    );
-    if sniff_svg(bytes) {
-        ensure!(cfg.svg, "svg disabled");
-        Ok((rasterize_svg(bytes, cfg)?, true))
-    } else {
-        Ok((decode_raster(bytes, cfg)?, false))
-    }
-}
-
 fn color_distance(p: &image::Rgba<u8>, c: [f32; 3]) -> f32 {
     (0..3)
         .map(|i| (f32::from(p[i]) - c[i]).powi(2))
@@ -68,6 +300,26 @@ fn color_distance(p: &image::Rgba<u8>, c: [f32; 3]) -> f32 {
 fn smoothstep(lo: f32, hi: f32, x: f32) -> f32 {
     let t = ((x - lo) / (hi - lo)).clamp(0.0, 1.0);
     t * t * (3.0 - 2.0 * t)
+}
+
+fn white_ground(img: &RgbaImage) -> Option<Vec<u8>> {
+    let total = img.pixels().len();
+    let opaque = img.pixels().filter(|p| p[3] >= 200).count();
+    let white = img
+        .pixels()
+        .filter(|p| p[3] >= 200 && p[0] > 235 && p[1] > 235 && p[2] > 235)
+        .count();
+    if opaque * 10 < total * 9 || white * 100 < total * 3 || white * 2 > total {
+        return None;
+    }
+    Some(
+        img.pixels()
+            .map(|p| {
+                let soft = smoothstep(0.10, 0.30, color_distance(p, [255.0, 255.0, 255.0]));
+                (soft * f32::from(p[3])).round() as u8
+            })
+            .collect(),
+    )
 }
 
 fn knockout_or_silhouette(img: &RgbaImage) -> Vec<u8> {
@@ -142,7 +394,7 @@ pub fn monochrome(img: &RgbaImage, source: MonoSource) -> anyhow::Result<RgbaIma
                         (soft * f32::from(p[3])).round() as u8
                     })
                     .collect(),
-                None => knockout_or_silhouette(img),
+                None => white_ground(img).unwrap_or_else(|| knockout_or_silhouette(img)),
             }
         }
     };
@@ -150,7 +402,7 @@ pub fn monochrome(img: &RgbaImage, source: MonoSource) -> anyhow::Result<RgbaIma
         / (255.0 * f64::from(w) * f64::from(h));
     ensure!(coverage >= 0.01, "no visible shape for a monochrome icon");
     ensure!(
-        coverage <= 0.97,
+        coverage <= 0.99,
         "not enough contrast for a monochrome icon"
     );
     let raw = ink.into_iter().flat_map(|a| [0, 0, 0, a]).collect();
@@ -207,92 +459,6 @@ fn decode_raster(bytes: &[u8], cfg: &RenderCfg) -> anyhow::Result<RgbaImage> {
     Ok(img)
 }
 
-fn rasterize_svg(bytes: &[u8], cfg: &RenderCfg) -> anyhow::Result<RgbaImage> {
-    ensure!(bytes.len() <= cfg.max_svg_bytes, "svg too large");
-    ensure!(!contains_ci(bytes, b"<!entity"), "svg entities not allowed");
-    ensure!(
-        markup_depth(bytes) <= cfg.max_svg_depth,
-        "svg nesting too deep"
-    );
-
-    let opt = usvg::Options {
-        resources_dir: None,
-        image_href_resolver: usvg::ImageHrefResolver {
-            resolve_data: Box::new(|_, _, _| None),
-            resolve_string: Box::new(|_, _| None),
-        },
-        ..usvg::Options::default()
-    };
-    let tree = usvg::Tree::from_data(bytes, &opt).context("parsing svg")?;
-    let size = tree.size();
-    let (w, h) = (size.width(), size.height());
-    ensure!(
-        w.is_finite() && h.is_finite() && w > 0.0 && h > 0.0,
-        "svg has no size"
-    );
-    ensure!(
-        w.max(h) <= w.min(h) * MAX_ASPECT as f32,
-        "aspect ratio too extreme"
-    );
-
-    let target = allowed_sizes(cfg).last().copied().unwrap_or(128);
-    let scale = target as f32 / w.max(h);
-    let (dx, dy) = (
-        (target as f32 - w * scale) / 2.0,
-        (target as f32 - h * scale) / 2.0,
-    );
-    let mut pixmap = tiny_skia::Pixmap::new(target, target).context("allocating canvas")?;
-    resvg::render(
-        &tree,
-        tiny_skia::Transform::from_row(scale, 0.0, 0.0, scale, dx, dy),
-        &mut pixmap.as_mut(),
-    );
-    Ok(pixmap_to_rgba(&pixmap))
-}
-
-fn allowed_sizes(cfg: &RenderCfg) -> Vec<u32> {
-    let mut v: Vec<u32> = cfg
-        .sizes
-        .iter()
-        .copied()
-        .filter(|s| SIZES.contains(s))
-        .collect();
-    v.sort_unstable();
-    v.dedup();
-    if v.is_empty() { SIZES.to_vec() } else { v }
-}
-
-fn variants_from(img: RgbaImage, scalable: bool, cfg: &RenderCfg) -> anyhow::Result<Vec<Variant>> {
-    let format = cfg.format;
-    let allowed = allowed_sizes(cfg);
-    let square = pad_square(img);
-    let side = square.width();
-    let mut sizes: Vec<u32> = allowed
-        .iter()
-        .copied()
-        .filter(|s| scalable || side * 10 >= s * 9)
-        .collect();
-    if sizes.is_empty() {
-        sizes.push(allowed[0]);
-    }
-    sizes
-        .into_iter()
-        .map(|size| {
-            let resized = if size == side {
-                square.clone()
-            } else if side < SIZES[0] {
-                imageops::resize(&square, size, size, Resample::Nearest)
-            } else {
-                imageops::resize(&square, size, size, Resample::Lanczos3)
-            };
-            Ok(Variant {
-                size,
-                data: encode(&resized, format)?,
-            })
-        })
-        .collect()
-}
-
 fn pad_square(img: RgbaImage) -> RgbaImage {
     let (w, h) = img.dimensions();
     if w == h {
@@ -307,44 +473,6 @@ fn pad_square(img: RgbaImage) -> RgbaImage {
         i64::from((side - h) / 2),
     );
     canvas
-}
-
-pub fn encode(img: &RgbaImage, format: OutputFormat) -> anyhow::Result<Vec<u8>> {
-    match format {
-        OutputFormat::Png => encode_png(img),
-        OutputFormat::Webp => {
-            let mut out = Vec::new();
-            WebPEncoder::new_lossless(&mut out).write_image(
-                img.as_raw(),
-                img.width(),
-                img.height(),
-                ExtendedColorType::Rgba8,
-            )?;
-            Ok(out)
-        }
-    }
-}
-
-pub fn encode_png(img: &RgbaImage) -> anyhow::Result<Vec<u8>> {
-    let mut out = Vec::new();
-    PngEncoder::new_with_quality(&mut out, CompressionType::Best, FilterType::Adaptive)
-        .write_image(
-            img.as_raw(),
-            img.width(),
-            img.height(),
-            ExtendedColorType::Rgba8,
-        )?;
-    Ok(out)
-}
-
-fn pixmap_to_rgba(p: &tiny_skia::Pixmap) -> RgbaImage {
-    let mut raw = Vec::with_capacity(p.data().len());
-    for px in p.pixels() {
-        let c = px.demultiply();
-        raw.extend_from_slice(&[c.red(), c.green(), c.blue(), c.alpha()]);
-    }
-    RgbaImage::from_raw(p.width(), p.height(), raw)
-        .unwrap_or_else(|| RgbaImage::new(p.width(), p.height()))
 }
 
 fn contains_ci(hay: &[u8], needle: &[u8]) -> bool {
@@ -385,159 +513,17 @@ fn find(hay: &[u8], needle: &[u8]) -> Option<usize> {
     hay.windows(needle.len()).position(|w| w == needle)
 }
 
-pub fn warning_icon(
-    size: u32,
-    theme: Theme,
-    mono: bool,
-    format: OutputFormat,
-) -> anyhow::Result<Vec<u8>> {
-    finish(warning_rgba(size, theme)?, mono, format)
-}
-
-fn finish(img: RgbaImage, mono: bool, format: OutputFormat) -> anyhow::Result<Vec<u8>> {
-    if mono {
-        encode(&monochrome(&img, MonoSource::Derived)?, format)
-    } else {
-        encode(&img, format)
-    }
-}
-
-fn warning_rgba(size: u32, theme: Theme) -> anyhow::Result<RgbaImage> {
-    let size = size.clamp(SIZES[0], *SIZES.last().unwrap_or(&128));
-    let s = size as f32;
-    let bg = match theme {
-        Theme::Light => hsl(4.0, 0.76, 0.47),
-        Theme::Dark => hsl(4.0, 0.80, 0.55),
-    };
-    let mut pixmap = tiny_skia::Pixmap::new(size, size).context("allocating canvas")?;
-    let mut paint = tiny_skia::Paint {
-        anti_alias: true,
-        ..Default::default()
-    };
-    let id = tiny_skia::Transform::identity();
-    paint.set_color_rgba8(bg[0], bg[1], bg[2], 255);
-    let tile = rounded_rect(0.0, 0.0, s, s, s * 0.22).context("building path")?;
-    pixmap.fill_path(&tile, &paint, tiny_skia::FillRule::Winding, id, None);
-
-    paint.set_color_rgba8(255, 255, 255, 255);
-    let w = (s * 0.16).max(2.0);
-    let bar =
-        rounded_rect((s - w) / 2.0, s * 0.16, w, s * 0.40, w / 2.0).context("building path")?;
-    pixmap.fill_path(&bar, &paint, tiny_skia::FillRule::Winding, id, None);
-    let dot = tiny_skia::PathBuilder::from_circle(s / 2.0, s * 0.76, w * 0.55)
-        .context("building path")?;
-    pixmap.fill_path(&dot, &paint, tiny_skia::FillRule::Winding, id, None);
-    Ok(pixmap_to_rgba(&pixmap))
-}
-
-pub fn identicon(
-    seed: &[u8; 32],
-    size: u32,
-    theme: Theme,
-    mono: bool,
-    format: OutputFormat,
-) -> anyhow::Result<Vec<u8>> {
-    finish(identicon_rgba(seed, size, theme)?, mono, format)
-}
-
-fn identicon_rgba(seed: &[u8; 32], size: u32, theme: Theme) -> anyhow::Result<RgbaImage> {
-    let size = size.clamp(SIZES[0], *SIZES.last().unwrap_or(&128));
-    let hue = f32::from(u16::from_le_bytes([seed[0], seed[1]]) % 360);
-    let sat = 0.50 + f32::from(seed[2]) / 255.0 * 0.25;
-    let (bg_l, fg) = match theme {
-        Theme::Light => (0.46, hsl(hue, sat * 0.25, 0.97)),
-        Theme::Dark => (0.30, hsl(hue, sat, 0.82)),
-    };
-    let bg = hsl(hue, sat, bg_l);
-
-    let mut pixmap = tiny_skia::Pixmap::new(size, size).context("allocating canvas")?;
-    let s = size as f32;
-    let mut paint = tiny_skia::Paint {
-        anti_alias: true,
-        ..Default::default()
-    };
-    paint.set_color_rgba8(bg[0], bg[1], bg[2], 255);
-    let path = rounded_rect(0.0, 0.0, s, s, s * 0.22).context("building path")?;
-    pixmap.fill_path(
-        &path,
-        &paint,
-        tiny_skia::FillRule::Winding,
-        tiny_skia::Transform::identity(),
-        None,
-    );
-
-    let pad = s * 0.2;
-    let cell = (s - 2.0 * pad) / 5.0;
-    paint.set_color_rgba8(fg[0], fg[1], fg[2], 255);
-    paint.anti_alias = false;
-    let bits = u32::from_le_bytes([seed[3], seed[4], seed[5], seed[6]]);
-    let mut lit = 0;
-    for row in 0..5u32 {
-        for col in 0..3u32 {
-            if bits >> (row * 3 + col) & 1 == 0 {
-                continue;
-            }
-            lit += 1;
-            for c in [col, 4 - col] {
-                let x = (pad + c as f32 * cell).round();
-                let y = (pad + row as f32 * cell).round();
-                let w = (pad + (c + 1) as f32 * cell).round() - x;
-                let h = (pad + (row + 1) as f32 * cell).round() - y;
-                if let Some(r) = tiny_skia::Rect::from_xywh(x, y, w.max(1.0), h.max(1.0)) {
-                    pixmap.fill_rect(r, &paint, tiny_skia::Transform::identity(), None);
-                }
-            }
-        }
-    }
-    if lit == 0 {
-        let c = (pad + 2.0 * cell).round();
-        if let Some(r) =
-            tiny_skia::Rect::from_xywh(c, c, cell.round().max(1.0), cell.round().max(1.0))
-        {
-            pixmap.fill_rect(r, &paint, tiny_skia::Transform::identity(), None);
-        }
-    }
-    Ok(pixmap_to_rgba(&pixmap))
-}
-
-fn rounded_rect(x: f32, y: f32, w: f32, h: f32, r: f32) -> Option<tiny_skia::Path> {
-    let mut pb = tiny_skia::PathBuilder::new();
-    pb.move_to(x + r, y);
-    pb.line_to(x + w - r, y);
-    pb.quad_to(x + w, y, x + w, y + r);
-    pb.line_to(x + w, y + h - r);
-    pb.quad_to(x + w, y + h, x + w - r, y + h);
-    pb.line_to(x + r, y + h);
-    pb.quad_to(x, y + h, x, y + h - r);
-    pb.line_to(x, y + r);
-    pb.quad_to(x, y, x + r, y);
-    pb.close();
-    pb.finish()
-}
-
-fn hsl(h: f32, s: f32, l: f32) -> [u8; 3] {
-    let c = (1.0 - (2.0 * l - 1.0).abs()) * s;
-    let hp = h / 60.0;
-    let x = c * (1.0 - (hp % 2.0 - 1.0).abs());
-    let (r, g, b) = match hp as u32 {
-        0 => (c, x, 0.0),
-        1 => (x, c, 0.0),
-        2 => (0.0, c, x),
-        3 => (0.0, x, c),
-        4 => (x, 0.0, c),
-        _ => (c, 0.0, x),
-    };
-    let m = l - c / 2.0;
-    [r, g, b].map(|v| ((v + m) * 255.0).round().clamp(0.0, 255.0) as u8)
-}
-
 #[cfg(test)]
-pub fn ensure_dimensions(data: &[u8], expected: u32) -> anyhow::Result<()> {
-    let img = image::load_from_memory(data)?;
-    if img.width() != expected || img.height() != expected {
-        anyhow::bail!("unexpected dimensions {}x{}", img.width(), img.height());
-    }
-    Ok(())
+pub fn encode_png(img: &RgbaImage) -> anyhow::Result<Vec<u8>> {
+    use image::ImageEncoder;
+    let mut out = Vec::new();
+    image::codecs::png::PngEncoder::new(&mut out).write_image(
+        img.as_raw(),
+        img.width(),
+        img.height(),
+        image::ExtendedColorType::Rgba8,
+    )?;
+    Ok(out)
 }
 
 #[cfg(test)]
@@ -548,6 +534,114 @@ mod tests {
         RenderCfg::default()
     }
 
+    fn paths(svg: &str) -> usize {
+        svg.matches("<path").count()
+    }
+
+    fn logo(w: u32) -> RgbaImage {
+        RgbaImage::from_fn(w, w, |x, y| {
+            let c = (w / 2) as i32;
+            let d = (x as i32 - c).pow(2) + (y as i32 - c).pow(2);
+            let r = (w as i32 * 3 / 8).pow(2);
+            if d < r / 4 {
+                image::Rgba([255, 255, 255, 255])
+            } else if d < r {
+                image::Rgba([30, 120, 220, 255])
+            } else {
+                image::Rgba([0, 0, 0, 0])
+            }
+        })
+    }
+
+    #[test]
+    fn traces_raster_into_one_path_per_colour() {
+        let v = vectorize(&encode_png(&logo(200)).unwrap(), &cfg()).unwrap();
+        assert_eq!(v.origin, VectorOrigin::Traced);
+        vector::verify(&v.svg, cfg().max_output_svg_bytes).unwrap();
+        assert!(paths(&v.svg) <= 2, "{}", v.svg);
+        assert!(
+            v.svg.contains("#1e78dc") || v.svg.contains("#1e78dd") || v.svg.contains("#1f78dc"),
+            "{}",
+            v.svg
+        );
+        let back = vector::render(&vector::parse(v.svg.as_bytes()).unwrap(), VIEW).unwrap();
+        assert_eq!(back.get_pixel(1, 64)[3], 255, "logo is scaled to the edges");
+        assert_eq!(back.get_pixel(64, 1)[3], 255, "logo is scaled to the edges");
+        assert!(back.get_pixel(64, 64).0.iter().all(|c| *c >= 250));
+        assert_eq!(back.get_pixel(2, 2)[3], 0);
+    }
+
+    #[test]
+    fn traces_tiny_favicons_too() {
+        let v = vectorize(&encode_png(&logo(16)).unwrap(), &cfg()).unwrap();
+        vector::verify(&v.svg, cfg().max_output_svg_bytes).unwrap();
+        assert!(paths(&v.svg) >= 1);
+    }
+
+    #[test]
+    fn keeps_clean_original_svg_with_gradient() {
+        let svg = br##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><defs><radialGradient id="r"><stop offset="0" stop-color="#ffcc00"/><stop offset="1" stop-color="#ff3300"/></radialGradient></defs><circle cx="12" cy="12" r="10" fill="url(#r)"/><path d="M8 12h8" stroke="#ffffff" stroke-width="2" stroke-linecap="round"/></svg>"##;
+        let v = vectorize(svg, &cfg()).unwrap();
+        assert_eq!(v.origin, VectorOrigin::Original);
+        vector::verify(&v.svg, cfg().max_output_svg_bytes).unwrap();
+        assert!(v.svg.contains("<radialGradient"));
+    }
+
+    #[test]
+    fn falls_back_to_tracing_when_sanitizing_loses_too_much() {
+        let svg = br##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><defs><pattern id="p" width="2" height="2" patternUnits="userSpaceOnUse"><rect width="1" height="2" fill="#0000ff"/></pattern></defs><rect width="10" height="10" fill="url(#p)"/></svg>"##;
+        let v = vectorize(svg, &cfg()).unwrap();
+        assert_eq!(v.origin, VectorOrigin::Traced);
+        vector::verify(&v.svg, cfg().max_output_svg_bytes).unwrap();
+        assert!(!v.svg.contains("pattern"));
+    }
+
+    #[test]
+    fn hostile_svg_comes_out_clean() {
+        let svg = br##"<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 10 10" onload="fetch('//evil')"><script>alert(1)</script><style>@media screen { circle { fill: #00ff00 } }</style><image href="data:image/svg+xml;base64,PHN2Zz48c2NyaXB0PmFsZXJ0KDEpPC9zY3JpcHQ+PC9zdmc+" width="10" height="10"/><circle cx="5" cy="5" r="4" fill="#ff0000"/></svg>"##;
+        let v = vectorize(svg, &cfg()).unwrap();
+        vector::verify(&v.svg, cfg().max_output_svg_bytes).unwrap();
+        for bad in [
+            "script", "style", "image", "onload", "base64", "evil", "@media",
+        ] {
+            assert!(!v.svg.contains(bad), "{bad} leaked");
+        }
+    }
+
+    #[test]
+    fn mono_is_a_single_black_path() {
+        let v = vectorize_mono(
+            &encode_png(&logo(128)).unwrap(),
+            &cfg(),
+            MonoSource::Derived,
+        )
+        .unwrap();
+        vector::verify(&v.svg, cfg().max_output_svg_bytes).unwrap();
+        assert_eq!(paths(&v.svg), 1, "{}", v.svg);
+        assert!(v.svg.contains("#000000"));
+        let mask = br##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M2 2h12v12H2z" fill="#555"/></svg>"##;
+        let m = vectorize_mono(mask, &cfg(), MonoSource::MaskIcon).unwrap();
+        assert_eq!(m.origin, VectorOrigin::Original);
+        assert!(m.svg.contains("#000000") && !m.svg.contains("#555"));
+    }
+
+    #[test]
+    fn drops_antialiasing_blends_from_palette() {
+        let img = RgbaImage::from_fn(60, 20, |x, _| match x {
+            0..=24 => image::Rgba([255, 255, 255, 255]),
+            25..=34 => image::Rgba([245, 160, 153, 255]),
+            _ => image::Rgba([235, 66, 52, 255]),
+        });
+        let q = quantize(&img, 12);
+        let colours: std::collections::HashSet<[u8; 4]> = q.pixels().map(|p| p.0).collect();
+        assert_eq!(colours.len(), 2, "{colours:?}");
+    }
+
+    #[test]
+    fn rejects_fully_transparent_images() {
+        assert!(vectorize(&encode_png(&RgbaImage::new(64, 64)).unwrap(), &cfg()).is_err());
+    }
+
     fn png_of(w: u32, h: u32) -> Vec<u8> {
         encode_png(&RgbaImage::from_pixel(
             w,
@@ -555,50 +649,6 @@ mod tests {
             image::Rgba([200, 10, 10, 255]),
         ))
         .unwrap()
-    }
-
-    #[test]
-    fn identicon_is_deterministic_and_sized() {
-        let seed = *blake3::hash(b"example.com").as_bytes();
-        for size in SIZES {
-            let a = identicon(&seed, size, Theme::Light, false, OutputFormat::Webp).unwrap();
-            assert_eq!(
-                a,
-                identicon(&seed, size, Theme::Light, false, OutputFormat::Webp).unwrap()
-            );
-            assert_ne!(
-                a,
-                identicon(&seed, size, Theme::Dark, false, OutputFormat::Webp).unwrap()
-            );
-            ensure_dimensions(&a, size).unwrap();
-        }
-    }
-
-    #[test]
-    fn warning_icon_is_red_with_white_mark() {
-        for size in SIZES {
-            for theme in [Theme::Light, Theme::Dark] {
-                let data = warning_icon(size, theme, false, OutputFormat::Png).unwrap();
-                assert_eq!(
-                    data,
-                    warning_icon(size, theme, false, OutputFormat::Png).unwrap()
-                );
-                let img = image::load_from_memory(&data).unwrap().into_rgba8();
-                assert_eq!(img.dimensions(), (size, size));
-                let edge = img.get_pixel(size / 2, size / 12).0;
-                assert!(
-                    edge[0] > 180 && edge[1] < 90 && edge[2] < 90,
-                    "{size} {theme:?} bg {edge:?}"
-                );
-                let mark = img.get_pixel(size / 2, size * 2 / 5).0;
-                assert!(
-                    mark.iter().all(|c| *c > 220),
-                    "{size} {theme:?} mark {mark:?}"
-                );
-                let gap = img.get_pixel(size / 2, size * 62 / 100).0;
-                assert!(gap[0] > 180 && gap[1] < 120, "{size} {theme:?} gap {gap:?}");
-            }
-        }
     }
 
     fn alpha_at(img: &RgbaImage, x: u32, y: u32) -> u8 {
@@ -664,83 +714,27 @@ mod tests {
     }
 
     #[test]
+    fn opaque_logo_on_white_cross_keeps_its_squares() {
+        let colours = [[242, 80, 34], [127, 186, 0], [0, 164, 239], [255, 185, 0]];
+        let img = RgbaImage::from_fn(64, 64, |x, y| {
+            if (30..34).contains(&x) || (30..34).contains(&y) {
+                image::Rgba([253, 254, 252, 255])
+            } else {
+                let c = colours[((y / 32) * 2 + x / 32) as usize];
+                image::Rgba([c[0], c[1], c[2], 255])
+            }
+        });
+        let m = monochrome(&img, MonoSource::Derived).unwrap();
+        assert_eq!(alpha_at(&m, 10, 10), 255);
+        assert_eq!(alpha_at(&m, 50, 50), 255);
+        assert_eq!(alpha_at(&m, 32, 10), 0);
+    }
+
+    #[test]
     fn rejects_shapeless_monochrome() {
         let flat = RgbaImage::from_pixel(32, 32, image::Rgba([10, 200, 10, 255]));
         assert!(monochrome(&flat, MonoSource::Derived).is_err());
         assert!(monochrome(&RgbaImage::new(32, 32), MonoSource::MaskIcon).is_err());
-    }
-
-    #[test]
-    fn renders_mask_icon_svg_as_black_alpha() {
-        let svg = br##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M2 2h12v12H2z" fill="#000"/></svg>"##;
-        let v = render_mono(svg, &cfg(), MonoSource::MaskIcon).unwrap();
-        assert_eq!(v.iter().map(|v| v.size).collect::<Vec<_>>(), SIZES);
-        let img = image::load_from_memory(&v[3].data).unwrap().into_rgba8();
-        assert_eq!(img.get_pixel(64, 64).0, [0, 0, 0, 255]);
-        assert_eq!(img.get_pixel(4, 4)[3], 0);
-    }
-
-    #[test]
-    fn generated_icons_have_mono_versions() {
-        let seed = *blake3::hash(b"example.com").as_bytes();
-        for data in [
-            identicon(&seed, 64, Theme::Light, true, OutputFormat::Png).unwrap(),
-            warning_icon(64, Theme::Light, true, OutputFormat::Png).unwrap(),
-        ] {
-            let img = image::load_from_memory(&data).unwrap().into_rgba8();
-            assert!(img.pixels().all(|p| p[0] == 0 && p[1] == 0 && p[2] == 0));
-            assert!(img.pixels().any(|p| p[3] == 255));
-            assert!(img.pixels().any(|p| p[3] == 0));
-        }
-    }
-
-    #[test]
-    fn produces_only_sizes_not_above_source() {
-        let v = render_variants(&png_of(48, 48), &cfg()).unwrap();
-        assert_eq!(v.iter().map(|v| v.size).collect::<Vec<_>>(), [16, 32]);
-        let near = render_variants(&png_of(120, 120), &cfg()).unwrap();
-        assert_eq!(near.iter().map(|v| v.size).collect::<Vec<_>>(), SIZES);
-        for variant in &v {
-            ensure_dimensions(&variant.data, variant.size).unwrap();
-        }
-        let tiny = render_variants(&png_of(8, 8), &cfg()).unwrap();
-        assert_eq!(tiny.iter().map(|v| v.size).collect::<Vec<_>>(), [16]);
-    }
-
-    #[test]
-    fn honours_configured_sizes() {
-        let only_128 = RenderCfg {
-            sizes: vec![128],
-            ..cfg()
-        };
-        let v = render_variants(&png_of(48, 48), &only_128).unwrap();
-        assert_eq!(v.iter().map(|v| v.size).collect::<Vec<_>>(), [128]);
-        ensure_dimensions(&v[0].data, 128).unwrap();
-        let some = RenderCfg {
-            sizes: vec![32, 128],
-            ..cfg()
-        };
-        let v = render_variants(&png_of(256, 256), &some).unwrap();
-        assert_eq!(v.iter().map(|v| v.size).collect::<Vec<_>>(), [32, 128]);
-        let v = render_variants(&png_of(64, 64), &some).unwrap();
-        assert_eq!(v.iter().map(|v| v.size).collect::<Vec<_>>(), [32]);
-    }
-
-    #[test]
-    fn pads_non_square_images() {
-        let v = render_variants(&png_of(128, 64), &cfg()).unwrap();
-        assert_eq!(v.last().unwrap().size, 128);
-        ensure_dimensions(&v.last().unwrap().data, 128).unwrap();
-    }
-
-    #[test]
-    fn rejects_oversized_and_hostile_inputs() {
-        assert!(render_variants(&png_of(2048, 2048), &cfg()).is_err());
-        assert!(render_variants(&png_of(400, 20), &cfg()).is_err());
-        assert!(render_variants(b"<html>not an image</html>", &cfg()).is_err());
-        assert!(render_variants(b"GIF89a\x00\x00", &cfg()).is_err());
-        let tiff = b"II*\x00\x08\x00\x00\x00";
-        assert!(render_variants(tiff, &cfg()).is_err());
     }
 
     fn crc32(data: &[u8]) -> u32 {
@@ -769,10 +763,7 @@ mod tests {
 
     fn assert_rejected_fast(name: &str, data: &[u8]) {
         let started = std::time::Instant::now();
-        assert!(
-            render_variants(data, &cfg()).is_err(),
-            "{name} must be rejected"
-        );
+        assert!(vectorize(data, &cfg()).is_err(), "{name} must be rejected");
         assert!(
             started.elapsed() < std::time::Duration::from_secs(1),
             "{name} must be rejected before decoding"
@@ -822,45 +813,24 @@ mod tests {
     }
 
     #[test]
-    fn encodes_webp_by_default() {
-        let v = render_variants(&png_of(32, 32), &cfg()).unwrap();
-        let data = &v[0].data;
-        assert_eq!(&data[..4], b"RIFF");
-        assert_eq!(&data[8..12], b"WEBP");
-        let png_cfg = RenderCfg {
-            format: OutputFormat::Png,
-            ..cfg()
-        };
-        let p = render_variants(&png_of(32, 32), &png_cfg).unwrap();
-        assert_eq!(&p[0].data[..4], b"\x89PNG");
-    }
-
-    #[test]
-    fn renders_svg_at_all_sizes() {
-        let svg = br##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><circle cx="5" cy="5" r="4" fill="#f00"/></svg>"##;
-        let v = render_variants(svg, &cfg()).unwrap();
-        assert_eq!(v.iter().map(|v| v.size).collect::<Vec<_>>(), SIZES);
-    }
-
-    #[test]
     fn svg_cannot_reach_filesystem_or_network() {
         let svg = br##"<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 10 10">
             <image href="/etc/passwd" width="10" height="10"/>
             <image xlink:href="https://169.254.169.254/latest/meta-data" width="10" height="10"/>
             <rect width="10" height="10" fill="#0f0"/></svg>"##;
-        assert!(render_variants(svg, &cfg()).is_ok());
+        assert!(vectorize(svg, &cfg()).is_ok());
     }
 
     #[test]
     fn rejects_entity_expansion_and_deep_nesting() {
         let lol = br#"<?xml version="1.0"?><!DOCTYPE svg [<!ENTITY a "aaaaaaaa"><!ENTITY b "&a;&a;&a;&a;">]><svg xmlns="http://www.w3.org/2000/svg">&b;</svg>"#;
-        assert!(render_variants(lol, &cfg()).is_err());
+        assert!(vectorize(lol, &cfg()).is_err());
         let deep = format!(
             r#"<svg xmlns="http://www.w3.org/2000/svg">{}{}</svg>"#,
             "<g>".repeat(5000),
             "</g>".repeat(5000)
         );
-        assert!(render_variants(deep.as_bytes(), &cfg()).is_err());
+        assert!(vectorize(deep.as_bytes(), &cfg()).is_err());
     }
 
     #[test]

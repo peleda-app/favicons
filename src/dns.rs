@@ -90,6 +90,44 @@ impl SafeDns {
     }
 }
 
+impl SafeDns {
+    pub async fn txt(&self, name: &str) -> Result<Vec<String>, DnsError> {
+        let fqdn = format!("{}.", name.trim_end_matches('.'));
+        let lookup = tokio::time::timeout(self.timeout * 3, self.resolver.txt_lookup(fqdn))
+            .await
+            .map_err(|_| DnsError::Timeout)?;
+        match lookup {
+            Ok(l) => Ok(l
+                .answers()
+                .iter()
+                .filter_map(|r| match &r.data {
+                    hickory_resolver::proto::rr::RData::TXT(t) => Some(
+                        t.txt_data
+                            .iter()
+                            .map(|chunk| String::from_utf8_lossy(chunk).into_owned())
+                            .collect::<String>(),
+                    ),
+                    _ => None,
+                })
+                .collect()),
+            Err(e) if e.is_nx_domain() || e.is_no_records_found() => Ok(vec![]),
+            Err(e) => Err(DnsError::Failed(e.to_string())),
+        }
+    }
+}
+
+pub fn bimi_location(records: &[String]) -> Option<url::Url> {
+    let record = records
+        .iter()
+        .find(|r| r.trim_start().to_ascii_lowercase().starts_with("v=bimi1"))?;
+    let value = record.split(';').find_map(|part| {
+        let (k, v) = part.split_once('=')?;
+        (k.trim().eq_ignore_ascii_case("l")).then(|| v.trim().to_string())
+    })?;
+    let url = url::Url::parse(&value).ok()?;
+    (url.scheme() == "https").then_some(url)
+}
+
 pub fn classify(ips: Vec<IpAddr>) -> Result<Vec<IpAddr>, DnsError> {
     if ips.is_empty() {
         return Err(DnsError::NotFound);
@@ -168,6 +206,26 @@ mod tests {
 
     fn ips(list: &[&str]) -> Vec<IpAddr> {
         list.iter().map(|s| s.parse().unwrap()).collect()
+    }
+
+    #[test]
+    fn parses_bimi_records() {
+        let rec = |s: &str| vec![s.to_string()];
+        assert_eq!(
+            bimi_location(&rec(
+                "v=BIMI1; l=https://example.com/bimi.svg; a=https://example.com/vmc.pem"
+            ))
+            .unwrap()
+            .as_str(),
+            "https://example.com/bimi.svg"
+        );
+        assert!(
+            bimi_location(&rec("v=BIMI1; l=; a=;")).is_none(),
+            "declination record"
+        );
+        assert!(bimi_location(&rec("v=BIMI1; l=http://example.com/x.svg")).is_none());
+        assert!(bimi_location(&rec("v=spf1 include:_spf.example.com ~all")).is_none());
+        assert!(bimi_location(&[]).is_none());
     }
 
     #[test]

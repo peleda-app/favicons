@@ -11,9 +11,10 @@ use serde::{Deserialize, Serialize};
 use url::Url;
 
 use crate::config::{Cache as CacheCfg, HttpCache};
-use crate::contract::{MonoSource, OutputFormat, Slot, Theme};
+use crate::contract::{MonoSource, Provenance, SVG_MIME, Slot};
+use crate::vector::VectorOrigin;
 
-pub const LAYOUT_VERSION: &str = "v1";
+pub const LAYOUT_VERSION: &str = "v3";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -31,15 +32,17 @@ pub struct Meta {
     pub fetched_at: u64,
     pub status: Status,
     #[serde(default)]
-    pub format: OutputFormat,
+    pub color: Option<VectorOrigin>,
     #[serde(default)]
-    pub light: Vec<u32>,
-    #[serde(default)]
-    pub dark: Vec<u32>,
-    #[serde(default)]
-    pub mono: Vec<u32>,
+    pub mono: Option<VectorOrigin>,
     #[serde(default)]
     pub mono_source: Option<MonoSource>,
+    #[serde(default)]
+    pub upstream: Option<String>,
+    #[serde(default)]
+    pub provenance: Option<Provenance>,
+    #[serde(default)]
+    pub license: Option<String>,
     #[serde(default)]
     pub etags: BTreeMap<String, String>,
 }
@@ -50,26 +53,14 @@ impl Meta {
             domain: domain.into(),
             fetched_at: now(),
             status,
-            format: OutputFormat::default(),
-            light: vec![],
-            dark: vec![],
-            mono: vec![],
+            color: None,
+            mono: None,
             mono_source: None,
+            upstream: None,
+            provenance: None,
+            license: None,
             etags: BTreeMap::new(),
         }
-    }
-
-    pub fn sizes(&self, theme: Theme) -> &[u32] {
-        match theme {
-            Theme::Light => &self.light,
-            Theme::Dark => &self.dark,
-        }
-    }
-
-    pub fn resolve_theme(&self, wanted: Theme) -> Option<Theme> {
-        [wanted, wanted.other()]
-            .into_iter()
-            .find(|t| !self.sizes(*t).is_empty())
     }
 }
 
@@ -79,8 +70,8 @@ pub fn now() -> u64 {
         .map_or(0, |d| d.as_secs())
 }
 
-pub fn object_name(slot: impl Into<Slot>, size: u32, format: OutputFormat) -> String {
-    format!("{}-{size}.{}", slot.into().as_str(), format.ext())
+pub fn object_name(slot: Slot) -> String {
+    format!("{}.svg", slot.as_str())
 }
 
 pub struct Store {
@@ -137,17 +128,11 @@ impl Store {
         }
     }
 
-    pub fn public_url(
-        &self,
-        domain: &str,
-        slot: Slot,
-        size: u32,
-        format: OutputFormat,
-    ) -> Option<String> {
+    pub fn public_url(&self, domain: &str, slot: Slot) -> Option<String> {
         let base = self.public_base.as_ref()?;
         Some(format!(
             "{base}/{LAYOUT_VERSION}/{domain}/{}",
-            object_name(slot, size, format)
+            object_name(slot)
         ))
     }
 
@@ -182,14 +167,8 @@ impl Store {
         }
     }
 
-    pub async fn image(
-        &self,
-        domain: &str,
-        slot: Slot,
-        size: u32,
-        format: OutputFormat,
-    ) -> Option<Bytes> {
-        let name = object_name(slot, size, format);
+    pub async fn image(&self, domain: &str, slot: Slot) -> Option<Bytes> {
+        let name = object_name(slot);
         let key = format!("{domain}/{name}");
         if let Some(b) = self.img_mem.get(&key).await {
             return Some(b);
@@ -208,13 +187,13 @@ impl Store {
         }
     }
 
-    pub async fn put(&self, meta: Meta, images: Vec<(Slot, u32, Vec<u8>)>) {
+    pub async fn put(&self, meta: Meta, images: Vec<(Slot, Vec<u8>)>) {
         let domain = meta.domain.clone();
-        for (theme, size, data) in images {
-            let name = object_name(theme, size, meta.format);
+        for (slot, data) in images {
+            let name = object_name(slot);
             let bytes = Bytes::from(data);
             if let Some(backend) = &self.backend {
-                let opts = self.put_options(meta.format.mime(), &self.object_cache_control);
+                let opts = self.put_options(SVG_MIME, &self.object_cache_control);
                 let path = self.path(&domain, &name);
                 let res = tokio::time::timeout(
                     self.timeout,
@@ -327,43 +306,27 @@ mod tests {
         let store = store_in(&dir);
         assert!(store.meta("example.com").await.is_none());
         let mut meta = Meta::new("example.com", Status::Ok);
-        meta.light = vec![16, 32];
+        meta.color = Some(VectorOrigin::Traced);
         store
             .put(
                 meta,
-                vec![
-                    (Slot::Light, 16, vec![1, 2, 3]),
-                    (Slot::Mono, 32, vec![4, 5]),
-                ],
+                vec![(Slot::Color, vec![1, 2, 3]), (Slot::Mono, vec![4, 5])],
             )
             .await;
 
         let fresh = store_in(&dir);
         let meta = fresh.meta("example.com").await.unwrap();
-        assert_eq!(meta.light, [16, 32]);
+        assert_eq!(meta.color, Some(VectorOrigin::Traced));
         assert_eq!(
             fresh
-                .image("example.com", Slot::Mono, 32, OutputFormat::Webp)
+                .image("example.com", Slot::Mono)
                 .await
                 .unwrap()
                 .as_ref(),
             [4, 5]
         );
-        assert!(dir.join("v1/example.com/light-16.webp").exists());
-        assert!(dir.join("v1/example.com/mono-32.webp").exists());
+        assert!(dir.join("v3/example.com/color.svg").exists());
+        assert!(dir.join("v3/example.com/mono.svg").exists());
         let _ = std::fs::remove_dir_all(dir);
-    }
-
-    #[test]
-    fn resolves_theme_with_fallback() {
-        let mut m = Meta::new("e.com", Status::Ok);
-        m.light = vec![16];
-        assert_eq!(m.resolve_theme(Theme::Dark), Some(Theme::Light));
-        m.dark = vec![32];
-        assert_eq!(m.resolve_theme(Theme::Dark), Some(Theme::Dark));
-        assert_eq!(
-            Meta::new("e.com", Status::NotFound).resolve_theme(Theme::Light),
-            None
-        );
     }
 }

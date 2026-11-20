@@ -42,7 +42,8 @@ pub struct Candidate {
 impl Candidate {
     pub fn score(&self) -> u32 {
         match (self.svg, self.declared) {
-            (true, _) | (_, SIZE_ANY) => 10_000,
+            (true, _) => 30_000,
+            (_, SIZE_ANY) => 10_000,
             (false, d) if d >= 128 => 20_000 - d.abs_diff(256).min(9_999),
             (false, d) => d,
         }
@@ -235,7 +236,7 @@ pub fn guessed_manifests(origin: &Url) -> Vec<Url> {
 pub fn has_large(cands: &[Candidate]) -> bool {
     cands
         .iter()
-        .any(|c| !c.mono && c.declared >= 128 && c.declared != SIZE_ANY)
+        .any(|c| !c.mono && (c.svg || (c.declared >= 128 && c.declared != SIZE_ANY)))
 }
 
 pub fn looks_like_json_object(bytes: &[u8]) -> bool {
@@ -257,18 +258,14 @@ pub fn rank_mono(cands: &[Candidate]) -> Vec<Candidate> {
     out
 }
 
-pub fn rank(cands: Vec<Candidate>, theme: Theme) -> Vec<Candidate> {
+pub fn rank(cands: Vec<Candidate>) -> Vec<Candidate> {
     let mut seen = HashSet::new();
     let mut out: Vec<Candidate> = cands
         .into_iter()
         .filter(|c| !c.mono)
-        .filter(|c| match theme {
-            Theme::Light => c.theme != Some(Theme::Dark),
-            Theme::Dark => c.theme == Some(Theme::Dark),
-        })
         .filter(|c| seen.insert(c.location.clone()))
         .collect();
-    out.sort_by_key(|c| (c.theme.is_none(), std::cmp::Reverse(c.score())));
+    out.sort_by_key(|c| (c.theme == Some(Theme::Dark), std::cmp::Reverse(c.score())));
     out
 }
 
@@ -401,7 +398,7 @@ mod tests {
         assert_eq!(p.icons.len(), 4);
         assert!(p.icons[3].mono && p.icons[3].svg);
         assert_eq!(rank_mono(&p.icons).len(), 1);
-        assert!(!rank(p.icons.clone(), Theme::Light).iter().any(|c| c.mono));
+        assert!(!rank(p.icons.clone()).iter().any(|c| c.mono));
         assert_eq!(p.icons[0].declared, 32);
         assert!(p.icons[1].svg);
         assert_eq!(p.icons[1].theme, Some(Theme::Dark));
@@ -438,7 +435,7 @@ mod tests {
     }
 
     #[test]
-    fn ranks_large_raster_over_svg_over_small() {
+    fn ranks_svg_then_large_raster_then_dark() {
         let mk = |d: u32, svg: bool, theme| Candidate {
             location: Location::Remote(Url::parse(&format!("https://e.com/{d}{svg}")).unwrap()),
             declared: d,
@@ -446,22 +443,14 @@ mod tests {
             theme,
             mono: false,
         };
-        let ranked = rank(
-            vec![
-                mk(16, false, None),
-                mk(SIZE_ANY, true, None),
-                mk(192, false, None),
-                mk(64, false, Some(Theme::Dark)),
-            ],
-            Theme::Light,
-        );
+        let ranked = rank(vec![
+            mk(16, false, None),
+            mk(SIZE_ANY, true, None),
+            mk(192, false, None),
+            mk(512, false, Some(Theme::Dark)),
+        ]);
         let ds: Vec<_> = ranked.iter().map(|c| c.declared).collect();
-        assert_eq!(ds, [192, SIZE_ANY, 16]);
-        let dark = rank(
-            vec![mk(64, false, Some(Theme::Dark)), mk(16, false, None)],
-            Theme::Dark,
-        );
-        assert_eq!(dark.len(), 1);
+        assert_eq!(ds, [SIZE_ANY, 192, 16, 512], "dark-only icons go last");
     }
 
     #[test]

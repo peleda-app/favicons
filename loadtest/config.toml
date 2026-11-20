@@ -21,6 +21,5 @@ wait_ms = 0
 storage = "none"
 
 [policy]
-aliases = []
 blocklists = ["loadtest/blocklist.txt"]
 min_domain_age_days = 0

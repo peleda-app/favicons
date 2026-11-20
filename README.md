@@ -2,10 +2,11 @@
 
 A website icon service in Rust, built for privacy and for surviving abuse.
 It fetches a site's icon once, sanitises it, stores it in your cache, and
-serves it as a clean WebP (or PNG) in 16, 32, 64 or 128 px, light or dark.
+serves it as a clean, compact **SVG**, in colour or as a monochrome mask, always
+fitted edge to edge.
 
 ```
-GET /v1/icon/github.com?size=64&theme=dark
+GET /v1/icon/mono/github.com
 ```
 
 It is built for clients that render many icons for untrusted domains, such as
@@ -14,10 +15,13 @@ request must not leak the user, crash a server or become an attack vector.
 
 ## Features
 
-* **Sizes and themes.** `size=16|32|64|128` and `theme=light|dark`
-  (`<link media="(prefers-color-scheme: dark)">` is understood). A missing size
-  falls back to the largest smaller one; a missing theme falls back to the other theme.
-* **Monochrome masks.** `style=mono` returns a black-on-transparent shape for
+* **Vector output.** Sites that publish SVG keep their exact shapes and
+  gradients, sanitized down to bare paths. Bitmaps are traced with
+  [VTracer](https://github.com/visioncortex/vtracer)'s engine (`visioncortex`)
+  from the largest available image (≤256 px), resampled to 512 px and reduced
+  to its dominant colours first, so even a 32 px favicon comes out smooth. Every
+  icon is fitted to its box, so padded and full-bleed logos look the same size.
+* **Monochrome masks.** `/v1/icon/mono/{domain}` returns a black-on-transparent shape for
   CSS `mask-image`, so consumers can tint it any colour. It is taken from the
   site's `mask-icon` or manifest `monochrome` icon when available, otherwise
   derived from the colour icon.
@@ -35,11 +39,20 @@ request must not leak the user, crash a server or become an attack vector.
   icons are answered with `302` to the bucket/CDN, so the service doesn't stream bytes.
 * **Browser and CDN caching.** Independent `Cache-Control` and `CDN-Cache-Control`
   profiles for icons, redirects and each kind of fallback, plus `ETag` / `304`.
+* **Curated sources first.** The domain's BIMI logo, the one its owner
+  publishes for mail clients, is used when present. The optional theSVG catalog
+  (CC0 by default) supplies curated brand SVGs. Both are sanitized like
+  everything else, and `X-Icon-Provenance` says which source won.
+* **Optional upstream providers.** When a site has no usable icon, configurable
+  URL templates can be tried, e.g. `https://icons.duckduckgo.com/ip3/{domain}.ico`.
+  Off by default. The example services are third-party and **using them may
+  violate their terms of use**; see [docs/API.md](docs/API.md#upstream-providers).
 * **Deterministic fallback icons.** When there is no real icon, a symmetric
   identicon is generated from the domain. Headers say why
   (`X-Icon-Fallback-Reason: queued | not-found | blocklisted | domain-too-new | …`).
-* **Domain aliases.** Vaultwarden/Bitwarden equivalent-domain lists, so
-  `outlook.live.com`, `office.com` and `bing.com` all get the Microsoft icon.
+* **One URL per site.** `/v1/icon/{color|mono}/{domain}` only. Subdomains,
+  case variants, query strings and trailing slashes get a cacheable `301` to
+  the registrable domain, so caches never fill up with copies of one icon.
 * **Privacy.** Every request is collapsed to its registrable domain
   (`u-123.tracker.example.com` → `example.com`), so per-recipient subdomains
   can't be used as read receipts. Raw client IPs are never logged.
@@ -54,8 +67,8 @@ request must not leak the user, crash a server or become an attack vector.
   down with seccomp (no files, no network, no exec) and rlimits, optionally in a
   separate container with no network at all.
 * **Defensive rendering.** Memory-safe decoders only, strict size, pixel and
-  time limits, SVG without file or network access, and every output re-encoded
-  to lossless WebP or PNG. Only the HTML `<head>` is downloaded, and declared
+  time limits, SVG without file or network access, and every output rebuilt as
+  a fresh SVG by an allowlist serializer. Only the HTML `<head>` is downloaded, and declared
   image dimensions are checked before any decompression, so bombs never inflate.
   See [docs/SECURITY.md](docs/SECURITY.md).
 
@@ -66,19 +79,19 @@ cargo run --release -- --config config.example.toml
 ```
 
 ```bash
-curl -sI 'http://localhost:8080/v1/icon/github.com?size=64'
+curl -sI 'http://localhost:8080/v1/icon/color/github.com'
 ```
 
 ```
 HTTP/1.1 200 OK
-content-type: image/webp
+content-type: image/svg+xml
 etag: "b154cb1768af4678af57"
 cache-control: public, max-age=604800, stale-while-revalidate=86400
 cdn-cache-control: public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800
 x-icon-source: cache
 x-icon-domain: github.com
-x-icon-theme: light
-x-icon-size: 64
+x-icon-style: color
+x-icon-vector: original
 ```
 
 Docker (a ~20 MB `scratch` image with one static binary, running as uid 65534):
@@ -122,14 +135,14 @@ Every config key can also be set via environment variable:
 
 ```
 request ─► conn limit ─► load shed ─► subnet rate limit ─► normalize to eTLD+1
-        ─► alias (vaultwarden) ─► blocklist
-        ─► memory cache ─► storage ─► hit:  WebP (or 302 to public bucket)
+        ─► not canonical? 301 to /v1/icon/{style}/{eTLD+1} ─► blocklist
+        ─► memory cache ─► storage ─► hit:  SVG (or 302 to public bucket)
                                     └► miss: fair queue ─► wait ≤ wait_ms
-                                                          ├► done: WebP
+                                                          ├► done: SVG
                                                           └► generated icon, reason=queued
 worker  ─► domain age (RDAP) ─► stream HTML until </head> ─► manifest (declared or guessed) ─► candidates
         ─► download (SSRF-safe, size-capped) ─► decode in sandboxed pool
-        ─► square + resize ─► re-encode WebP ─► storage + meta.json
+        ─► sanitize SVG or trace bitmap (≤256 px) ─► storage + meta.json
 ```
 
 ## Running on a small server

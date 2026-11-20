@@ -11,9 +11,10 @@ use tokio::sync::Semaphore;
 use url::Url;
 
 use crate::config::Render as RenderCfg;
-use crate::contract::{MonoSource, SIZES, Theme};
+use crate::contract::{MonoSource, Theme};
 use crate::discover::{self, Candidate, Location, Page, Scope};
-use crate::render::{self, Variant};
+use crate::render;
+use crate::vector::{self, Vector, VectorOrigin};
 
 pub const MAX_REQUEST: usize = 4 * 1024 * 1024;
 pub const MAX_RESPONSE: usize = 8 * 1024 * 1024;
@@ -38,7 +39,7 @@ pub enum Task {
 }
 
 pub enum Output {
-    Variants(Vec<Variant>),
+    Vector(Vector),
     Page(Page),
 }
 
@@ -56,8 +57,8 @@ struct WireCandidate {
 #[derive(Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "kebab-case")]
 enum WireMeta {
-    Variants {
-        sizes: Vec<u32>,
+    Vector {
+        origin: VectorOrigin,
     },
     Page {
         icons: Vec<WireCandidate>,
@@ -86,11 +87,9 @@ pub fn encode_response(result: &anyhow::Result<Output>) -> Vec<u8> {
         .map_err(|e| format!("{e:#}"))
         .and_then(|output| {
             let (meta, blobs): (WireMeta, Vec<&[u8]>) = match output {
-                Output::Variants(v) => (
-                    WireMeta::Variants {
-                        sizes: v.iter().map(|x| x.size).collect(),
-                    },
-                    v.iter().map(|x| x.data.as_slice()).collect(),
+                Output::Vector(v) => (
+                    WireMeta::Vector { origin: v.origin },
+                    vec![v.svg.as_bytes()],
                 ),
                 Output::Page(page) => {
                     let mut blobs = Vec::new();
@@ -152,25 +151,19 @@ fn decode_frames(buf: &[u8]) -> anyhow::Result<(WireMeta, Vec<&[u8]>)> {
     Ok((meta, blobs))
 }
 
-pub fn decode_variants(buf: &[u8]) -> anyhow::Result<Vec<Variant>> {
-    let (WireMeta::Variants { sizes }, blobs) = decode_frames(buf)? else {
+pub fn decode_vector(buf: &[u8], max_bytes: usize) -> anyhow::Result<Vector> {
+    let (WireMeta::Vector { origin }, blobs) = decode_frames(buf)? else {
         bail!("worker returned a page for a render task");
     };
-    anyhow::ensure!(
-        sizes.len() == blobs.len() && sizes.len() <= SIZES.len(),
-        "bad variant count"
-    );
-    sizes
-        .into_iter()
-        .zip(blobs)
-        .map(|(size, data)| {
-            anyhow::ensure!(SIZES.contains(&size), "unexpected size {size}");
-            Ok(Variant {
-                size,
-                data: data.to_vec(),
-            })
-        })
-        .collect()
+    let [svg] = blobs.as_slice() else {
+        bail!("expected exactly one svg");
+    };
+    let svg = std::str::from_utf8(svg).context("svg is not utf-8")?;
+    vector::verify(svg, max_bytes).context("worker returned an unsafe svg")?;
+    Ok(Vector {
+        svg: svg.to_string(),
+        origin,
+    })
 }
 
 pub fn decode_page(buf: &[u8], scope: &Scope) -> anyhow::Result<Page> {
@@ -231,9 +224,9 @@ fn take_frame<'a>(buf: &mut &'a [u8]) -> Option<&'a [u8]> {
 
 pub fn execute(job: &Job, payload: &[u8]) -> anyhow::Result<Output> {
     match &job.task {
-        Task::Render => render::render_variants(payload, &job.cfg).map(Output::Variants),
+        Task::Render => render::vectorize(payload, &job.cfg).map(Output::Vector),
         Task::Mono { source } => {
-            render::render_mono(payload, &job.cfg, *source).map(Output::Variants)
+            render::vectorize_mono(payload, &job.cfg, *source).map(Output::Vector)
         }
         Task::Html { url, scope } => {
             let url = Url::parse(url)?;
@@ -391,7 +384,9 @@ pub fn selftest(probe: &str) -> ExitCode {
             let mut failed = false;
             for (name, job, payload) in &jobs {
                 let ok = match execute(job, payload) {
-                    Ok(Output::Variants(v)) => !v.is_empty(),
+                    Ok(Output::Vector(v)) => {
+                        vector::verify(&v.svg, job.cfg.max_output_svg_bytes).is_ok()
+                    }
                     Ok(Output::Page(p)) => !p.icons.is_empty(),
                     Err(e) => {
                         eprintln!("{name}: {e:#}");
@@ -550,12 +545,12 @@ pub enum Renderer {
 }
 
 impl Renderer {
-    pub async fn render(&self, cfg: &RenderCfg, image: Vec<u8>) -> anyhow::Result<Vec<Variant>> {
+    pub async fn render(&self, cfg: &RenderCfg, image: Vec<u8>) -> anyhow::Result<Vector> {
         let job = Job {
             cfg: cfg.clone(),
             task: Task::Render,
         };
-        decode_variants(&self.exchange(job, image).await?)
+        decode_vector(&self.exchange(job, image).await?, cfg.max_output_svg_bytes)
     }
 
     pub async fn mono(
@@ -563,12 +558,12 @@ impl Renderer {
         cfg: &RenderCfg,
         source: MonoSource,
         image: Vec<u8>,
-    ) -> anyhow::Result<Vec<Variant>> {
+    ) -> anyhow::Result<Vector> {
         let job = Job {
             cfg: cfg.clone(),
             task: Task::Mono { source },
         };
-        decode_variants(&self.exchange(job, image).await?)
+        decode_vector(&self.exchange(job, image).await?, cfg.max_output_svg_bytes)
     }
 
     pub async fn parse_html(
@@ -733,15 +728,19 @@ mod tests {
         assert_eq!(payload, b"img");
         assert!(matches!(back.task, Task::Render));
 
-        let ok = encode_response(&Ok(Output::Variants(vec![Variant {
-            size: 16,
-            data: vec![1, 2],
-        }])));
-        let v = decode_variants(&ok).unwrap();
-        assert_eq!((v[0].size, v[0].data.as_slice()), (16, &[1u8, 2][..]));
+        let svg = crate::vector::warning(false);
+        let ok = encode_response(&Ok(Output::Vector(Vector {
+            svg: svg.clone(),
+            origin: VectorOrigin::Traced,
+        })));
+        let v = decode_vector(&ok, 1 << 20).unwrap();
+        assert_eq!((v.svg, v.origin), (svg, VectorOrigin::Traced));
 
         let err = encode_response(&Err(anyhow::anyhow!("boom")));
-        assert_eq!(decode_variants(&err).unwrap_err().to_string(), "boom");
+        assert_eq!(
+            decode_vector(&err, 1 << 20).unwrap_err().to_string(),
+            "boom"
+        );
     }
 
     #[test]
@@ -797,15 +796,15 @@ mod tests {
         assert!(decode_request(&[]).is_err());
         assert!(decode_request(&[255, 255, 255, 255, 1]).is_err());
         let page = encode_response(&Ok(Output::Page(Page::default())));
-        assert!(decode_variants(&page).is_err());
-        let variants = encode_response(&Ok(Output::Variants(vec![Variant {
-            size: 99,
-            data: vec![],
-        }])));
-        assert!(decode_variants(&variants).is_err());
+        assert!(decode_vector(&page, 1 << 20).is_err());
+        let hostile = encode_response(&Ok(Output::Vector(Vector {
+            svg: r#"<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128"><script>alert(1)</script></svg>"#.into(),
+            origin: VectorOrigin::Original,
+        })));
+        assert!(decode_vector(&hostile, 1 << 20).is_err());
         let mut many = vec![STATUS_OK];
         many.extend_from_slice(&2u32.to_le_bytes());
         many.extend_from_slice(b"{}");
-        assert!(decode_variants(&many).is_err());
+        assert!(decode_vector(&many, 1 << 20).is_err());
     }
 }

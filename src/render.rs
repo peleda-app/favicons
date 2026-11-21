@@ -67,9 +67,19 @@ pub fn vectorize_mono(bytes: &[u8], cfg: &RenderCfg, source: MonoSource) -> anyh
     } else {
         prepare_raster(decode_raster(bytes, cfg)?, cfg)
     };
-    let mask = monochrome(&rgba, source)?;
+    let (mask, ground) = monochrome_on(&rgba, source)?;
+    let toned = match source {
+        MonoSource::Derived => {
+            tone_layers(&rgba, &mask, ground).and_then(|layers| trace_layers(&layers, cfg).ok())
+        }
+        MonoSource::MaskIcon => None,
+    };
+    let svg = match toned {
+        Some(svg) => svg,
+        None => trace_mask(&mask, cfg)?,
+    };
     Ok(Vector {
-        svg: finish(&trace_mask(&mask, cfg)?, cfg)?,
+        svg: finish(&svg, cfg)?,
         origin: VectorOrigin::Traced,
     })
 }
@@ -347,6 +357,20 @@ fn white_ground(img: &RgbaImage) -> Option<Vec<u8>> {
     )
 }
 
+fn white_border(img: &RgbaImage) -> bool {
+    let (w, h) = img.dimensions();
+    let border: Vec<&image::Rgba<u8>> = (0..w)
+        .flat_map(|x| [(x, 0), (x, h - 1)])
+        .chain((0..h).flat_map(|y| [(0, y), (w - 1, y)]))
+        .map(|(x, y)| img.get_pixel(x, y))
+        .collect();
+    let white = border
+        .iter()
+        .filter(|p| p[3] >= 200 && p[0] > 235 && p[1] > 235 && p[2] > 235)
+        .count();
+    white * 2 >= border.len()
+}
+
 fn knockout_or_silhouette(img: &RgbaImage) -> Vec<u8> {
     let silhouette = || img.pixels().map(|p| p[3]).collect();
     let opaque: Vec<&image::Rgba<u8>> = img.pixels().filter(|p| p[3] >= 200).collect();
@@ -383,17 +407,31 @@ fn knockout_or_silhouette(img: &RgbaImage) -> Vec<u8> {
 }
 
 pub fn monochrome(img: &RgbaImage, source: MonoSource) -> anyhow::Result<RgbaImage> {
+    Ok(monochrome_on(img, source)?.0)
+}
+
+fn monochrome_on(img: &RgbaImage, source: MonoSource) -> anyhow::Result<(RgbaImage, Ground)> {
     let (w, h) = img.dimensions();
     ensure!(w > 0 && h > 0, "empty image");
-    let ink: Vec<u8> = match source {
-        MonoSource::MaskIcon => img.pixels().map(|p| p[3]).collect(),
-        MonoSource::Derived => match tile_ink(img, 0) {
-            Some(ink) if coverage(&ink, w, h) <= 0.9 => ink,
-            Some(ink) => tile_ink(img, w.min(h) / 24)
-                .filter(|inner| (0.01..=0.9).contains(&coverage(inner, w, h)))
-                .unwrap_or(ink),
-            None => white_ground(img).unwrap_or_else(|| knockout_or_silhouette(img)),
-        },
+    let (ink, ground): (Vec<u8>, Ground) = match source {
+        MonoSource::MaskIcon => (img.pixels().map(|p| p[3]).collect(), Ground::Open),
+        MonoSource::Derived => {
+            let inset = w.min(h) / 24;
+            match tile_ink(img, 0) {
+                Some(ink) if coverage(&ink, w, h) <= 0.9 => (ink, Ground::of(ring_colour(img, 0))),
+                Some(ink) => match tile_ink(img, inset)
+                    .filter(|inner| (0.01..=0.9).contains(&coverage(inner, w, h)))
+                {
+                    Some(inner) => (inner, Ground::of(ring_colour(img, inset))),
+                    None => (ink, Ground::of(ring_colour(img, 0))),
+                },
+                None => match white_ground(img) {
+                    Some(ink) if white_border(img) => (ink, Ground::Colour([255.0; 3])),
+                    Some(ink) => (ink, Ground::Single),
+                    None => (knockout_or_silhouette(img), Ground::Open),
+                },
+            }
+        }
     };
     let coverage = coverage(&ink, w, h);
     ensure!(coverage >= 0.01, "no visible shape for a monochrome icon");
@@ -402,7 +440,166 @@ pub fn monochrome(img: &RgbaImage, source: MonoSource) -> anyhow::Result<RgbaIma
         "not enough contrast for a monochrome icon"
     );
     let raw = ink.into_iter().flat_map(|a| [0, 0, 0, a]).collect();
-    RgbaImage::from_raw(w, h, raw).context("building mask")
+    Ok((
+        RgbaImage::from_raw(w, h, raw).context("building mask")?,
+        ground,
+    ))
+}
+
+#[derive(Clone, Copy, PartialEq)]
+enum Ground {
+    Colour([f32; 3]),
+    Open,
+    Single,
+}
+
+impl Ground {
+    fn of(colour: Option<[f32; 3]>) -> Self {
+        colour.map_or(Ground::Open, Ground::Colour)
+    }
+}
+
+fn luminance(p: &image::Rgba<u8>) -> f32 {
+    (0.2126 * f32::from(p[0]) + 0.7152 * f32::from(p[1]) + 0.0722 * f32::from(p[2])) / 255.0
+}
+
+fn tone_centres(hist: &[u64; 64], k: usize) -> Option<Vec<f32>> {
+    let total: u64 = hist.iter().sum();
+    let mut seen = 0;
+    let mut centres: Vec<f32> = (0..k)
+        .map(|i| {
+            let target = total * (2 * i as u64 + 1) / (2 * k as u64);
+            let bin = hist
+                .iter()
+                .position(|n| {
+                    seen += n;
+                    seen > target
+                })
+                .unwrap_or(63);
+            seen = 0;
+            (bin as f32 + 0.5) / 64.0
+        })
+        .collect();
+    let mut share = vec![0u64; k];
+    for _ in 0..24 {
+        let mut sum = vec![0f64; k];
+        share.iter_mut().for_each(|s| *s = 0);
+        for (bin, n) in hist.iter().enumerate() {
+            let v = (bin as f32 + 0.5) / 64.0;
+            let c = nearest(&centres, v);
+            sum[c] += f64::from(v) * *n as f64;
+            share[c] += n;
+        }
+        for c in 0..k {
+            if share[c] > 0 {
+                centres[c] = (sum[c] / share[c] as f64) as f32;
+            }
+        }
+    }
+    let mut order: Vec<usize> = (0..k).collect();
+    order.sort_by(|a, b| centres[*a].total_cmp(&centres[*b]));
+    let sorted: Vec<f32> = order.iter().map(|i| centres[*i]).collect();
+    let distinct = sorted.windows(2).all(|w| w[1] - w[0] >= 0.12);
+    let big = share.iter().all(|s| *s * 100 >= total * 6);
+    let smooth: Vec<u64> = (0..64)
+        .map(|i| hist[i.max(1) - 1..=(i + 1).min(63)].iter().sum())
+        .collect();
+    let bin = |v: f32| ((v * 64.0) as usize).min(63);
+    let peak = |v: f32| {
+        smooth[bin(v).saturating_sub(2)..=(bin(v) + 2).min(63)]
+            .iter()
+            .copied()
+            .max()
+            .unwrap_or(0)
+    };
+    let apart = sorted.windows(2).all(|w| {
+        let valley = smooth[bin(w[0])..=bin(w[1])]
+            .iter()
+            .copied()
+            .min()
+            .unwrap_or(0);
+        valley * 4 <= peak(w[0]).min(peak(w[1]))
+    });
+    (distinct && big && apart).then_some(sorted)
+}
+
+fn nearest(centres: &[f32], v: f32) -> usize {
+    (0..centres.len())
+        .min_by(|a, b| (centres[*a] - v).abs().total_cmp(&(centres[*b] - v).abs()))
+        .unwrap_or(0)
+}
+
+fn tone_layers(img: &RgbaImage, mask: &RgbaImage, ground: Ground) -> Option<Vec<(f32, RgbaImage)>> {
+    let mut hist = [0u64; 64];
+    for (p, m) in img.pixels().zip(mask.pixels()) {
+        if m[3] >= 128 {
+            hist[((luminance(p) * 64.0) as usize).min(63)] += 1;
+        }
+    }
+    if ground == Ground::Single {
+        return None;
+    }
+    let centres = tone_centres(&hist, 3).or_else(|| tone_centres(&hist, 2))?;
+    let base = match ground {
+        Ground::Colour(g) => Some((0.2126 * g[0] + 0.7152 * g[1] + 0.0722 * g[2]) / 255.0),
+        Ground::Open | Ground::Single => None,
+    };
+    let strength = |c: f32| match base {
+        Some(b) => (c - b).abs(),
+        None => c,
+    };
+    let mut rank: Vec<usize> = (0..centres.len()).collect();
+    rank.sort_by(|a, b| strength(centres[*a]).total_cmp(&strength(centres[*b])));
+    let mut level_of = vec![0usize; centres.len()];
+    for (level, c) in rank.iter().enumerate() {
+        level_of[*c] = level;
+    }
+    let levels: &[f32] = if centres.len() == 3 {
+        &[0.35, 0.65, 1.0]
+    } else {
+        &[0.5, 1.0]
+    };
+    let tone: Vec<usize> = img
+        .pixels()
+        .map(|p| level_of[nearest(&centres, luminance(p))])
+        .collect();
+    let (w, h) = img.dimensions();
+    let mut layers = Vec::with_capacity(levels.len());
+    let mut below = 0.0;
+    for (i, level) in levels.iter().enumerate() {
+        let raw = mask
+            .pixels()
+            .zip(&tone)
+            .flat_map(|(m, t)| [0, 0, 0, if *t >= i { m[3] } else { 0 }])
+            .collect();
+        let opacity = (level - below) / (1.0 - below);
+        below = *level;
+        layers.push((opacity, RgbaImage::from_raw(w, h, raw)?));
+    }
+    Some(layers)
+}
+
+fn trace_layers(layers: &[(f32, RgbaImage)], cfg: &RenderCfg) -> anyhow::Result<String> {
+    let mut out = String::from(vector::SVG_PREFIX);
+    for (opacity, layer) in layers {
+        let svg = trace_mask(layer, cfg)?;
+        let inner = svg
+            .strip_prefix(vector::SVG_PREFIX)
+            .and_then(|s| s.strip_suffix("</svg>"))
+            .context("unexpected traced layer")?;
+        if *opacity >= 0.995 {
+            out.push_str(inner);
+        } else {
+            let tag = format!("fill=\"#000000\" fill-opacity=\"{opacity:.3}\"");
+            out.push_str(&inner.replace("fill=\"#000000\"", &tag));
+        }
+    }
+    out.push_str("</svg>");
+    ensure!(
+        out.len() <= cfg.max_output_svg_bytes,
+        "toned mask too large"
+    );
+    Ok(out)
 }
 
 fn coverage(ink: &[u8], w: u32, h: u32) -> f64 {
@@ -670,6 +867,32 @@ mod tests {
         let m = vectorize_mono(mask, &cfg(), MonoSource::MaskIcon).unwrap();
         assert_eq!(m.origin, VectorOrigin::Original);
         assert!(m.svg.contains("#000000") && !m.svg.contains("#555"));
+    }
+
+    #[test]
+    fn derived_mono_keeps_distinct_tones_as_layers() {
+        let img = RgbaImage::from_fn(128, 128, |x, y| {
+            let d = (x as i32 - 64).pow(2) + (y as i32 - 64).pow(2);
+            if d < 20 * 20 {
+                image::Rgba([200, 20, 30, 255])
+            } else if d < 50 * 50 {
+                image::Rgba([255, 240, 0, 255])
+            } else {
+                image::Rgba([0, 80, 170, 255])
+            }
+        });
+        let v = vectorize_mono(&encode_png(&img).unwrap(), &cfg(), MonoSource::Derived).unwrap();
+        vector::verify(&v.svg, cfg().max_output_svg_bytes).unwrap();
+        assert_eq!(paths(&v.svg), 2, "{}", v.svg);
+        assert!(v.svg.contains("fill-opacity=\".5"), "{}", v.svg);
+        let tree = vector::parse(v.svg.as_bytes()).unwrap();
+        let r = vector::render(&tree, 128).unwrap();
+        let (disc, centre) = (r.get_pixel(64, 30)[3], r.get_pixel(64, 64)[3]);
+        assert!(disc > 240, "the brighter disc is full: {disc}");
+        assert!(
+            (100..160).contains(&centre),
+            "the darker centre is half: {centre}"
+        );
     }
 
     #[test]

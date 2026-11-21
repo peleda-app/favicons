@@ -9,7 +9,7 @@ use usvg::tiny_skia_path::{self as tsp, PathSegment, Transform};
 
 pub const VIEW: u32 = 128;
 const MAX_SHAPES: usize = 2048;
-const SVG_PREFIX: &str =
+pub const SVG_PREFIX: &str =
     r#"<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">"#;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

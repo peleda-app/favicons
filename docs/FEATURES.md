@@ -9,7 +9,8 @@
 * **Monochrome masks.** `/mono/{domain}` returns a black-on-transparent shape for
   CSS `mask-image`, so consumers can tint it any colour. It is taken from the
   site's `mask-icon` or manifest `monochrome` icon when available, otherwise
-  derived from the colour icon.
+  derived from the colour icon. Derived masks keep distinct parts of a logo as
+  two or three shades of the tint instead of one flat blot.
 * **Smart discovery.** `<link rel=icon|apple-touch-icon>`, web app manifests,
   inline `data:` icons, `/apple-touch-icon.png`, `/favicon.ico`. When the page
   declares no manifest and offers nothing ≥128 px (or HTML is blocked by bot

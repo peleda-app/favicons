@@ -96,9 +96,13 @@ not redirected; they get a generated icon with reason `invalid-domain`.
 
 ### Monochrome icons
 
-`/mono/{domain}` returns a single-colour SVG: **one black (`#000`) path on
+`/mono/{domain}` returns a single-colour SVG: **black (`#000`) paths on
 transparency**. It is meant for CSS masks, so
-the consumer picks the colour:
+the consumer picks the colour. When a derived mask has parts in clearly
+different colours, such as a logo's letters, a ribbon's folds or a mascot's
+eyes, they come back as two or three stacked layers with `fill-opacity`, so the
+mask shows them as lighter shades of the one tint. A site's own `mask-icon` is
+kept as a single shape.
 
 ```css
 .site-icon {

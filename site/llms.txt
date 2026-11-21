@@ -7,7 +7,7 @@ Use it whenever you need a logo or favicon for a domain: link previews, bookmark
 ## Endpoint
 
 - `GET {{origin}}/color/{domain}`: the site's icon in its own colours, `image/svg+xml`.
-- `GET {{origin}}/mono/{domain}`: a single black shape on transparent, meant for CSS `mask-image` and tinting.
+- `GET {{origin}}/mono/{domain}`: black shapes on transparent, meant for CSS `mask-image` and tinting. Distinct parts of a logo may come as lighter layers (`fill-opacity`), which a mask shows as shades of the tint.
 
 `{domain}` is a bare host such as `github.com`. Subdomains, `www.`, upper case, a trailing dot or slash, `.svg`, query strings and full URLs get a cacheable `301` to the registrable domain (`mail.google.com` becomes `google.com`). Clients that follow redirects need nothing special.
 

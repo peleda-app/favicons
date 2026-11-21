@@ -310,6 +310,7 @@ Supported index formats:
 | `dashboard-icons` | [Dashboard Icons](https://github.com/homarr-labs/dashboard-icons), Apache-2.0 | SVG or PNG; `mono` is derived |
 | `devicon` | [Devicon](https://devicon.dev), MIT | the `original` variant, else `plain`, `wordmark` or `line` |
 | `thesvg` | [theSVG](https://github.com/GLINCKER/thesvg), per icon | every collection; `licenses` keeps only the listed licenses |
+| `iconify` | any [Iconify JSON](https://github.com/iconify/icon-sets) set, e.g. Fluent Emoji (MIT), Twemoji (CC BY 4.0), Noto Emoji (Apache-2.0) | SVGs come from the index itself; `mono_index_url` points at a second set with the same names for `mono`, e.g. Fluent Emoji High Contrast |
 
 Logos stay trademarks of their owners whatever the file's license; show them to
 identify the brand, not to imply endorsement.

@@ -173,8 +173,9 @@ max_index_bytes = 16777216
 # GET /color/{id}/{slug}. Icons go through the same checks, sanitizer, palettes
 # and caches as domains; an unknown slug is a 404 and never reaches the network.
 # /catalogs.json and /catalogs/{id}.json list them. Formats: selfhst,
-# simple-icons (tinted with each brand's colour), dashboard-icons, devicon and
-# thesvg (licensed per icon; `licenses` keeps only the ones listed). `license`
+# simple-icons (tinted with each brand's colour), dashboard-icons, devicon,
+# thesvg (licensed per icon; `licenses` keeps only the ones listed) and iconify
+# (any Iconify JSON set, with an optional `mono_index_url`). `license`
 # is sent as X-Icon-License unless the index has one per icon.
 # [[catalogs]]
 # id = "selfhst"
@@ -184,6 +185,16 @@ max_index_bytes = 16777216
 # base_url = "https://cdn.jsdelivr.net/gh/selfhst/icons@main/"
 # license = "CC-BY-4.0"
 # attribution = "https://selfh.st/icons/"
+#
+# [[catalogs]]                      # Iconify JSON: SVGs come straight from the index
+# id = "fluent-emoji"
+# name = "Fluent Emoji"
+# format = "iconify"
+# index_url = "https://cdn.jsdelivr.net/npm/@iconify-json/fluent-emoji-flat/icons.json"
+# mono_index_url = "https://cdn.jsdelivr.net/npm/@iconify-json/fluent-emoji-high-contrast/icons.json"
+# base_url = "https://cdn.jsdelivr.net/npm/@iconify-json/fluent-emoji-flat/"
+# license = "MIT"
+# attribution = "https://github.com/microsoft/fluentui-emoji"
 #
 # [[catalogs]]
 # id = "simple-icons"

@@ -42,6 +42,7 @@ object_store = { version = "0.14", features = ["aws-base", "gcp-base", "azure-ba
 percent-encoding = "2"
 psl = "2"
 rand = "0.9"
+miniz_oxide = "0.8"
 reqwest = { version = "0.13", default-features = false, features = ["rustls-no-provider", "http2", "charset", "json", "gzip", "brotli", "deflate"] }
 resvg = { version = "0.45", default-features = false }
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }

@@ -727,6 +727,7 @@ dependencies = [
  "instant-acme",
  "libc",
  "mimalloc",
+ "miniz_oxide 0.8.9",
  "moka",
  "object_store",
  "percent-encoding",

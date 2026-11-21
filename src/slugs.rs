@@ -27,6 +27,23 @@ pub struct Item {
     tint: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     license: Option<String>,
+    #[serde(skip)]
+    inline: Option<Packed>,
+    #[serde(skip)]
+    mono_inline: Option<Packed>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct Packed(Arc<[u8]>);
+
+impl Packed {
+    fn new(svg: &str) -> Self {
+        Self(miniz_oxide::deflate::compress_to_vec(svg.as_bytes(), 6).into())
+    }
+
+    fn unpack(&self) -> Option<Vec<u8>> {
+        miniz_oxide::inflate::decompress_to_vec_with_limit(&self.0, 4 << 20).ok()
+    }
 }
 
 pub struct Entry {
@@ -34,6 +51,8 @@ pub struct Entry {
     pub mono: Option<Url>,
     pub tint: Option<String>,
     pub license: String,
+    pub inline: Option<Vec<u8>>,
+    pub mono_inline: Option<Vec<u8>>,
 }
 
 struct Index {
@@ -183,12 +202,16 @@ impl Catalog {
                 .license
                 .clone()
                 .unwrap_or_else(|| self.cfg.license.clone()),
+            inline: item.inline.as_ref().and_then(Packed::unpack),
+            mono_inline: item.mono_inline.as_ref().and_then(Packed::unpack),
         })
     }
 
     pub async fn reload(&self, client: &HttpClient) {
         let id = self.cfg.id.as_str();
-        let items = match read_source(client, &self.cfg.index_url, self.cfg.max_index_bytes).await {
+        let mut items = match read_source(client, &self.cfg.index_url, self.cfg.max_index_bytes)
+            .await
+        {
             Ok(bytes) => match parse_index(self.cfg.format, &bytes, &self.cfg.licenses) {
                 Ok(items) if !items.is_empty() => items,
                 Ok(_) => {
@@ -205,6 +228,16 @@ impl Catalog {
                 return;
             }
         };
+        if let Some(url) = &self.cfg.mono_index_url {
+            match read_source(client, url, self.cfg.max_index_bytes).await {
+                Ok(bytes) => {
+                    if let Err(e) = merge_iconify_mono(&mut items, &bytes) {
+                        tracing::warn!(catalog = id, error = %e, "mono index rejected");
+                    }
+                }
+                Err(e) => tracing::warn!(catalog = id, error = %e, "mono index download failed"),
+            }
+        }
         let listing = self.render_listing(&items);
         tracing::info!(catalog = id, entries = items.len(), "catalog loaded");
         if let Ok(mut g) = self.index.write() {
@@ -293,6 +326,68 @@ fn title_case(slug: &str) -> String {
         })
         .collect::<Vec<_>>()
         .join(" ")
+}
+
+#[derive(Deserialize)]
+struct IconifySet {
+    #[serde(default)]
+    icons: HashMap<String, IconifyIcon>,
+    #[serde(default)]
+    aliases: HashMap<String, IconifyAlias>,
+    #[serde(default)]
+    categories: HashMap<String, Vec<String>>,
+    #[serde(default)]
+    left: f64,
+    #[serde(default)]
+    top: f64,
+    #[serde(default = "iconify_side")]
+    width: f64,
+    #[serde(default = "iconify_side")]
+    height: f64,
+}
+
+#[derive(Deserialize)]
+struct IconifyIcon {
+    body: String,
+    left: Option<f64>,
+    top: Option<f64>,
+    width: Option<f64>,
+    height: Option<f64>,
+    #[serde(default)]
+    hidden: bool,
+}
+
+#[derive(Deserialize)]
+struct IconifyAlias {
+    parent: String,
+}
+
+fn iconify_side() -> f64 {
+    16.0
+}
+
+impl IconifySet {
+    fn svg(&self, icon: &IconifyIcon) -> String {
+        let (l, t) = (icon.left.unwrap_or(self.left), icon.top.unwrap_or(self.top));
+        let (w, h) = (
+            icon.width.unwrap_or(self.width),
+            icon.height.unwrap_or(self.height),
+        );
+        format!(
+            "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"{l} {t} {w} {h}\" width=\"{w}\" height=\"{h}\">{}</svg>",
+            icon.body.replace("currentColor", "#000")
+        )
+    }
+}
+
+pub fn merge_iconify_mono(items: &mut HashMap<String, Item>, json: &[u8]) -> anyhow::Result<()> {
+    let set: IconifySet = serde_json::from_slice(json)?;
+    for (slug, icon) in &set.icons {
+        if let Some(item) = items.get_mut(slug) {
+            item.mono_inline = Some(Packed::new(&set.svg(icon)));
+        }
+    }
+    Ok(())
 }
 
 fn insert(items: &mut HashMap<String, Item>, item: Item) {
@@ -412,6 +507,8 @@ pub fn parse_index(
                         color,
                         tint: None,
                         license: None,
+                        inline: None,
+                        mono_inline: None,
                         slug,
                     },
                 );
@@ -431,6 +528,8 @@ pub fn parse_index(
                         mono: Some(path),
                         tint: Some(e.hex.to_ascii_lowercase()),
                         license: None,
+                        inline: None,
+                        mono_inline: None,
                         slug,
                     },
                 );
@@ -458,6 +557,8 @@ pub fn parse_index(
                         mono: None,
                         tint: None,
                         license: None,
+                        inline: None,
+                        mono_inline: None,
                         slug,
                     },
                 );
@@ -487,7 +588,57 @@ pub fn parse_index(
                         mono: None,
                         tint: None,
                         license: None,
+                        inline: None,
+                        mono_inline: None,
                         slug,
+                    },
+                );
+            }
+        }
+        IndexFormat::Iconify => {
+            let set: IconifySet = serde_json::from_slice(json)?;
+            let mut tags_of: HashMap<&str, Vec<&str>> = HashMap::new();
+            for (alias, a) in &set.aliases {
+                tags_of
+                    .entry(a.parent.as_str())
+                    .or_default()
+                    .push(alias.as_str());
+            }
+            let mut category_of: HashMap<&str, &str> = HashMap::new();
+            for (category, names) in &set.categories {
+                for n in names {
+                    category_of.entry(n.as_str()).or_insert(category.as_str());
+                }
+            }
+            for (slug, icon) in &set.icons {
+                if icon.hidden {
+                    continue;
+                }
+                insert(
+                    &mut items,
+                    Item {
+                        name: title_case(slug),
+                        category: category_of
+                            .get(slug.as_str())
+                            .map(|c| clean(c, 40))
+                            .unwrap_or_default(),
+                        tags: tags(
+                            tags_of
+                                .get(slug.as_str())
+                                .into_iter()
+                                .flatten()
+                                .map(|t| t.replace('-', " "))
+                                .collect::<Vec<_>>()
+                                .iter()
+                                .map(String::as_str),
+                        ),
+                        color: format!("{slug}.svg"),
+                        mono: None,
+                        tint: None,
+                        license: None,
+                        inline: Some(Packed::new(&set.svg(icon))),
+                        mono_inline: None,
+                        slug: slug.clone(),
                     },
                 );
             }
@@ -528,6 +679,8 @@ pub fn parse_index(
                         color,
                         tint: None,
                         license: Some(clean(&e.license, 40)),
+                        inline: None,
+                        mono_inline: None,
                         slug: e.slug.trim().to_ascii_lowercase(),
                     },
                 );
@@ -547,6 +700,7 @@ pub mod tests {
             name: "selfh.st icons".into(),
             format: IndexFormat::Selfhst,
             index_url: "https://cdn.example/index.json".into(),
+            mono_index_url: None,
             base_url: "https://cdn.example/selfhst/".into(),
             license: "CC-BY-4.0".into(),
             licenses: vec![],
@@ -574,6 +728,44 @@ pub mod tests {
         .unwrap();
         c.load(json.as_bytes());
         c
+    }
+
+    #[test]
+    fn builds_iconify_svgs_with_aliases_categories_and_masks() {
+        let colour = r##"{"prefix":"fluent-emoji-flat","width":32,"height":32,
+            "icons":{"grinning-face":{"body":"<path fill=\"#FFB02E\" d=\"M0 0h32v32H0z\"/>"},
+                     "wide-thing":{"body":"<path d=\"M0 0h1v1H0z\"/>","width":48,"left":-8},
+                     "secret":{"body":"<path/>","hidden":true},
+                     "Bad Slug":{"body":"<path/>"}},
+            "aliases":{"grinning":{"parent":"grinning-face"}},
+            "categories":{"Smileys":["grinning-face"]}}"##;
+        let c = catalog(IndexFormat::Iconify, colour);
+        assert!(c.contains("grinning-face") && c.contains("wide-thing"));
+        assert!(!c.contains("secret") && !c.contains("bad slug"));
+        let e = c.lookup("grinning-face").unwrap();
+        let svg = String::from_utf8(e.inline.unwrap()).unwrap();
+        assert!(svg.starts_with("<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 32 32\""));
+        assert!(svg.contains("#FFB02E"));
+        let wide = String::from_utf8(c.lookup("wide-thing").unwrap().inline.unwrap()).unwrap();
+        assert!(wide.contains("viewBox=\"-8 0 48 32\""));
+        let listing: serde_json::Value = serde_json::from_slice(&c.listing()).unwrap();
+        let item = &listing["items"][0];
+        assert_eq!(item["name"], "Grinning Face");
+        assert_eq!(item["category"], "Smileys");
+        assert_eq!(item["tags"][0], "grinning");
+
+        let mut items = parse_index(IndexFormat::Iconify, colour.as_bytes(), &[]).unwrap();
+        let mono = r#"{"width":32,"height":32,"icons":{"grinning-face":{"body":"<path fill=\"currentColor\" d=\"M1 1h30v30H1z\"/>"}}}"#;
+        merge_iconify_mono(&mut items, mono.as_bytes()).unwrap();
+        let m = items["grinning-face"]
+            .mono_inline
+            .as_ref()
+            .unwrap()
+            .unpack()
+            .unwrap();
+        let m = String::from_utf8(m).unwrap();
+        assert!(m.contains("fill=\"#000\"") && !m.contains("currentColor"));
+        assert!(items["wide-thing"].mono_inline.is_none());
     }
 
     #[test]

@@ -626,6 +626,7 @@ pub enum IndexFormat {
     DashboardIcons,
     Devicon,
     Thesvg,
+    Iconify,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -635,6 +636,8 @@ pub struct SlugCatalog {
     pub name: String,
     pub format: IndexFormat,
     pub index_url: String,
+    #[serde(default)]
+    pub mono_index_url: Option<String>,
     pub base_url: String,
     pub license: String,
     #[serde(default)]
@@ -667,7 +670,11 @@ impl SlugCatalog {
                 && !id.starts_with('-'),
             "catalogs: id {id:?} must be 1-32 lowercase letters, digits or dashes"
         );
-        for (key, raw) in [("index_url", &self.index_url), ("base_url", &self.base_url)] {
+        let mono = self.mono_index_url.as_ref();
+        for (key, raw) in [("index_url", &self.index_url), ("base_url", &self.base_url)]
+            .into_iter()
+            .chain(mono.map(|m| ("mono_index_url", m)))
+        {
             let url = url::Url::parse(raw)
                 .map_err(|e| anyhow::anyhow!("catalogs.{id}.{key} is not a URL: {e}"))?;
             anyhow::ensure!(

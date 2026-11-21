@@ -690,7 +690,7 @@ impl App {
                     true,
                     provenance,
                     license,
-                    mono_url,
+                    mono_url.map(Location::Remote),
                 )
                 .await
             {
@@ -716,22 +716,30 @@ impl App {
             .and_then(|h| normalize(h, p.collapse_private_suffixes, &p.deny_suffixes))
             .map(|n| n.registrable)
             .unwrap_or_default();
-        let svg = entry.color.path().ends_with(".svg");
-        let location = match &entry.tint {
-            Some(hex) => {
-                let max = self.cfg.fetch.max_icon_bytes;
-                let Ok(r) = self
-                    .get_checked(&site, &entry.color, ACCEPT_IMAGE, max, false)
-                    .await
-                else {
-                    return (Meta::new(key, Status::FetchFailed), vec![]);
-                };
-                match crate::slugs::tint_svg(&r.bytes, hex) {
-                    Some(tinted) => Location::Inline(tinted),
-                    None => return (Meta::new(key, Status::FetchFailed), vec![]),
+        let svg = entry.inline.is_some() || entry.color.path().ends_with(".svg");
+        let mono = match (entry.mono_inline, entry.mono) {
+            (Some(body), _) => Some(Location::Inline(body)),
+            (None, url) => url.map(Location::Remote),
+        };
+        let location = if let Some(body) = entry.inline {
+            Location::Inline(body)
+        } else {
+            match &entry.tint {
+                Some(hex) => {
+                    let max = self.cfg.fetch.max_icon_bytes;
+                    let Ok(r) = self
+                        .get_checked(&site, &entry.color, ACCEPT_IMAGE, max, false)
+                        .await
+                    else {
+                        return (Meta::new(key, Status::FetchFailed), vec![]);
+                    };
+                    match crate::slugs::tint_svg(&r.bytes, hex) {
+                        Some(tinted) => Location::Inline(tinted),
+                        None => return (Meta::new(key, Status::FetchFailed), vec![]),
+                    }
                 }
+                None => Location::Remote(entry.color.clone()),
             }
-            None => Location::Remote(entry.color.clone()),
         };
         match self
             .curated(
@@ -741,7 +749,7 @@ impl App {
                 svg,
                 Provenance::Catalog,
                 Some(entry.license),
-                entry.mono,
+                mono,
             )
             .await
         {
@@ -759,7 +767,7 @@ impl App {
         svg: bool,
         provenance: Provenance,
         license: Option<String>,
-        mono_url: Option<Url>,
+        mono: Option<Location>,
     ) -> Option<(Meta, Vec<(Slot, Vec<u8>)>)> {
         {
             let source = match &location {
@@ -789,18 +797,24 @@ impl App {
                 .insert(crate::store::object_name(Slot::Color).into(), etag);
             meta.color = Some(vector.origin);
             let colour_svg = vector.svg.into_bytes();
-            let mut mono = None;
-            if let Some(mono_url) = mono_url
-                && let Ok(r) = self
+            let mask = match mono {
+                Some(Location::Inline(bytes)) => Some(bytes),
+                Some(Location::Remote(url)) => self
                     .get_checked(
                         site,
-                        &mono_url,
+                        &url,
                         ACCEPT_IMAGE,
                         self.cfg.fetch.max_icon_bytes,
                         false,
                     )
                     .await
-                && let Ok(v) = self.mono_job(MonoSource::MaskIcon, r.bytes).await
+                    .ok()
+                    .map(|r| r.bytes),
+                None => None,
+            };
+            let mut mono = None;
+            if let Some(bytes) = mask
+                && let Ok(v) = self.mono_job(MonoSource::MaskIcon, bytes).await
             {
                 mono = Some((MonoSource::MaskIcon, v));
             }
@@ -858,13 +872,18 @@ impl App {
     }
 
     pub fn spawn_slug_reloaders(self: &Arc<Self>) {
+        let one_at_a_time = Arc::new(Semaphore::new(1));
         for catalog in self.slugs.all() {
             let app = self.clone();
             let catalog = catalog.clone();
+            let gate = one_at_a_time.clone();
             tokio::spawn(async move {
                 let every = Duration::from_secs(catalog.reload_secs().max(3_600));
                 loop {
-                    catalog.reload(&app.list_client).await;
+                    {
+                        let _turn = gate.acquire().await;
+                        catalog.reload(&app.list_client).await;
+                    }
                     let retry = if catalog.is_loaded() {
                         every
                     } else {

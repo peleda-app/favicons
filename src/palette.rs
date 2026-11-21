@@ -18,6 +18,7 @@ const GRAPHIC_CONTRAST: f64 = 3.0;
 const VISIBLE_CONTRAST: f64 = 1.6;
 const HOLE_CONTRAST: f64 = 2.0;
 const OPAQUE: u8 = 200;
+pub const REVISION: u32 = 2;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -266,9 +267,9 @@ pub fn analyze(img: &RgbaImage) -> Palette {
     let scheme = |background: Rgb, preferred: [Rgb; 4]| {
         let dark = background.luminance() < 0.18;
         let mono_plate = if dark {
-            accent.with_lightness(0.19, 0.4)
+            accent.with_lightness(0.18, 0.3)
         } else {
-            accent.with_lightness(0.94, 0.55)
+            accent.with_lightness(0.95, 0.45)
         };
         let (text, mono) = if neutral && dark {
             (Rgb([0xe8, 0xe8, 0xea]), Rgb([0xd4, 0xd4, 0xd8]))
@@ -285,8 +286,8 @@ pub fn analyze(img: &RgbaImage) -> Palette {
             mono_plate,
         }
     };
-    let soft_light = accent.with_lightness(0.95, 0.6);
-    let soft_dark = accent.with_lightness(0.17, 0.45);
+    let soft_light = soft(accent, false);
+    let soft_dark = soft(accent, true);
     Palette {
         shape,
         fill,
@@ -518,6 +519,19 @@ fn pick_plate(p: &Pixels, tile: Option<Rgb>, holes: bool, preferred: [Rgb; 4]) -
         .map_or(preferred[0], |(c, _)| c)
 }
 
+fn soft(accent: Rgb, dark: bool) -> Rgb {
+    let (steps, saturation) = if dark {
+        ([0.14, 0.11, 0.08], 0.3)
+    } else {
+        ([0.955, 0.97, 0.985], 0.4)
+    };
+    steps
+        .iter()
+        .map(|&l| accent.with_lightness(l, saturation))
+        .find(|c| c.contrast(accent) >= GRAPHIC_CONTRAST)
+        .unwrap_or_else(|| accent.with_lightness(steps[0], saturation))
+}
+
 fn readable(accent: Rgb, plate: Rgb, target: f64) -> Rgb {
     if accent.contrast(plate) >= target {
         return accent;
@@ -666,6 +680,20 @@ mod tests {
         }
         assert!(black.dark.text.contrast(DARK_BACKGROUND) >= TEXT_CONTRAST);
         assert!(black.dark.mono.contrast(DARK_BACKGROUND) >= GRAPHIC_CONTRAST);
+    }
+
+    #[test]
+    fn soft_plates_stay_quiet_and_apart_from_the_logo() {
+        for hex in ["#2aabee", "#9146ff", "#1ed760", "#5865f2"] {
+            let accent = Rgb::parse(hex).unwrap();
+            for dark in [true, false] {
+                let plate = soft(accent, dark);
+                if dark {
+                    assert!(plate.contrast(accent) >= GRAPHIC_CONTRAST, "{hex}");
+                }
+                assert!(plate.hsl().1 <= 0.41, "{hex} {dark}");
+            }
+        }
     }
 
     #[test]

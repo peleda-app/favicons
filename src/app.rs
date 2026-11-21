@@ -178,6 +178,13 @@ impl App {
             tokio::spawn(async move {
                 loop {
                     let domain = app.queue.pop().await;
+                    if let Some(prev) = app.store.meta(&domain).await
+                        && !app.is_stale(&prev)
+                        && app.refresh_palette(&prev).await
+                    {
+                        app.queue.complete(&domain);
+                        continue;
+                    }
                     let started = std::time::Instant::now();
                     let result = tokio::time::timeout(
                         app.cfg.fetch.job_timeout(),
@@ -212,6 +219,7 @@ impl App {
                         && let Some((_, svg)) = images.iter().find(|(s, _)| *s == Slot::Color)
                     {
                         meta.palette = app.analyze(svg).await;
+                        meta.palette_rev = crate::palette::REVISION;
                     }
                     tracing::info!(domain, status = ?meta.status, ms = started.elapsed().as_millis() as u64, "fetched");
                     app.store.put(meta, images).await;
@@ -219,6 +227,34 @@ impl App {
                 }
             });
         }
+    }
+
+    async fn refresh_palette(&self, prev: &Meta) -> bool {
+        if prev.status != Status::Ok
+            || prev.color.is_none()
+            || (prev.palette.is_some() && prev.palette_rev >= crate::palette::REVISION)
+        {
+            return false;
+        }
+        let Some(color) = self.store.image(prev, Slot::Color).await else {
+            return false;
+        };
+        let Some(palette) = self.analyze(&color.data).await else {
+            return false;
+        };
+        let mut images = vec![(Slot::Color, color.data.to_vec())];
+        if prev.mono.is_some()
+            && let Some(mono) = self.store.image(prev, Slot::Mono).await
+        {
+            images.push((Slot::Mono, mono.data.to_vec()));
+        }
+        let meta = Meta {
+            palette: Some(palette),
+            palette_rev: crate::palette::REVISION,
+            ..prev.clone()
+        };
+        self.store.put(meta, images).await;
+        true
     }
 
     async fn fetch_domain(&self, domain: &str) -> (Meta, Vec<(Slot, Vec<u8>)>) {

@@ -373,7 +373,9 @@ async fn serve_key(app: &Arc<App>, req: &Req, client: ClientKey) -> Response {
     let domain = &req.name;
     if let Some(meta) = app.store.meta(domain).await {
         let stale = app.is_stale(&meta)
-            || (meta.status == Status::Ok && meta.color.is_some() && meta.palette.is_none());
+            || (meta.status == Status::Ok
+                && meta.color.is_some()
+                && (meta.palette.is_none() || meta.palette_rev < crate::palette::REVISION));
         if stale {
             let _ = app.queue.push(domain, client);
         }

@@ -51,6 +51,8 @@ pub struct Meta {
     pub etags: BTreeMap<String, String>,
     #[serde(default)]
     pub palette: Option<Palette>,
+    #[serde(default)]
+    pub palette_rev: u32,
 }
 
 impl Meta {
@@ -67,6 +69,7 @@ impl Meta {
             license: None,
             etags: BTreeMap::new(),
             palette: None,
+            palette_rev: 0,
         }
     }
 }

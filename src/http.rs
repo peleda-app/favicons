@@ -190,7 +190,7 @@ async fn security_headers(mut res: Response) -> Response {
     h.insert(X_CONTENT_TYPE_OPTIONS, HeaderValue::from_static("nosniff"));
     h.entry(CONTENT_SECURITY_POLICY)
         .or_insert(HeaderValue::from_static(
-            "default-src 'none'; style-src 'none'; script-src 'none'; sandbox",
+            "default-src 'none'; style-src 'unsafe-inline'; script-src 'none'; sandbox",
         ));
     h.insert(REFERRER_POLICY, HeaderValue::from_static("no-referrer"));
     h.insert(X_FRAME_OPTIONS, HeaderValue::from_static("DENY"));
@@ -719,6 +719,14 @@ fn fallback(app: &App, req: &Req, reason: FallbackReason) -> Response {
         reason: Some(reason),
         stale: false,
     };
+    let etag = icon
+        .etag
+        .as_ref()
+        .and_then(|e| e.to_str().ok())
+        .and_then(|e| {
+            HeaderValue::from_str(&format!("\"{}-{}\"", e.trim_matches('"'), reason.as_str())).ok()
+        });
+    let icon = icon.derived(icon.raw(), etag);
     image(&icon, req, profile, &out, None)
 }
 
@@ -1264,7 +1272,7 @@ mod routing_tests {
             .await
             .unwrap();
         let plated = String::from_utf8(crate::store::gunzip(&body).unwrap().to_vec()).unwrap();
-        assert!(plated.contains("clip-path=\"url(#plate)\""));
+        assert!(plated.contains("M28.8 0h70.4"), "{plated}");
         assert!(app.store.plated.contains_key("color\"abc-rounded-dark\""));
 
         let r = get_with(
@@ -1333,7 +1341,8 @@ mod routing_tests {
             .await
             .unwrap();
         let svg = String::from_utf8(body.to_vec()).unwrap();
-        assert!(svg.contains("clip-path=\"url(#plate)\""));
+        assert!(svg.contains("<clipPath id=\"c-"), "{svg}");
+        assert!(svg.contains("id=\"g0-"), "{svg}");
 
         let r = get(&app, "/mono/example.com/superellipse/light").await;
         assert_eq!(r.status(), StatusCode::OK);
@@ -1346,11 +1355,22 @@ mod routing_tests {
         assert_eq!(r.status(), StatusCode::OK);
         let etag = r.headers().get(ETAG).unwrap().to_str().unwrap().to_string();
         assert!(etag.ends_with("-rounded\""), "{etag}");
+        let csp = r
+            .headers()
+            .get(CONTENT_SECURITY_POLICY)
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .to_string();
         let body = axum::body::to_bytes(r.into_body(), usize::MAX)
             .await
             .unwrap();
         let svg = String::from_utf8(body.to_vec()).unwrap();
         assert!(svg.contains("@media (prefers-color-scheme:dark)"), "{svg}");
+        assert_eq!(
+            csp,
+            "default-src 'none'; style-src 'unsafe-inline'; script-src 'none'; sandbox"
+        );
 
         let r = get(&app, "/mono/WWW.Example.com/superellipse").await;
         assert_eq!(r.status(), StatusCode::MOVED_PERMANENTLY);
@@ -1419,7 +1439,11 @@ mod routing_tests {
         assert_eq!(r.status(), StatusCode::OK);
         assert_eq!(r.headers().get(CONTENT_TYPE).unwrap(), SVG_MIME);
         assert_eq!(r.headers().get(H_REASON).unwrap(), "queued");
+        let etag = r.headers().get(ETAG).unwrap().to_str().unwrap();
+        assert!(etag.ends_with("-queued\""), "{etag}");
         let r = get(&app, "/mono/127.0.0.1").await;
+        let etag = r.headers().get(ETAG).unwrap().to_str().unwrap();
+        assert!(etag.ends_with("-invalid-domain\""), "{etag}");
         assert_eq!(r.status(), StatusCode::OK);
         assert_eq!(r.headers().get(H_REASON).unwrap(), "invalid-domain");
         assert_eq!(r.headers().get(H_STYLE).unwrap(), "mono");

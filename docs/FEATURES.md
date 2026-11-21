@@ -40,7 +40,11 @@
   be drawn edge to edge rather than padded.
 * **Ready-made badges.** `/{style}/{domain}/{shape}/{theme}` returns the icon
   already drawn on its plate. Without the theme the badge follows the viewer's
-  system light or dark scheme on its own.
+  system light or dark scheme on its own; with `/light` or `/dark` it stays
+  pinned, for apps that have their own theme switch.
+* **Safe to inline.** Gradient ids and the badge's classes and ids carry a
+  short hash of the icon, so any number of SVGs can be pasted into one HTML
+  page without one restyling or borrowing gradients from another.
 * **Deterministic fallback icons.** When there is no real icon, a symmetric
   identicon is generated from the domain. Headers say why
   (`X-Icon-Fallback-Reason: queued | not-found | blocklisted | domain-too-new | …`).

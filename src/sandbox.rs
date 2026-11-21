@@ -168,7 +168,7 @@ pub fn decode_vector(buf: &[u8], max_bytes: usize) -> anyhow::Result<Vector> {
     let svg = std::str::from_utf8(svg).context("svg is not utf-8")?;
     vector::verify(svg, max_bytes).context("worker returned an unsafe svg")?;
     Ok(Vector {
-        svg: svg.to_string(),
+        svg: vector::scope(svg),
         origin,
     })
 }
@@ -811,7 +811,12 @@ mod tests {
             origin: VectorOrigin::Traced,
         })));
         let v = decode_vector(&ok, 1 << 20).unwrap();
-        assert_eq!((v.svg, v.origin), (svg, VectorOrigin::Traced));
+        assert!(!v.svg.contains("url(#g0)"));
+        crate::vector::verify(&v.svg, 1 << 20).unwrap();
+        assert_eq!(
+            (v.svg, v.origin),
+            (crate::vector::scope(&svg), VectorOrigin::Traced)
+        );
 
         let err = encode_response(&Err(anyhow::anyhow!("boom")));
         assert_eq!(

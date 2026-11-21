@@ -178,7 +178,7 @@ impl App {
                 self.generated_palettes.insert(key, p);
                 Some(p)
             });
-            let data = Bytes::from(draw(style == Style::Mono));
+            let data = Bytes::from(crate::vector::scope(&draw(style == Style::Mono)));
             let etag = format!("g-{}", &blake3::hash(&data).to_hex()[..20]);
             Icon::new(data, Some(&etag), None, palette)
         })

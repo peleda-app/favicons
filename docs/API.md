@@ -297,7 +297,13 @@ Leave out the theme to follow the viewer's system scheme:
 `/color/github.com/superellipse`, `/mono/selfhst/jellyfin/rounded`. The SVG then
 carries both themes' plate and mask colours and switches them with a
 `prefers-color-scheme` media query, so one URL works on light and dark pages and
-flips with the operating system. Its `ETag` gets a `-{shape}` suffix.
+flips with the operating system. Its `ETag` gets a `-{shape}` suffix. Apps
+with their own theme switch can swap between the `/light` and `/dark` URLs
+instead.
+
+Every SVG is safe to paste inline: gradient ids look like `g0-941ba8` and the
+badge's classes and ids like `.p-bf9106`, with a hash of the icon, so icons in
+one page never share or override each other's styles and gradients.
 
 ```html
 <img src="https://favicons.page/color/github.com/superellipse" width="40" height="40" alt="">

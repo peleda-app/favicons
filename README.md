@@ -47,6 +47,30 @@ Need a single-colour icon for a toolbar or a tab bar? Ask for the mask and tint 
 
 ![Favicons of any site, 17 icon packs, ready-made badges and monochrome masks](docs/brand/showcase.png)
 
+## Follows your theme
+
+![A mail client switching from light to dark, then to monochrome icons tinted in brand, orange and violet](docs/brand/link-previews.svg)
+
+Icons are made to switch with your interface, not to fight it.
+
+- **Automatic light and dark.** Leave the theme out, as in
+  `/color/github.com/superellipse`, and the SVG carries both palettes and
+  switches them with the viewer's `prefers-color-scheme`. One URL for light and
+  dark pages, and it flips the moment the operating system does.
+- **Your own theme switch.** If your app has a toggle of its own, pin a version
+  with `/light` or `/dark` and swap the URL. Every version has a stable URL and
+  its own cache entry, so icons look the same on every visit.
+- **Any colour you like.** `/mono/{site}` is a mask: tint it with your accent
+  or with the `X-Icon-*-Mono` colour from the headers. `X-Icon-*-Text` and
+  `X-Icon-*-Mono-Plate` colour the sender name and the link chip around it.
+- **Safe to inline.** Ids and classes inside every SVG are unique to that icon,
+  so dozens of them can sit in one page without clashing.
+
+```html
+<img src="https://favicons.page/color/github.com/superellipse" width="40" height="40" alt="">      <!-- follows the OS -->
+<img src="https://favicons.page/color/github.com/superellipse/dark" width="40" height="40" alt=""> <!-- pinned -->
+```
+
 ## Why favicons
 
 - **Vector, always.** Sites that ship SVG keep their exact shapes. Bitmaps are

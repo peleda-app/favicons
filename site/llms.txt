@@ -18,7 +18,7 @@ The response is always `200` with an SVG, even without a real icon: a generated 
 Append `/rounded/light`, `/rounded/dark`, `/superellipse/light` or `/superellipse/dark`
 to get the icon already drawn on its themed plate, e.g.
 `{{origin}}/color/github.com/superellipse/dark`. With `mono` the mask is tinted on its mono plate.
-Leave out the theme (`/rounded`, `/superellipse`) and the SVG follows the viewer's system light or dark scheme by itself.
+Leave out the theme (`/rounded`, `/superellipse`) and the SVG follows the viewer's system light or dark scheme by itself; add `/light` or `/dark` to pin one when the app has its own theme switch. Ids and classes in every SVG are unique per icon, so they can be inlined into one page without clashing.
 
 ## Self-hosted apps by name
 

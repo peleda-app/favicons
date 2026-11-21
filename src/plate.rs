@@ -136,26 +136,31 @@ pub fn compose(
 ) -> Option<Vec<u8>> {
     let svg = std::str::from_utf8(svg).ok()?;
     let (view_box, inner) = split_svg(svg)?;
-    let bleed = header(palette, "x-icon-fill") == Some("bleed");
+    let bleed = header(palette, "x-icon-fill") == Some("bleed") && style == Style::Color;
+    let mut hasher = blake3::Hasher::new();
+    hasher.update(svg.as_bytes());
+    hasher.update(plate.suffix().as_bytes());
+    hasher.update(style.as_str().as_bytes());
+    let key = &hasher.finalize().to_hex()[..6];
     let (style_el, fill, body) = if plate.theme == Theme::Auto {
         let light = paint(palette, Theme::Light, style);
         let dark = paint(palette, Theme::Dark, style);
         let mono = |p: &Paint<'_>| match style {
-            Style::Mono => format!(".m{{fill:{}}}", p.mono),
+            Style::Mono => format!(".m-{key}{{fill:{}}}", p.mono),
             Style::Color => String::new(),
         };
         let css = format!(
-            "<style>.p{{fill:{}}}{}@media (prefers-color-scheme:dark){{.p{{fill:{}}}{}}}</style>",
+            "<style>.p-{key}{{fill:{}}}{}@media (prefers-color-scheme:dark){{.p-{key}{{fill:{}}}{}}}</style>",
             light.plate,
             mono(&light),
             dark.plate,
             mono(&dark)
         );
         let body = match style {
-            Style::Mono => tint(inner, "class=\"m\""),
+            Style::Mono => tint(inner, &format!("class=\"m-{key}\"")),
             Style::Color => inner.to_string(),
         };
-        (css, "class=\"p\"".to_string(), body)
+        (css, format!("class=\"p-{key}\""), body)
     } else {
         let p = paint(palette, plate.theme, style);
         let body = match style {
@@ -164,18 +169,21 @@ pub fn compose(
         };
         (String::new(), format!("fill=\"{}\"", p.plate), body)
     };
-    let (offset, size) = if bleed && style == Style::Color {
-        (0.0, SIDE)
-    } else {
-        (SIDE * INSET, SIDE * (1.0 - 2.0 * INSET))
-    };
     let path = plate.path();
-    let out = format!(
-        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"128\" height=\"128\" viewBox=\"0 0 128 128\">{style_el}\
-         <defs><clipPath id=\"plate\"><path d=\"{path}\"/></clipPath></defs>\
-         <path d=\"{path}\" {fill}/>\
-         <g clip-path=\"url(#plate)\"><svg x=\"{offset:.2}\" y=\"{offset:.2}\" width=\"{size:.2}\" height=\"{size:.2}\" viewBox=\"{view_box}\">{body}</svg></g></svg>"
-    );
+    let head = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"128\" height=\"128\" viewBox=\"0 0 128 128\">";
+    let out = if bleed {
+        format!(
+            "{head}{style_el}<defs><path id=\"s-{key}\" d=\"{path}\"/><clipPath id=\"c-{key}\"><use href=\"#s-{key}\"/></clipPath></defs>\
+             <use href=\"#s-{key}\" {fill}/>\
+             <g clip-path=\"url(#c-{key})\"><svg width=\"128\" height=\"128\" viewBox=\"{view_box}\">{body}</svg></g></svg>"
+        )
+    } else {
+        let (offset, size) = (SIDE * INSET, SIDE * (1.0 - 2.0 * INSET));
+        format!(
+            "{head}{style_el}<path d=\"{path}\" {fill}/>\
+             <svg x=\"{offset:.2}\" y=\"{offset:.2}\" width=\"{size:.2}\" height=\"{size:.2}\" viewBox=\"{view_box}\">{body}</svg></svg>"
+        )
+    };
     Some(out.into_bytes())
 }
 
@@ -198,6 +206,11 @@ mod tests {
         .collect()
     }
 
+    fn key<'a>(svg: &'a str, prefix: &str) -> &'a str {
+        let at = svg.find(prefix).unwrap() + prefix.len();
+        &svg[at..at + 6]
+    }
+
     const ICON: &str = r##"<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128"><path fill="#000000" d="M0 0h128v128H0Z"/></svg>"##;
 
     #[test]
@@ -212,10 +225,11 @@ mod tests {
             .unwrap(),
         )
         .unwrap();
-        assert!(colour.contains(
-            "<style>.p{fill:#ebecfa}@media (prefers-color-scheme:dark){.p{fill:#181b3f}}</style>"
-        ));
-        assert!(colour.contains("class=\"p\""));
+        let k = key(&colour, ".p-");
+        assert!(colour.contains(&format!(
+            "<style>.p-{k}{{fill:#ebecfa}}@media (prefers-color-scheme:dark){{.p-{k}{{fill:#181b3f}}}}</style>"
+        )));
+        assert!(colour.contains(&format!("class=\"p-{k}\"")));
         let mono = String::from_utf8(
             compose(
                 ICON.as_bytes(),
@@ -226,8 +240,10 @@ mod tests {
             .unwrap(),
         )
         .unwrap();
-        assert!(mono.contains(".p{fill:#e7e9f8}.m{fill:#5a67f2}@media (prefers-color-scheme:dark){.p{fill:#1d2044}.m{fill:#6b77f3}}"));
-        assert!(mono.contains("<path class=\"m\" d=\"M0 0h128"));
+        let m = key(&mono, ".p-");
+        assert_ne!(k, m);
+        assert!(mono.contains(&format!(".p-{m}{{fill:#e7e9f8}}.m-{m}{{fill:#5a67f2}}@media (prefers-color-scheme:dark){{.p-{m}{{fill:#1d2044}}.m-{m}{{fill:#6b77f3}}}}")));
+        assert!(mono.contains(&format!("<path class=\"m-{m}\" d=\"M0 0h128")));
         assert!(!mono.contains("#000000"));
         assert_eq!(Plate::auto("square"), None);
         assert_eq!(Plate::auto("rounded").unwrap().suffix(), "/rounded");
@@ -246,7 +262,9 @@ mod tests {
         assert!(out.contains("fill=\"#181b3f\""));
         assert!(out.contains("x=\"23.04\""));
         assert!(out.contains("viewBox=\"0 0 128 128\"><path fill=\"#000000\""));
-        assert!(out.ends_with("</svg></g></svg>"));
+        assert!(out.ends_with("</svg></svg>"));
+        assert!(!out.contains("clipPath") && !out.contains(" id="));
+        assert_eq!(out.matches(ROUNDED).count(), 1);
     }
 
     #[test]
@@ -278,7 +296,15 @@ mod tests {
         )
         .unwrap();
         let out = String::from_utf8(out).unwrap();
-        assert!(out.contains("x=\"0.00\" y=\"0.00\" width=\"128.00\""));
+        let k = key(&out, "id=\"s-");
+        assert!(out.contains(&format!(
+            "<clipPath id=\"c-{k}\"><use href=\"#s-{k}\"/></clipPath>"
+        )));
+        assert!(out.contains(&format!("<use href=\"#s-{k}\" fill=")));
+        assert!(out.contains(&format!(
+            "<g clip-path=\"url(#c-{k})\"><svg width=\"128\" height=\"128\""
+        )));
+        assert_eq!(out.matches(ROUNDED).count(), 1);
         assert!(!out.contains("script"));
         assert!(out.contains("fill=\"#2c2c2e\""));
     }

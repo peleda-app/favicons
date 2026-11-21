@@ -649,9 +649,7 @@ pub fn verify(svg: &str, max_bytes: usize) -> anyhow::Result<()> {
                 "xmlns" => value == "http://www.w3.org/2000/svg",
                 "fill" => is_hex_color(value) || is_gradient_ref(value),
                 "stop-color" => is_hex_color(value),
-                "id" => value
-                    .strip_prefix('g')
-                    .is_some_and(|n| !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit())),
+                "id" => is_gradient_id(value),
                 "fill-rule" => value == "evenodd",
                 "gradientUnits" => value == "userSpaceOnUse",
                 "spreadMethod" => matches!(value, "reflect" | "repeat"),
@@ -682,9 +680,42 @@ fn is_hex_color(v: &str) -> bool {
 }
 
 fn is_gradient_ref(v: &str) -> bool {
-    v.strip_prefix("url(#g")
+    v.strip_prefix("url(#")
         .and_then(|r| r.strip_suffix(')'))
+        .is_some_and(is_gradient_id)
+}
+
+fn is_gradient_id(v: &str) -> bool {
+    let (n, key) = v.split_once('-').unwrap_or((v, ""));
+    n.strip_prefix('g')
         .is_some_and(|n| !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()))
+        && (v.len() == n.len()
+            || (key.len() == 6 && key.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))))
+}
+
+pub fn scope(svg: &str) -> String {
+    if !svg.contains("id=\"g") {
+        return svg.to_string();
+    }
+    let key = &blake3::hash(svg.as_bytes()).to_hex()[..6];
+    let mut out = String::with_capacity(svg.len() + 64);
+    let mut rest = svg;
+    while let Some(at) = ["id=\"g", "url(#g"]
+        .iter()
+        .filter_map(|p| rest.find(p).map(|i| i + p.len()))
+        .min()
+    {
+        let digits = rest[at..].bytes().take_while(u8::is_ascii_digit).count();
+        let end = at + digits;
+        out.push_str(&rest[..end]);
+        if digits > 0 && matches!(rest.as_bytes().get(end), Some(b'"' | b')')) {
+            out.push('-');
+            out.push_str(key);
+        }
+        rest = &rest[end..];
+    }
+    out.push_str(rest);
+    out
 }
 
 fn hsl(h: f32, s: f32, l: f32) -> String {
@@ -945,11 +976,37 @@ mod tests {
             format!(r##"{SVG_PREFIX}text<path fill="#000000" d="m0 0z"/></svg>"##),
             format!(r##"{SVG_PREFIX}<svg></svg></svg>"##),
             format!(r##"{SVG_PREFIX}<stop offset="0" stop-color="#000000"/></svg>"##),
+            format!(r##"{SVG_PREFIX}<path fill="url(#g0-xyz123)" d="m0 0z"/></svg>"##),
+            format!(r##"{SVG_PREFIX}<path fill="url(#g0-abc)" d="m0 0z"/></svg>"##),
+            format!(r##"{SVG_PREFIX}<path fill="url(#plate)" d="m0 0z"/></svg>"##),
             r##"<svg xmlns="http://www.w3.org/2000/svg" onload="x"><path fill="#000000" d="m0 0z"/></svg>"##.to_string(),
         ] {
             assert!(verify(&bad, 1 << 20).is_err(), "accepted {bad}");
         }
         assert!(verify(&ok, 10).is_err());
+    }
+
+    #[test]
+    fn scoped_gradient_ids_are_unique_per_icon_and_stay_valid() {
+        let a = identicon(blake3::hash(b"example.com").as_bytes(), false);
+        let b = identicon(blake3::hash(b"example.org").as_bytes(), false);
+        let (sa, sb) = (scope(&a), scope(&b));
+        assert_eq!(sa, scope(&a));
+        verify(&sa, 1 << 16).unwrap();
+        let key = |s: &str| s[s.find("id=\"g0-").unwrap() + 7..][..6].to_string();
+        let k = key(&sa);
+        assert_ne!(k, key(&sb));
+        assert_eq!(
+            sa.matches("id=\"g").count(),
+            sa.matches(&format!("-{k}\"")).count()
+        );
+        assert_eq!(
+            sa.matches("url(#g").count(),
+            sa.matches(&format!("-{k})")).count()
+        );
+        assert!(!sa.contains("\"g0\"") && !sa.contains("(#g0)"));
+        let plain = warning(true);
+        assert_eq!(scope(&plain), plain);
     }
 
     #[test]

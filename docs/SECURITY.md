@@ -111,14 +111,20 @@ SVG is the riskiest format, so it gets extra rules:
   returns with a strict scanner: element and attribute allowlists per nesting
   level, value character classes, `url(#gN)` only, no comments, entities, text
   nodes or extra roots, and a size cap. A compromised worker can't smuggle markup
-  through.
+  through. Only after that check does the parent add a hash suffix to the
+  gradient ids (`g0-941ba8`).
+* Badges are composed by the server around that checked SVG. The only CSS in
+  them is the server's own `<style>` with the plate and mask colours and a
+  `prefers-color-scheme` media query, built from validated `#rrggbb` values.
 * Set `render.svg = false` to disable SVG completely.
 
 ### 5. Responses abused against users
 
 * Always `Content-Type: image/svg+xml` + `X-Content-Type-Options: nosniff`.
-* `Content-Security-Policy: default-src 'none'; style-src 'none'; script-src 'none'; sandbox`:
+* `Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; script-src 'none'; sandbox`:
   even if a browser opens the SVG as a document, nothing can execute or load.
+  Inline styles stay allowed so plates without a theme can follow the system
+  scheme; with `default-src 'none'` CSS can't fetch anything.
 * No cookies, no `Set-Cookie`, `Referrer-Policy: no-referrer`.
 * `Access-Control-Allow-Origin: *` and `Timing-Allow-Origin: *` without
   credentials, so pages can draw the icon on a canvas and measure the request

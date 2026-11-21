@@ -295,6 +295,9 @@ h2 { font-size: clamp(28px, 3.4vw, 38px); letter-spacing: -.025em; line-height: 
 .pi { width: 42px; height: 42px; border-radius: 13px; display: grid; place-items: center; margin-bottom: 6px; color: var(--accent); background: color-mix(in oklab, var(--accent) 12%, #202024); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--accent) 22%, transparent); }
 .pi svg { width: 24px; height: 24px; }
 .points h3 { font-size: 16px; margin: 0; font-weight: 600; }
+.points.use { grid-template-columns: repeat(4, 1fr); }
+.points.use code { font-size: .85em; }
+.use-more { margin: 18px 0 0; color: var(--dim); font-size: 14px; }
 .points p { margin: 0; color: var(--muted); font-size: 15px; flex: 1; }
 .threat { margin-top: 8px; padding-top: 12px; border-top: 1px solid var(--line); font: 12px var(--mono); color: var(--dim); display: flex; align-items: center; gap: 8px; }
 .threat::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: #ff8a6b; box-shadow: 0 0 0 3px color-mix(in oklab, #ff8a6b 20%, transparent); flex: none; }
@@ -388,11 +391,13 @@ footer a { color: var(--muted); }
   .selfhost { grid-template-columns: 1fr; }
   .perf { grid-template-columns: 1fr; }
   .points { grid-template-columns: 1fr 1fr; }
+  .points.use { grid-template-columns: 1fr 1fr; }
   nav .links a:not(:last-child) { display: none; }
 }
 @media (max-width: 560px) {
   .hero { padding-top: 48px; }
   .points { grid-template-columns: 1fr; }
+  .points.use { grid-template-columns: 1fr; }
   .when, .dots { display: none; }
   .row { padding: 0 12px; gap: 12px; }
   .seg button { padding: 6px 9px; }
@@ -563,6 +568,19 @@ footer a { color: var(--muted); }
       </ul>
     </div>
   </div>
+</section>
+
+<section id="use" hidden>
+  <div class="eyebrow">use it</div>
+  <h2>Made to be used in your product.</h2>
+  <p class="sub">{{host}} is a public service, not a demo. Point your app, browser extension, mail client, bookmark manager or dashboard at it: there is no account to create and no quota to request.</p>
+  <div class="points use">
+    <div class="point"><span class="pi"><svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M208,88H48a8,8,0,0,0-8,8V208a8,8,0,0,0,8,8H208a8,8,0,0,0,8-8V96A8,8,0,0,0,208,88Zm-80,72a20,20,0,1,1,20-20A20,20,0,0,1,128,160Z" opacity="0.2"/><path d="M208,80H96V56a32,32,0,0,1,32-32c15.37,0,29.2,11,32.16,25.59a8,8,0,0,0,15.68-3.18C171.32,24.15,151.2,8,128,8A48.05,48.05,0,0,0,80,56V80H48A16,16,0,0,0,32,96V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V96A16,16,0,0,0,208,80Zm0,128H48V96H208V208Zm-80-96a28,28,0,0,0-8,54.83V184a8,8,0,0,0,16,0V166.83A28,28,0,0,0,128,112Zm0,40a12,12,0,1,1,12-12A12,12,0,0,1,128,152Z"/></svg></span><h3>No key, no sign-up</h3><p>The URL is the whole integration. CORS is open and every header, palettes included, is readable from the browser.</p></div>
+    <div class="point"><span class="pi"><svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M240,128a80,80,0,0,1-80,80H72A56,56,0,1,1,85.92,97.74l0,.1A80,80,0,0,1,240,128Z" opacity="0.2"/><path d="M160,40A88.09,88.09,0,0,0,81.29,88.67,64,64,0,1,0,72,216h88a88,88,0,0,0,0-176Zm0,160H72a48,48,0,0,1,0-96c1.1,0,2.2,0,3.29.11A88,88,0,0,0,72,128a8,8,0,0,0,16,0,72,72,0,1,1,72,72Zm37.66-93.66a8,8,0,0,1,0,11.32l-48,48a8,8,0,0,1-11.32,0l-24-24a8,8,0,0,1,11.32-11.32L144,148.69l42.34-42.35A8,8,0,0,1,197.66,106.34Z"/></svg></span><h3>Cached at the edge</h3><p>Icons are cacheable for 30 days and served from a CDN, so a popular icon costs this server about one request a month.</p></div>
+    <div class="point"><span class="pi"><svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M218.34,119.6,183.6,154.34a46.58,46.58,0,0,1-44.31,12.26c-.31.34-.62.67-.95,1L103.6,202.34A46.63,46.63,0,1,1,37.66,136.4L72.4,101.66A46.6,46.6,0,0,1,116.71,89.4c.31-.34.62-.67,1-1L152.4,53.66a46.63,46.63,0,0,1,65.94,65.94Z" opacity="0.2"/><path d="M240,88.23a54.43,54.43,0,0,1-16,37L189.25,160a54.27,54.27,0,0,1-38.63,16h-.05A54.63,54.63,0,0,1,96,119.84a8,8,0,0,1,16,.45A38.62,38.62,0,0,0,150.58,160h0a38.39,38.39,0,0,0,27.31-11.31l34.75-34.75a38.63,38.63,0,0,0-54.63-54.63l-11,11A8,8,0,0,1,135.7,59l11-11A54.65,54.65,0,0,1,224,48,54.86,54.86,0,0,1,240,88.23ZM109,185.66l-11,11A38.41,38.41,0,0,1,70.6,208h0a38.63,38.63,0,0,1-27.29-65.94L78,107.31A38.63,38.63,0,0,1,144,135.71a8,8,0,0,0,7.78,8.22H152a8,8,0,0,0,8-7.78A54.86,54.86,0,0,0,144,96a54.65,54.65,0,0,0-77.27,0L32,130.75A54.62,54.62,0,0,0,70.56,224h0a54.28,54.28,0,0,0,38.64-16l11-11A8,8,0,0,0,109,185.66Z"/></svg></span><h3>Stable URLs</h3><p><code>/color/{domain}</code> and <code>/mono/{domain}</code> are the contract. The 1.x line keeps them unchanged.</p></div>
+    <div class="point"><span class="pi"><svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M200,152l-40,40L96,176,40,136,72.68,70.63,128,56l55.32,14.63L183.6,72H144L98.34,116.29a8,8,0,0,0,1.38,12.42C117.23,139.9,141,139.13,160,120Z" opacity="0.2"/><path d="M254.3,107.91,228.78,56.85a16,16,0,0,0-21.47-7.15L182.44,62.13,130.05,48.27a8.14,8.14,0,0,0-4.1,0L73.56,62.13,48.69,49.7a16,16,0,0,0-21.47,7.15L1.7,107.9a16,16,0,0,0,7.15,21.47l27,13.51,55.49,39.63a8.06,8.06,0,0,0,2.71,1.25l64,16a8,8,0,0,0,7.6-2.1l55.07-55.08,26.42-13.21a16,16,0,0,0,7.15-21.46Zm-54.89,33.37L165,113.72a8,8,0,0,0-10.68.61C136.51,132.27,116.66,130,104,122L147.24,80h31.81l27.21,54.41ZM41.53,64,62,74.22,36.43,125.27,16,115.06Zm116,119.13L99.42,168.61l-49.2-35.14,28-56L128,64.28l9.8,2.59-45,43.68-.08.09a16,16,0,0,0,2.72,24.81c20.56,13.13,45.37,11,64.91-5L188,152.66Zm62-57.87-25.52-51L214.47,64,240,115.06Zm-87.75,92.67a8,8,0,0,1-7.75,6.06,8.13,8.13,0,0,1-1.95-.24L80.41,213.33a7.89,7.89,0,0,1-2.71-1.25L51.35,193.26a8,8,0,0,1,9.3-13l25.11,17.94L126,208.24A8,8,0,0,1,131.82,217.94Z"/></svg></span><h3>Fair use, then self-host</h3><p>Per-network limits keep it fair for everyone. For millions of icons a day or anything critical, run your own copy from one compose file.</p></div>
+  </div>
+  <p class="use-more">Start with the <a href="#api">API</a>, read <a href="/llms.txt">llms.txt</a> or <a href="/openapi.json">openapi.json</a>, or <a href="#self-host">host it yourself</a>.</p>
 </section>
 
 <section id="catalogs" hidden>
@@ -1263,6 +1281,8 @@ footer a { color: var(--muted); }
     });
     inspect(input.value);
   })();
+
+  if (location.hostname === "favicons.page") $("#use").hidden = false;
 
   (async () => {
     const FEATURES = [

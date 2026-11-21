@@ -560,7 +560,9 @@ async fn serve_meta(app: &App, req: &Req, meta: &Meta, source: Source, stale: bo
         }),
     };
     let Some(shown) = shown else {
-        let reason = if req.style == Style::Mono {
+        let reason = if stale {
+            FallbackReason::Queued
+        } else if req.style == Style::Mono {
             FallbackReason::NoMonochrome
         } else {
             FallbackReason::NotFound
@@ -1217,6 +1219,40 @@ mod routing_tests {
         meta.mono_rev = 0;
         meta.mono = Some(crate::vector::VectorOrigin::Traced);
         assert!(!App::needs_refresh(&meta));
+    }
+
+    #[tokio::test]
+    async fn missing_mono_waiting_for_a_refresh_is_cached_briefly() {
+        let app = app();
+        let svg = r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128"><path fill="#000000" d="M0 0h128v128H0z"/></svg>"##;
+        let mut meta = crate::store::Meta::new("example.com", crate::store::Status::Ok);
+        meta.color = Some(crate::vector::VectorOrigin::Original);
+        meta.etags.insert("color.svg".into(), "abc".into());
+        meta.palette = Some(crate::palette::analyze(&image::RgbaImage::new(4, 4)));
+        meta.palette_rev = crate::palette::REVISION;
+        let put = |meta: crate::store::Meta| {
+            let app = app.clone();
+            async move {
+                app.store
+                    .put(
+                        meta,
+                        vec![(crate::contract::Slot::Color, svg.as_bytes().to_vec())],
+                    )
+                    .await;
+            }
+        };
+        put(meta.clone()).await;
+        let r = get(&app, "/mono/example.com").await;
+        assert_eq!(r.headers().get(H_REASON).unwrap(), "queued");
+        assert_eq!(
+            r.headers().get(CACHE_CONTROL).unwrap(),
+            "public, max-age=10"
+        );
+
+        meta.mono_rev = crate::render::MONO_REVISION;
+        put(meta).await;
+        let r = get(&app, "/mono/example.com").await;
+        assert_eq!(r.headers().get(H_REASON).unwrap(), "no-monochrome");
     }
 
     #[tokio::test]

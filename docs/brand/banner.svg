@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640">
+  <defs>
+    <radialGradient id="glow" cx="78%" cy="45%" r="55%">
+      <stop offset="0" stop-color="#ffb38a" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#ffb38a" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="14" stdDeviation="16" flood-color="#000" flood-opacity=".45"/>
+    </filter>
+  </defs>
+  <rect width="1280" height="640" fill="#141416"/>
+  <rect width="1280" height="640" fill="url(#glow)"/>
+
+  <g transform="translate(96 150)">
+    <rect width="76" height="76" rx="19" fill="#1f1f24"/>
+    <rect x="12" y="12" width="24" height="24" rx="7" fill="#ffb38a"/>
+    <rect x="40" y="12" width="24" height="24" rx="7" fill="#fbf0df"/>
+    <rect x="12" y="40" width="24" height="24" rx="7" fill="#e8613c"/>
+    <rect x="41.7" y="41.7" width="20.6" height="20.6" rx="5.5" fill="none" stroke="#fbf0df" stroke-opacity=".55" stroke-width="3.4"/>
+  </g>
+  <text x="96" y="318" font-family="Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="74" font-weight="700" letter-spacing="-2.6" fill="#ecebe8">favicons<tspan fill="#ffb38a">.page</tspan></text>
+  <text x="98" y="378" font-family="Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="34" font-weight="400" fill="#9a9aa3">Any site's icon as a clean, safe SVG,</text>
+  <text x="98" y="422" font-family="Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="34" font-weight="400" fill="#9a9aa3">with colours that fit every theme.</text>
+  <g transform="translate(96 470)">
+    <rect width="380" height="56" rx="14" fill="#1f1f24"/>
+    <text x="24" y="36" font-family="Menlo, 'SF Mono', monospace" font-size="22" fill="#ecebe8"><tspan fill="#ffb38a">GET</tspan>  /<tspan fill="#fbf0df">mono</tspan>/<tspan fill="#fbf0df">example.com</tspan></text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <g transform="translate(760 104)">
+      <rect width="124" height="124" rx="32" fill="#f6f5f2"/>
+      <circle cx="62" cy="62" r="30" fill="#2f6df6"/>
+      <circle cx="62" cy="62" r="12" fill="#f6f5f2"/>
+    </g>
+    <g transform="translate(904 104)">
+      <rect width="124" height="124" rx="32" fill="#1c1c1e"/>
+      <path d="M62 30 L92 88 H32 Z" fill="#ffb38a"/>
+    </g>
+    <g transform="translate(1048 104)">
+      <rect width="124" height="124" rx="32" fill="#16a34a"/>
+      <path d="M62 34 L92 50 L62 66 L32 50 Z" fill="#dcfce7"/>
+      <path d="M36 64 L62 78 L88 64 M36 78 L62 92 L88 78" stroke="#dcfce7" stroke-width="6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    </g>
+    <g transform="translate(760 248)">
+      <rect width="124" height="124" rx="32" fill="#fbf0df"/>
+      <path d="M68 28 L40 70 H60 L54 98 L84 54 H63 Z" fill="#e8613c"/>
+    </g>
+    <g transform="translate(904 248)">
+      <rect width="124" height="124" rx="32" fill="#ffb38a"/>
+      <rect x="34" y="34" width="56" height="56" rx="10" fill="#141416"/>
+      <rect x="50" y="50" width="24" height="24" rx="5" fill="#ffb38a"/>
+    </g>
+    <g transform="translate(1048 248)">
+      <rect width="124" height="124" rx="32" fill="#232329"/>
+      <path d="M62 30 L92 62 L62 94 L32 62 Z" fill="none" stroke="#a78bfa" stroke-width="8" stroke-linejoin="round"/>
+    </g>
+    <g transform="translate(760 392)">
+      <rect width="124" height="124" rx="32" fill="#e8613c"/>
+      <path d="M62 32 L70 54 L94 55 L75 69 L82 92 L62 79 L42 92 L49 69 L30 55 L54 54 Z" fill="#fbf0df"/>
+    </g>
+    <g transform="translate(904 392)">
+      <rect width="124" height="124" rx="32" fill="#f6f5f2"/>
+      <rect x="32" y="40" width="60" height="44" rx="10" fill="#111827"/>
+      <path d="M44 56 L54 62 L44 68" stroke="#f6f5f2" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    </g>
+  </g>
+  <rect x="1051" y="395" width="118" height="118" rx="30" fill="none" stroke="#fbf0df" stroke-opacity=".35" stroke-width="6"/>
+</svg>

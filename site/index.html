@@ -309,6 +309,9 @@ h2 { font-size: clamp(28px, 3.4vw, 38px); letter-spacing: -.025em; line-height: 
 .selfhost { align-items: stretch; }
 .steps { min-height: 0; }
 .code.cfg { flex: 1 1 0; min-height: 260px; display: flex; flex-direction: column; padding-bottom: 6px; }
+.code.cfg .h { color: var(--cream); font-weight: 600; }
+.code.cfg .s { color: #b5d99c; }
+.code.cfg .n { color: #9ec5ff; }
 .code.cfg pre { flex: 1; min-height: 0; overflow: auto; font-size: 12.5px; padding-bottom: 14px; scrollbar-width: thin; }
 .code .file { position: absolute; top: 14px; left: 22px; font: 12px var(--mono); color: var(--dim); }
 .code .k { color: var(--accent); }
@@ -1229,12 +1232,15 @@ footer a { color: var(--muted); }
         setTimeout(() => ($("#cfgCopy").textContent = "copy"), 1200);
       }, () => {});
     });
+    const value = (v) => v.replace(/("(?:[^"\\]|\\.)*")|\b(true|false)\b|(-?\b\d[\d_]*(?:\.\d+)?\b)|([^"]+?)/g, (all, str, bool, num) =>
+      str ? `<span class="s">${esc(str)}</span>` : bool ? `<span class="n">${bool}</span>` : num ? `<span class="n">${num}</span>` : esc(all));
     const line = (l) => {
       if (/^\s*#/.test(l)) return `<span class="c">${esc(l)}</span>`;
-      if (/^\s*\[/.test(l)) return `<span class="k">${esc(l)}</span>`;
-      const m = /^(\s*[\w.-]+)(\s*=\s*)(.*?)(\s+#.*)?$/.exec(l);
-      if (!m) return esc(l);
-      return `<span class="k">${esc(m[1])}</span>${esc(m[2])}${esc(m[3])}${m[4] ? `<span class="c">${esc(m[4])}</span>` : ""}`;
+      const head = /^(\s*\[\[?[^\]]*\]\]?)(\s+#.*)?$/.exec(l);
+      if (head) return `<span class="h">${esc(head[1])}</span>${head[2] ? `<span class="c">${esc(head[2])}</span>` : ""}`;
+      const m = /^(\s*[\w.-]+)(\s*=\s*)((?:"(?:[^"\\]|\\.)*"|[^#])*?)(\s*#.*)?$/.exec(l);
+      if (!m) return value(l);
+      return `<span class="k">${esc(m[1])}</span>${esc(m[2])}${value(m[3])}${m[4] ? `<span class="c">${esc(m[4])}</span>` : ""}`;
     };
     try {
       const r = await fetch("/config.example.toml");

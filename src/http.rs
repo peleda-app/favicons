@@ -376,12 +376,16 @@ async fn serve_key(app: &Arc<App>, req: &Req, client: ClientKey) -> Response {
             || (meta.status == Status::Ok
                 && meta.color.is_some()
                 && (meta.palette.is_none() || meta.palette_rev < crate::palette::REVISION));
-        if stale {
+        if stale && app.limiter.escalate(client) {
             let _ = app.queue.push(domain, client);
         }
         return serve_meta(app, req, &meta, Source::Cache, stale).await;
     }
 
+    if !app.limiter.escalate(client) {
+        inc(&app.stats.rate_limited);
+        return rate_limited();
+    }
     match app.queue.push(domain, client) {
         Enqueue::Rejected => fallback(app, req, FallbackReason::Overloaded),
         Enqueue::Pending(mut rx) => {
@@ -573,7 +577,7 @@ fn status_reason(status: Status) -> Option<FallbackReason> {
 
 fn admit(app: &App, peer: SocketAddr, headers: &HeaderMap) -> Option<ClientKey> {
     let client = app.keyer.key(app.keyer.client_ip(peer.ip(), headers));
-    if app.limiter.check(client) {
+    if app.limiter.admit(client) {
         return Some(client);
     }
     inc(&app.stats.rate_limited);

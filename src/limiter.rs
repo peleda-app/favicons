@@ -92,6 +92,7 @@ pub struct RateLimiter {
     buckets: Cache<ClientKey, Arc<Mutex<Bucket>>>,
     rate: f64,
     burst: f64,
+    cached_cost: f64,
 }
 
 impl RateLimiter {
@@ -106,11 +107,20 @@ impl RateLimiter {
                 .build(),
             rate: cfg.requests_per_second,
             burst: cfg.burst.max(1.0),
+            cached_cost: cfg.cached_cost.clamp(0.0, 1.0),
         }
     }
 
-    pub fn check(&self, key: ClientKey) -> bool {
-        if self.rate <= 0.0 {
+    pub fn admit(&self, key: ClientKey) -> bool {
+        self.take(key, self.cached_cost)
+    }
+
+    pub fn escalate(&self, key: ClientKey) -> bool {
+        self.take(key, 1.0 - self.cached_cost)
+    }
+
+    fn take(&self, key: ClientKey, cost: f64) -> bool {
+        if self.rate <= 0.0 || cost <= 0.0 {
             return true;
         }
         let now = Instant::now();
@@ -126,8 +136,8 @@ impl RateLimiter {
         let elapsed = now.saturating_duration_since(b.at).as_secs_f64();
         b.tokens = (b.tokens + elapsed * self.rate).min(self.burst);
         b.at = now;
-        if b.tokens >= 1.0 {
-            b.tokens -= 1.0;
+        if b.tokens >= cost {
+            b.tokens -= cost;
             true
         } else {
             false
@@ -193,10 +203,25 @@ mod tests {
         let l = RateLimiter::new(&RateLimit {
             requests_per_second: 1.0,
             burst: 3.0,
+            cached_cost: 0.1,
             max_tracked_clients: 10,
         });
-        assert!((0..3).all(|_| l.check(1)));
-        assert!(!l.check(1));
-        assert!(l.check(2));
+        assert!((0..3).all(|_| l.take(1, 1.0)));
+        assert!(!l.take(1, 1.0));
+        assert!(l.take(2, 1.0));
+    }
+
+    #[test]
+    fn cached_hits_cost_a_fraction_and_misses_pay_the_rest() {
+        let l = RateLimiter::new(&RateLimit {
+            requests_per_second: 0.001,
+            burst: 2.0,
+            cached_cost: 0.1,
+            max_tracked_clients: 10,
+        });
+        assert_eq!((0..40).filter(|_| l.admit(1)).count(), 20);
+        assert!(!l.escalate(1));
+        assert!(l.admit(2) && l.escalate(2) && l.admit(2) && l.escalate(2));
+        assert!(!l.admit(2));
     }
 }

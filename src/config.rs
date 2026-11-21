@@ -216,6 +216,7 @@ impl Default for ClientIp {
 pub struct RateLimit {
     pub requests_per_second: f64,
     pub burst: f64,
+    pub cached_cost: f64,
     pub max_tracked_clients: u64,
 }
 
@@ -224,6 +225,7 @@ impl Default for RateLimit {
         Self {
             requests_per_second: 50.0,
             burst: 400.0,
+            cached_cost: 0.05,
             max_tracked_clients: 100_000,
         }
     }

@@ -3,6 +3,7 @@ RUN apk add --no-cache musl-dev
 WORKDIR /src
 COPY Cargo.toml Cargo.lock ./
 COPY src ./src
+COPY site ./site
 RUN cargo build --release --locked \
     && cp target/release/favicons /favicons \
     && mkdir -p /rootfs/run/favicons /rootfs/var/cache/favicons

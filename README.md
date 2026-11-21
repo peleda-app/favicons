@@ -107,6 +107,10 @@ with one static binary, running as uid 65534 (7.3 MB to download). Tags:
 `latest` and `main` follow the main branch, `sha-<commit>` pins a build, and
 `1.2.3` / `1.2` appear for release tags.
 
+Each [release](https://github.com/peleda-app/favicons/releases) also carries the
+same static binaries as `favicons-<version>-<arch>-linux-musl` (x86_64 and
+aarch64) with a `SHA256SUMS` file.
+
 ```bash
 docker compose up -d
 ```
@@ -122,16 +126,11 @@ docker run --rm -p 8080:8080 --read-only --cap-drop ALL --security-opt no-new-pr
 
 ## Documentation
 
-**[peleda-app.github.io/favicons](https://peleda-app.github.io/favicons/)** is an
-one-pager. Its animated demo switches real recorded icons between colour and
-monochrome and tints the masks with a hue slider, and it carries the API
-reference. It is a static page in [`site/`](site), deployed by the `pages`
-workflow. Refresh the recorded responses from a running instance with:
-
-```bash
-./site/capture.py http://127.0.0.1:8080
-```
-
+**[favicons.page](https://favicons.page)** is a one-pager served by the service
+itself. Its animated demo asks this server's `/v1/icon` for every sender, switches
+the icons between colour and monochrome, tints the masks with a hue slider, and
+carries the API reference. The page lives in [`site/`](site) and is compiled into
+the binary; any instance serves it at `/` unless `server.landing = false`.
 
 * [HTTP API contract](docs/API.md): parameters, statuses, headers, fallback reasons, storage layout
 * [Security model](docs/SECURITY.md): threats, mitigations, privacy, hardening checklist
@@ -180,11 +179,6 @@ challenge to reach the origin over plain HTTP: if **Always Use HTTPS** is on,
 add a rule that turns it off for `/.well-known/acme-challenge/*`. Once a valid
 certificate exists, renewals work through either port.
 
-Static binaries for x86_64 and aarch64, identical to the ones in the image,
-are published with every build at
-`https://peleda-app.github.io/favicons/dl/<arch>/favicons` with a
-`favicons.sha256` next to them.
-
 ## Running on a small server
 
 The defaults suit a 1 vCPU / 512 MB box. Most of the protection comes from
@@ -194,6 +188,10 @@ keeping work off it:
    sees roughly one request per icon per month per PoP.
 2. **Use object storage with a public bucket** and `redirect_to_public_url = true`.
    The service then only sends tiny `302`s, or nothing at all when the CDN caches them.
+   On a local disk instead, cap it with `cache.max_disk_bytes` or
+   `cache.max_disk_entries`: the least recently used domains are deleted first.
+   The cap costs no memory per icon; a background pass walks the directory
+   when usage crosses it, at most once a minute, and otherwise once an hour.
 3. **Keep `fetch.workers` low** (4–8). Fetching is the expensive part; the fair
    queue makes sure honest users still get their share under a flood.
 4. **Keep `render.decode_concurrency` at 1–2.** Decoding is CPU-bound and the

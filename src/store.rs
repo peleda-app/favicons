@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -13,6 +14,7 @@ use url::Url;
 
 use crate::config::{Cache as CacheCfg, HttpCache};
 use crate::contract::{MonoSource, Provenance, SVG_MIME, Slot};
+use crate::disk::Disk;
 use crate::palette::Palette;
 use crate::vector::VectorOrigin;
 
@@ -137,6 +139,7 @@ fn icon_cache(cfg: &CacheCfg) -> IconCache {
 
 pub struct Store {
     backend: Option<Arc<dyn ObjectStore>>,
+    pub disk: Option<Arc<Disk>>,
     attributes: bool,
     prefix: Path,
     public_base: Option<String>,
@@ -150,9 +153,18 @@ pub struct Store {
 
 impl Store {
     pub fn new(cfg: &CacheCfg, http: &HttpCache) -> anyhow::Result<Self> {
-        let (backend, prefix, attributes) = build_backend(cfg)?;
+        let (backend, prefix, attributes, local) = build_backend(cfg)?;
+        let disk = local.and_then(|root| {
+            Disk::new(
+                root.join(LAYOUT_VERSION),
+                cfg.max_disk_bytes,
+                cfg.max_disk_entries,
+            )
+            .map(Arc::new)
+        });
         Ok(Self {
             backend,
+            disk,
             attributes,
             prefix,
             public_base: cfg
@@ -213,6 +225,10 @@ impl Store {
         match self.read(backend, &self.path(domain, "meta.json")).await {
             Ok(Some(bytes)) => match serde_json::from_slice::<Meta>(&bytes) {
                 Ok(meta) if meta.domain == domain => {
+                    if let Some(disk) = self.disk.clone() {
+                        let domain = domain.to_string();
+                        tokio::task::spawn_blocking(move || disk.touch(&domain));
+                    }
                     let meta = Arc::new(meta);
                     self.meta_mem.insert(domain.to_string(), meta.clone());
                     Some(meta)
@@ -259,7 +275,10 @@ impl Store {
 
     pub async fn put(&self, meta: Meta, images: Vec<(Slot, Vec<u8>)>) {
         let domain = meta.domain.clone();
+        let new_entry = self.disk.as_ref().is_some_and(|d| !d.exists(&domain));
+        let mut sizes = Vec::with_capacity(3);
         for (slot, data) in images {
+            sizes.push(data.len());
             let name = object_name(slot);
             let bytes = Bytes::from(data);
             if let Some(backend) = &self.backend {
@@ -280,6 +299,7 @@ impl Store {
         if let Some(backend) = &self.backend {
             match serde_json::to_vec(&meta) {
                 Ok(json) => {
+                    sizes.push(json.len());
                     let opts = self.put_options("application/json", "no-store");
                     let res = tokio::time::timeout(
                         self.timeout,
@@ -297,8 +317,19 @@ impl Store {
                 Err(e) => tracing::warn!(domain, error = %e, "meta serialization failed"),
             }
         }
+        if let Some(disk) = &self.disk {
+            disk.added(sizes, new_entry);
+        }
         self.absent.invalidate(&domain);
         self.meta_mem.insert(domain, Arc::new(meta));
+    }
+
+    pub fn forget(&self, domains: &[String]) {
+        for d in domains {
+            self.meta_mem.invalidate(d);
+            self.img_color.invalidate(d);
+            self.img_mono.invalidate(d);
+        }
     }
 
     fn put_options(&self, content_type: &str, cache_control: &str) -> PutOptions {
@@ -332,12 +363,12 @@ impl Store {
     }
 }
 
-type Backend = (Option<Arc<dyn ObjectStore>>, Path, bool);
+type Backend = (Option<Arc<dyn ObjectStore>>, Path, bool, Option<PathBuf>);
 
 fn build_backend(cfg: &CacheCfg) -> anyhow::Result<Backend> {
     let spec = cfg.storage.trim();
     if spec.is_empty() || spec.eq_ignore_ascii_case("none") || spec.eq_ignore_ascii_case("memory") {
-        return Ok((None, Path::default(), false));
+        return Ok((None, Path::default(), false, None));
     }
     let url = if spec.contains("://") {
         Url::parse(spec).context("cache.storage is not a valid URL")?
@@ -352,11 +383,11 @@ fn build_backend(cfg: &CacheCfg) -> anyhow::Result<Backend> {
         std::fs::create_dir_all(&dir).with_context(|| format!("creating {}", dir.display()))?;
         let fs = object_store::local::LocalFileSystem::new_with_prefix(&dir)?
             .with_automatic_cleanup(true);
-        return Ok((Some(Arc::new(fs)), Path::default(), false));
+        return Ok((Some(Arc::new(fs)), Path::default(), false, Some(dir)));
     }
     let attributes = !matches!(url.scheme(), "memory");
     let (store, prefix) = object_store::parse_url_opts(&url, cfg.options.iter())?;
-    Ok((Some(Arc::from(store)), prefix, attributes))
+    Ok((Some(Arc::from(store)), prefix, attributes, None))
 }
 
 #[cfg(test)]

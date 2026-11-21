@@ -120,8 +120,9 @@ SVG is the riskiest format, so it gets extra rules:
 * `Content-Security-Policy: default-src 'none'; style-src 'none'; script-src 'none'; sandbox`:
   even if a browser opens the SVG as a document, nothing can execute or load.
 * No cookies, no `Set-Cookie`, `Referrer-Policy: no-referrer`.
-* `Access-Control-Allow-Origin: *` without credentials, so pages can draw the
-  icon on a canvas without leaking anything.
+* `Access-Control-Allow-Origin: *` and `Timing-Allow-Origin: *` without
+  credentials, so pages can draw the icon on a canvas and measure the request
+  without leaking anything. `Server-Timing` carries only the request duration.
 
 ### 6. Abuse of the service itself (DoS)
 

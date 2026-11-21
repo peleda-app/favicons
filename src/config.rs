@@ -45,6 +45,12 @@ impl Config {
 
     fn validate(&self) -> anyhow::Result<()> {
         self.tls.validate()?;
+        anyhow::ensure!(
+            (self.cache.max_disk_bytes == 0 && self.cache.max_disk_entries == 0)
+                || self.cache.is_local_dir(),
+            "cache.max_disk_bytes and cache.max_disk_entries need cache.storage to be a local directory; \
+             for object storage use the bucket's lifecycle rules"
+        );
         let urls = crate::net::UrlPolicy::new(&self.fetch);
         for template in &self.upstream.providers {
             anyhow::ensure!(
@@ -140,6 +146,7 @@ pub struct Server {
     pub header_read_timeout_ms: u64,
     pub shutdown_grace_ms: u64,
     pub worker_threads: Option<usize>,
+    pub landing: bool,
 }
 
 impl Default for Server {
@@ -153,6 +160,7 @@ impl Default for Server {
             header_read_timeout_ms: 5_000,
             shutdown_grace_ms: 10_000,
             worker_threads: None,
+            landing: true,
         }
     }
 }
@@ -333,6 +341,19 @@ pub struct Cache {
     pub memory_ttl_secs: u64,
     pub absent_ttl_secs: u64,
     pub storage_timeout_ms: u64,
+    pub max_disk_bytes: u64,
+    pub max_disk_entries: u64,
+}
+
+impl Cache {
+    pub fn is_local_dir(&self) -> bool {
+        let s = self.storage.trim();
+        s.starts_with("file://")
+            || !(s.contains("://")
+                || s.is_empty()
+                || s.eq_ignore_ascii_case("none")
+                || s.eq_ignore_ascii_case("memory"))
+    }
 }
 
 impl Default for Cache {
@@ -352,6 +373,8 @@ impl Default for Cache {
             memory_ttl_secs: 600,
             absent_ttl_secs: 60,
             storage_timeout_ms: 2_000,
+            max_disk_bytes: 0,
+            max_disk_entries: 0,
         }
     }
 }

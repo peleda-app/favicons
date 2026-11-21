@@ -639,6 +639,41 @@ impl App {
         None
     }
 
+    pub fn spawn_disk_sweeper(self: &Arc<Self>) {
+        let Some(disk) = self.store.disk.clone() else {
+            return;
+        };
+        let app = self.clone();
+        tokio::spawn(async move {
+            loop {
+                let d = disk.clone();
+                let Ok(sweep) = tokio::task::spawn_blocking(move || d.sweep()).await else {
+                    break;
+                };
+                app.store.forget(&sweep.evicted);
+                if sweep.evicted.is_empty() {
+                    tracing::debug!(
+                        bytes = sweep.bytes,
+                        entries = sweep.entries,
+                        "disk cache measured"
+                    );
+                } else {
+                    tracing::info!(
+                        evicted = sweep.evicted.len(),
+                        bytes = sweep.bytes,
+                        entries = sweep.entries,
+                        "disk cache trimmed"
+                    );
+                }
+                tokio::time::sleep(Duration::from_secs(60)).await;
+                if !disk.needs_sweep() {
+                    let _ = tokio::time::timeout(Duration::from_secs(3_600), disk.wake.notified())
+                        .await;
+                }
+            }
+        });
+    }
+
     pub fn spawn_policy_reloader(self: &Arc<Self>) {
         let app = self.clone();
         tokio::spawn(async move {

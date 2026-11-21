@@ -7,9 +7,6 @@
 <meta name="description" content="A small, privacy-first service that turns any site's icon into a clean SVG. Sandboxed, vetted, cache-friendly.">
 <meta name="theme-color" content="#141416">
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root {
   --bg: #141416;
@@ -22,8 +19,8 @@
   --cream: #fbf0df;
   --tile: #f6f5f2;
   --tint: #e8613c;
-  --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
-  --sans: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  --sans: system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; }
@@ -236,7 +233,7 @@ footer a { color: var(--muted); }
     </div>
   </div>
   <div class="line" id="line"></div>
-  <p class="hint">Icons and palettes recorded from a live instance. Take the controls to try it yourself.</p>
+  <p class="hint">Icons and palettes come live from this server's <code>/v1/icon</code>. Take the controls to try it yourself.</p>
 </header>
 
 <section id="api">
@@ -367,7 +364,7 @@ for p in fs write net exec prctl; do docker run --rm favicons sandbox-selftest $
     "notion.so": ["Notion", "Weekly digest", "4 pages were updated in Product", "08:30"],
     "mail.google.com": ["Google", "Security alert", "New sign-in on a Mac", "Yesterday"],
     "wikipedia.org": ["Wikipedia", "Thank you for your donation", "Your receipt for November", "Yesterday"],
-    "evil-example.com": ["Account Team", "Your account will be suspended", "Verify your details within 24 hours", "Mon"],
+    "malware.testcategory.com": ["Account Team", "Your account will be suspended", "Verify your details within 24 hours", "Mon"],
     "nope-zzzq-xx.com": ["Billing", "Invoice #4821", "Payment due on receipt", "Mon"],
   };
   let theme = "light";
@@ -410,6 +407,7 @@ for p in fs write net exec prctl; do docker run --rm favicons sandbox-selftest $
   }
 
   function paint(el, item) {
+    if (!item.palette) return;
     const s = scheme(item);
     el.style.setProperty("--plate", s.plate);
     el.style.setProperty("--name", s.text);
@@ -518,7 +516,8 @@ for p in fs write net exec prctl; do docker run --rm favicons sandbox-selftest $
     const row = e.target.closest(".row");
     if (!row) return;
     if (e.isTrusted) takeOver();
-    openDialog(items[Number(row.dataset.i)]);
+    const item = items[Number(row.dataset.i)];
+    if (item.palette) openDialog(item);
   });
   $("#veil").addEventListener("click", (e) => {
     if (e.isTrusted) takeOver();
@@ -597,7 +596,7 @@ for p in fs write net exec prctl; do docker run --rm favicons sandbox-selftest $
 
   async function visit(domain, button) {
     const item = items.find((i) => i.domain === domain);
-    if (!item) return;
+    if (!item || !item.palette) return;
     await moveTo(target(item.el, 0.35), 900);
     item.el.classList.add("hot");
     await wait(250);
@@ -617,7 +616,7 @@ for p in fs write net exec prctl; do docker run --rm favicons sandbox-selftest $
         await visit("spotify.com", "#dno");
         await click(seg("dark"));
         await wait(1300);
-        await visit("evil-example.com", "#dyes");
+        await visit("malware.testcategory.com", "#dyes");
         await click(seg("mono"));
         await wait(1500);
         await drag();
@@ -642,42 +641,63 @@ for p in fs write net exec prctl; do docker run --rm favicons sandbox-selftest $
     }, () => {});
   });
 
-  fetch("data/presets.json")
-    .then((r) => r.json())
-    .then((presets) => {
-      const palette = (h) => ({
-        shape: h["x-icon-shape"],
-        fill: h["x-icon-fill"],
-        light: { plate: h["x-icon-light-plate"], text: h["x-icon-light-text"], mono: h["x-icon-light-mono"], monoPlate: h["x-icon-light-mono-plate"] },
-        dark: { plate: h["x-icon-dark-plate"], text: h["x-icon-dark-text"], mono: h["x-icon-dark-mono"], monoPlate: h["x-icon-dark-mono-plate"] },
-      });
-      items = presets
-        .filter((p) => LETTERS[p.domain] && p.responses.color.headers["x-icon-light-plate"])
-        .map((p) => ({
-          domain: p.domain,
-          label: p.responses.color.headers["x-icon-domain"] || p.domain,
-          color: p.responses.color.image,
-          mono: p.responses.mono.image,
-          palette: palette(p.responses.color.headers),
-          blocked: Boolean(p.responses.color.headers["x-icon-blocked"]),
-          letter: LETTERS[p.domain],
-        }));
-      $("#rows").innerHTML = items
-        .map((item, i) => {
-          const b = badge(item);
-          const [from, subject, snippet, when] = item.letter;
-          return `<li class="row" data-i="${i}"><div class="${b.cls}">${b.html}</div><div class="who"><b>${esc(from)}</b><span><em>${esc(subject)}</em> · ${esc(snippet)}</span></div><span class="when">${esc(when)}</span></li>`;
-        })
-        .join("");
-      document.querySelectorAll("#rows .row").forEach((el, i) => (items[i].el = el));
-      setTheme("light");
-      if (auto) play();
-      else demo.classList.add("manual");
+  const palette = (h) => {
+    const scheme = (t) => ({ plate: h.get(`x-icon-${t}-plate`), text: h.get(`x-icon-${t}-text`), mono: h.get(`x-icon-${t}-mono`), monoPlate: h.get(`x-icon-${t}-mono-plate`) });
+    return { shape: h.get("x-icon-shape"), fill: h.get("x-icon-fill"), light: scheme("light"), dark: scheme("dark") };
+  };
+  const pending = new Set(["queued", "overloaded"]);
+
+  async function load(style, domain) {
+    for (let attempt = 0; ; attempt++) {
+      const r = await fetch(`/v1/icon/${style}/${encodeURIComponent(domain)}`, { cache: "no-store" });
+      if (!r.ok) throw new Error(String(r.status));
+      if (!pending.has(r.headers.get("x-icon-fallback-reason")) || attempt >= 20) {
+        return { headers: r.headers, url: URL.createObjectURL(await r.blob()) };
+      }
+      await new Promise((resolve) => setTimeout(resolve, 600 + attempt * 200));
+    }
+  }
+
+  items = Object.entries(LETTERS).map(([domain, letter]) => ({ domain, letter, label: domain, palette: null }));
+  $("#rows").innerHTML = items
+    .map((item, i) => {
+      const [from, subject, snippet, when] = item.letter;
+      return `<li class="row" data-i="${i}"><div class="badge"></div><div class="who"><b>${esc(from)}</b><span><em>${esc(subject)}</em> · ${esc(snippet)}</span></div><span class="when">${esc(when)}</span></li>`;
     })
-    .catch(() => {
-      $("#line").textContent = "Could not load data/presets.json.";
+    .join("");
+  document.querySelectorAll("#rows .row").forEach((el, i) => (items[i].el = el));
+  setTheme("light");
+  $("#line").textContent = "asking /v1/icon for every sender…";
+
+  Promise.all(
+    items.map(async (item) => {
+      try {
+        const [color, mono] = await Promise.all([load("color", item.domain), load("mono", item.domain)]);
+        const h = color.headers;
+        Object.assign(item, {
+          label: h.get("x-icon-domain") || item.domain,
+          color: color.url,
+          mono: mono.url,
+          palette: palette(h),
+          blocked: Boolean(h.get("x-icon-blocked")),
+        });
+        const b = badge(item);
+        const el = item.el.querySelector(".badge");
+        el.className = b.cls;
+        el.innerHTML = b.html;
+        paint(item.el, item);
+      } catch {
+        item.el.remove();
+      }
+    }),
+  ).then(() => {
+    caption();
+    if (!items.some((i) => i.palette)) {
+      $("#line").textContent = "Could not reach /v1/icon on this server.";
       demo.classList.add("manual");
-    });
+    } else if (auto) play();
+    else demo.classList.add("manual");
+  });
 })();
 </script>
 </body>

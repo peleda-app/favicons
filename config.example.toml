@@ -11,6 +11,7 @@ request_timeout_ms = 5000
 header_read_timeout_ms = 5000
 shutdown_grace_ms = 10000
 # worker_threads = 2     # async runtime threads; default is one per CPU. Lower it on a box shared with other services
+landing = true          # serve the demo page at / (embedded in the binary)
 
 [client_ip]
 # peer | x-forwarded-for | x-real-ip | cf-connecting-ip
@@ -84,6 +85,11 @@ memory_meta_entries = 100000
 memory_ttl_secs = 600
 absent_ttl_secs = 60
 storage_timeout_ms = 2000
+# Caps for a local directory, counted as allocated disk space (a 2 KB icon takes
+# a 4 KB block). Over a cap, the least recently used domains are deleted until
+# usage is back under 90% of it. 0 means no cap. Object storage: use lifecycle rules.
+max_disk_bytes = 0            # e.g. 5_000_000_000
+max_disk_entries = 0          # domains
 # When the bucket is publicly readable, answer with 302 to the object instead of
 # streaming bytes through the service.
 redirect_to_public_url = false

@@ -1,6 +1,6 @@
 use std::net::SocketAddr;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use axum::Router;
 use axum::body::Body;
@@ -9,9 +9,10 @@ use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use http::header::{
-    ACCESS_CONTROL_ALLOW_ORIGIN, ACCESS_CONTROL_EXPOSE_HEADERS, CACHE_CONTROL,
-    CONTENT_SECURITY_POLICY, CONTENT_TYPE, ETAG, IF_NONE_MATCH, LOCATION, REFERRER_POLICY,
-    RETRY_AFTER, X_CONTENT_TYPE_OPTIONS, X_FRAME_OPTIONS,
+    ACCESS_CONTROL_ALLOW_HEADERS, ACCESS_CONTROL_ALLOW_METHODS, ACCESS_CONTROL_ALLOW_ORIGIN,
+    ACCESS_CONTROL_EXPOSE_HEADERS, ACCESS_CONTROL_MAX_AGE, CACHE_CONTROL, CONTENT_SECURITY_POLICY,
+    CONTENT_TYPE, ETAG, IF_NONE_MATCH, LOCATION, REFERRER_POLICY, RETRY_AFTER,
+    X_CONTENT_TYPE_OPTIONS, X_FRAME_OPTIONS,
 };
 use http::{HeaderMap, HeaderName, HeaderValue, StatusCode, Uri};
 
@@ -25,18 +26,51 @@ use crate::contract::{
 use crate::domain::{MAX_INPUT_LEN, normalize};
 use crate::metrics::inc;
 use crate::queue::{ClientKey, Enqueue};
+use crate::site;
 use crate::store::{Icon, Meta, Status};
 
 pub fn router(app: Arc<App>) -> Router {
-    Router::new()
-        .route("/v1/icon/{style}/{domain}", get(icon))
+    let mut r = Router::new();
+    if app.cfg.server.landing {
+        r = r
+            .route(
+                "/",
+                get(|h: HeaderMap| async move { site::serve(&site::INDEX_PAGE, &h) }),
+            )
+            .route(
+                "/favicon.svg",
+                get(|h: HeaderMap| async move { site::serve(&site::FAVICON_PAGE, &h) }),
+            );
+    }
+    r.route("/v1/icon/{style}/{domain}", get(icon))
         .route("/v1/icon/{style}/{domain}/", get(icon_slash))
         .route("/.well-known/acme-challenge/{token}", get(acme_challenge))
         .route("/healthz", get(|| async { "ok" }))
         .fallback(|| async { plain(StatusCode::NOT_FOUND, "not found") })
         .layer(middleware::from_fn_with_state(app.clone(), guard))
+        .layer(middleware::from_fn(preflight))
         .layer(middleware::map_response(security_headers))
         .with_state(app)
+}
+
+async fn preflight(req: Request, next: Next) -> Response {
+    if req.method() != http::Method::OPTIONS {
+        return next.run(req).await;
+    }
+    let mut r = Response::new(Body::empty());
+    *r.status_mut() = StatusCode::NO_CONTENT;
+    let h = r.headers_mut();
+    h.insert(
+        ACCESS_CONTROL_ALLOW_METHODS,
+        HeaderValue::from_static("GET, HEAD, OPTIONS"),
+    );
+    h.insert(ACCESS_CONTROL_ALLOW_HEADERS, HeaderValue::from_static("*"));
+    h.insert(ACCESS_CONTROL_MAX_AGE, HeaderValue::from_static("86400"));
+    h.insert(
+        CACHE_CONTROL,
+        HeaderValue::from_static("public, max-age=86400"),
+    );
+    r
 }
 
 pub fn challenge_router(app: Arc<App>) -> Router {
@@ -106,13 +140,22 @@ async fn guard(State(app): State<Arc<App>>, req: Request, next: Next) -> Respons
         return r;
     };
     let timeout = Duration::from_millis(app.cfg.server.request_timeout_ms);
-    match tokio::time::timeout(timeout, next.run(req)).await {
+    let start = Instant::now();
+    let mut r = match tokio::time::timeout(timeout, next.run(req)).await {
         Ok(r) => r,
         Err(_) => plain(StatusCode::SERVICE_UNAVAILABLE, "timeout"),
+    };
+    let ms = start.elapsed().as_secs_f64() * 1000.0;
+    if let Ok(v) = HeaderValue::from_str(&format!("app;dur={ms:.3}")) {
+        r.headers_mut().insert(SERVER_TIMING, v);
     }
+    r
 }
 
-const EXPOSED: &str = "etag, x-icon-source, x-icon-domain, x-icon-style, x-icon-vector, \
+const SERVER_TIMING: HeaderName = HeaderName::from_static("server-timing");
+const TIMING_ALLOW_ORIGIN: HeaderName = HeaderName::from_static("timing-allow-origin");
+
+const EXPOSED: &str = "etag, server-timing, cdn-cache-control, age, retry-after, x-icon-source, x-icon-domain, x-icon-style, x-icon-vector, \
      x-icon-provenance, x-icon-license, x-icon-upstream, x-icon-mono-source, x-icon-fallback, \
      x-icon-fallback-reason, x-icon-stale, x-icon-blocked, x-icon-shape, x-icon-fill, x-icon-accent, \
      x-icon-light-plate, x-icon-light-text, x-icon-light-mono, x-icon-light-mono-plate, \
@@ -121,12 +164,10 @@ const EXPOSED: &str = "etag, x-icon-source, x-icon-domain, x-icon-style, x-icon-
 async fn security_headers(mut res: Response) -> Response {
     let h = res.headers_mut();
     h.insert(X_CONTENT_TYPE_OPTIONS, HeaderValue::from_static("nosniff"));
-    h.insert(
-        CONTENT_SECURITY_POLICY,
-        HeaderValue::from_static(
+    h.entry(CONTENT_SECURITY_POLICY)
+        .or_insert(HeaderValue::from_static(
             "default-src 'none'; style-src 'none'; script-src 'none'; sandbox",
-        ),
-    );
+        ));
     h.insert(REFERRER_POLICY, HeaderValue::from_static("no-referrer"));
     h.insert(X_FRAME_OPTIONS, HeaderValue::from_static("DENY"));
     h.insert(
@@ -134,14 +175,13 @@ async fn security_headers(mut res: Response) -> Response {
         HeaderValue::from_static("cross-origin"),
     );
     h.insert(ACCESS_CONTROL_ALLOW_ORIGIN, HeaderValue::from_static("*"));
+    h.insert(TIMING_ALLOW_ORIGIN, HeaderValue::from_static("*"));
     h.insert(
         ACCESS_CONTROL_EXPOSE_HEADERS,
         HeaderValue::from_static(EXPOSED),
     );
-    h.insert(
-        HeaderName::from_static("x-robots-tag"),
-        HeaderValue::from_static("noindex"),
-    );
+    h.entry(HeaderName::from_static("x-robots-tag"))
+        .or_insert(HeaderValue::from_static("noindex"));
     res
 }
 
@@ -591,7 +631,7 @@ fn decorate(r: &mut Response, profile: &CacheHeaders, out: &Out<'_>) {
     }
 }
 
-fn etag_matches(if_none_match: &str, etag: &str) -> bool {
+pub(crate) fn etag_matches(if_none_match: &str, etag: &str) -> bool {
     let bare = etag.trim_start_matches("W/");
     if_none_match
         .split(',')
@@ -641,6 +681,107 @@ mod routing_tests {
             .get(LOCATION)
             .and_then(|v| v.to_str().ok())
             .unwrap_or("")
+    }
+
+    #[tokio::test]
+    async fn serves_the_landing_page() {
+        let app = app();
+        let r = get(&app, "/").await;
+        assert_eq!(r.status(), StatusCode::OK);
+        let h = r.headers();
+        assert_eq!(h.get(CONTENT_TYPE).unwrap(), "text/html; charset=utf-8");
+        assert!(
+            h.get(CONTENT_SECURITY_POLICY)
+                .unwrap()
+                .to_str()
+                .unwrap()
+                .contains("'sha256-")
+        );
+        assert_eq!(h.get("x-robots-tag").unwrap(), "all");
+        let etag = h.get(ETAG).unwrap().clone();
+
+        let mut req = http::Request::builder()
+            .uri("/")
+            .header(IF_NONE_MATCH, etag)
+            .body(Body::empty())
+            .unwrap();
+        req.extensions_mut()
+            .insert(ConnectInfo(SocketAddr::from(([198, 51, 100, 7], 4000))));
+        let r = router(app.clone()).oneshot(req).await.unwrap();
+        assert_eq!(r.status(), StatusCode::NOT_MODIFIED);
+
+        let r = get(&app, "/favicon.svg").await;
+        assert_eq!(r.headers().get(CONTENT_TYPE).unwrap(), SVG_MIME);
+
+        let r = get(&app, "/v1/icon/color/example.com").await;
+        let csp = r.headers().get(CONTENT_SECURITY_POLICY).unwrap();
+        assert!(csp.to_str().unwrap().contains("sandbox"));
+        assert_eq!(r.headers().get("x-robots-tag").unwrap(), "noindex");
+    }
+
+    #[tokio::test]
+    async fn lets_other_origins_read_headers_and_timings() {
+        let app = app();
+        let r = get(&app, "/v1/icon/color/example.com").await;
+        let h = r.headers();
+        assert_eq!(h.get(ACCESS_CONTROL_ALLOW_ORIGIN).unwrap(), "*");
+        assert_eq!(h.get("timing-allow-origin").unwrap(), "*");
+        assert!(
+            h.get("server-timing")
+                .unwrap()
+                .to_str()
+                .unwrap()
+                .starts_with("app;dur=")
+        );
+        let exposed = h
+            .get(ACCESS_CONTROL_EXPOSE_HEADERS)
+            .unwrap()
+            .to_str()
+            .unwrap();
+        for name in [
+            "server-timing",
+            "etag",
+            "x-icon-light-plate",
+            "cdn-cache-control",
+        ] {
+            assert!(exposed.contains(name), "{name}");
+        }
+
+        let mut req = http::Request::builder()
+            .method(http::Method::OPTIONS)
+            .uri("/v1/icon/color/example.com")
+            .header("origin", "https://mail.example.org")
+            .header("access-control-request-method", "GET")
+            .header("access-control-request-headers", "if-none-match")
+            .body(Body::empty())
+            .unwrap();
+        req.extensions_mut()
+            .insert(ConnectInfo(SocketAddr::from(([198, 51, 100, 7], 4000))));
+        let r = router(app.clone()).oneshot(req).await.unwrap();
+        assert_eq!(r.status(), StatusCode::NO_CONTENT);
+        let h = r.headers();
+        assert_eq!(h.get(ACCESS_CONTROL_ALLOW_ORIGIN).unwrap(), "*");
+        assert!(
+            h.get(ACCESS_CONTROL_ALLOW_METHODS)
+                .unwrap()
+                .to_str()
+                .unwrap()
+                .contains("GET")
+        );
+        assert_eq!(h.get(ACCESS_CONTROL_ALLOW_HEADERS).unwrap(), "*");
+    }
+
+    #[tokio::test]
+    async fn landing_can_be_turned_off() {
+        let mut cfg = Config::default();
+        cfg.render.sandbox = SandboxMode::Off;
+        cfg.server.landing = false;
+        let app = App::new(cfg).unwrap();
+        assert_eq!(get(&app, "/").await.status(), StatusCode::NOT_FOUND);
+        assert_eq!(
+            get(&app, "/favicon.svg").await.status(),
+            StatusCode::NOT_FOUND
+        );
     }
 
     #[tokio::test]

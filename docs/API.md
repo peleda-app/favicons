@@ -165,13 +165,35 @@ capped at `render.max_output_svg_bytes` (48 KiB).
 | `X-Icon-Blocked` | `blocklist`, `dns-filter` | the domain is blocked; tells which mechanism blocked it |
 | `X-Icon-Shape`, `X-Icon-Fill`, `X-Icon-Accent`, `X-Icon-{Light,Dark}-{Plate,Text,Mono,Mono-Plate}` | see [Palette headers](#palette-headers) | 200, 302, 304, on real and generated icons |
 
-All `X-Icon-*` headers and `ETag` are listed in `Access-Control-Expose-Headers`,
-so a page on another origin can read them with `fetch()`.
+### CORS and timing
+
+Any origin can call the API from JavaScript. Responses carry
+`Access-Control-Allow-Origin: *`, and `OPTIONS` answers a preflight with `204`,
+`Access-Control-Allow-Methods: GET, HEAD, OPTIONS`, `Access-Control-Allow-Headers: *`
+and a one-day `Access-Control-Max-Age`. No credentials are involved.
+`Access-Control-Expose-Headers` lists `ETag`, `Server-Timing`,
+`CDN-Cache-Control`, `Age`, `Retry-After` and every `X-Icon-*` header, so
+`fetch()` on another origin can read them.
+
+`Timing-Allow-Origin: *` unlocks the full Resource Timing entry (DNS, connect,
+TLS, time to first byte) for pages on other origins, and
+`Server-Timing: app;dur=<ms>` reports how long favicons itself spent on the
+request:
+
+```js
+const url = "https://favicons.page/v1/icon/color/github.com";
+const r = await fetch(url);
+const [t] = performance.getEntriesByName(r.url);
+console.log(t.responseStart - t.requestStart, t.serverTiming, r.headers.get("x-icon-source"));
+```
+
+A response served from a CDN cache repeats the `Server-Timing` of the request
+that filled it; `Age` tells the two apart.
 
 Every response also carries `X-Content-Type-Options: nosniff`,
 `Content-Security-Policy: default-src 'none'; sandbox`, `Referrer-Policy: no-referrer`,
 `X-Frame-Options: DENY`, `Cross-Origin-Resource-Policy: cross-origin`,
-`Access-Control-Allow-Origin: *` and `X-Robots-Tag: noindex`. No cookies are ever set.
+`Access-Control-Allow-Origin: *`, `Timing-Allow-Origin: *` and `X-Robots-Tag: noindex`. No cookies are ever set.
 
 ### Palette headers
 
@@ -246,6 +268,12 @@ always gets the same image on every instance that shares the salt.
 * `fallback_transient` responses are short-lived by design. A client that shows
   a `queued` icon gets the real one on its next refresh.
 * Honour `ETag` / `If-None-Match`; revalidation is cheap.
+
+## `GET /` and `GET /favicon.svg`
+
+The demo page, compiled into the binary. It calls `/v1/icon` on the same origin,
+loads nothing from other hosts, and allows only its own inline script by hash in
+its `Content-Security-Policy`. `server.landing = false` turns both routes off.
 
 ## `GET /healthz`
 

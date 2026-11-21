@@ -4,6 +4,7 @@ mod catalog;
 mod config;
 mod contract;
 mod discover;
+mod disk;
 mod dns;
 mod domain;
 mod http;
@@ -16,6 +17,7 @@ mod queue;
 mod render;
 mod sandbox;
 mod server;
+mod site;
 mod store;
 mod tls;
 mod trace;
@@ -123,6 +125,7 @@ async fn run(cfg: config::Config) -> anyhow::Result<()> {
     app.spawn_policy_reloader();
     app.spawn_catalog_reloader();
     app.spawn_workers();
+    app.spawn_disk_sweeper();
 
     let (tx, rx) = watch::channel(false);
     tokio::spawn(async move {

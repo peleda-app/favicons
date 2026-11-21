@@ -25,6 +25,7 @@ use crate::contract::{
 };
 use crate::domain::{MAX_INPUT_LEN, normalize};
 use crate::metrics::inc;
+use crate::plate::Plate;
 use crate::queue::{ClientKey, Enqueue};
 use crate::site::Asset;
 use crate::store::{Icon, Meta, Status};
@@ -34,16 +35,28 @@ pub fn router(app: Arc<App>) -> Router {
         .route("/robots.txt", page(Asset::Robots))
         .route("/llms.txt", page(Asset::Llms))
         .route("/openapi.json", page(Asset::OpenApi));
-    if app.cfg.server.landing {
+    if crate::site::ENABLED && app.cfg.server.landing {
         r = r
             .route("/", page(Asset::Index))
             .route("/sitemap.xml", page(Asset::Sitemap))
             .route("/favicon.svg", page(Asset::Favicon))
             .route("/apple-touch-icon.png", page(Asset::AppleTouchIcon))
-            .route("/og.png", page(Asset::OgImage));
+            .route("/og.png", page(Asset::OgImage))
+            .route("/fonts/inter.woff2", page(Asset::FontSans))
+            .route("/fonts/jetbrains-mono.woff2", page(Asset::FontMono));
+    } else {
+        r = r.route("/", page(Asset::OpenApi));
     }
     r.route("/{style}/{domain}", get(icon))
         .route("/{style}/{domain}/", get(icon_slash))
+        .route("/{style}/{domain}/{slug}", get(catalog_icon))
+        .route("/{style}/{domain}/{slug}/{theme}", get(plated_icon))
+        .route(
+            "/{style}/{domain}/{slug}/{theme}/{extra}",
+            get(plated_catalog_icon),
+        )
+        .route("/catalogs.json", get(catalogs_index))
+        .route("/catalogs/{file}", get(catalog_listing))
         .route("/.well-known/acme-challenge/{token}", get(acme_challenge))
         .route("/healthz", get(|| async { "ok" }))
         .fallback(|| async { plain(StatusCode::NOT_FOUND, "not found") })
@@ -220,7 +233,6 @@ impl CacheHeaders {
 
 pub struct Profiles {
     icon: CacheHeaders,
-    redirect: CacheHeaders,
     canonical: CacheHeaders,
     fallback_transient: CacheHeaders,
     fallback_stable: CacheHeaders,
@@ -230,7 +242,6 @@ impl Profiles {
     pub fn new(c: &HttpCache) -> anyhow::Result<Self> {
         Ok(Self {
             icon: CacheHeaders::new("icon", &c.icon)?,
-            redirect: CacheHeaders::new("redirect", &c.redirect)?,
             canonical: CacheHeaders::new("canonical", &c.canonical)?,
             fallback_transient: CacheHeaders::new("fallback_transient", &c.fallback_transient)?,
             fallback_stable: CacheHeaders::new("fallback_stable", &c.fallback_stable)?,
@@ -238,10 +249,12 @@ impl Profiles {
     }
 }
 
+#[derive(Clone)]
 struct Req {
     name: String,
     valid: bool,
     style: Style,
+    plate: Option<Plate>,
     if_none_match: Option<HeaderValue>,
 }
 
@@ -252,7 +265,7 @@ async fn icon(
     uri: Uri,
     Path((style, raw)): Path<(String, String)>,
 ) -> Response {
-    serve_icon(app, peer, headers, uri, style, raw, false).await
+    serve_icon(app, peer, headers, uri, style, raw, false, None).await
 }
 
 async fn icon_slash(
@@ -262,9 +275,42 @@ async fn icon_slash(
     uri: Uri,
     Path((style, raw)): Path<(String, String)>,
 ) -> Response {
-    serve_icon(app, peer, headers, uri, style, raw, true).await
+    serve_icon(app, peer, headers, uri, style, raw, true, None).await
 }
 
+async fn plated_icon(
+    State(app): State<Arc<App>>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+    uri: Uri,
+    Path((style, raw, shape, theme)): Path<(String, String, String, String)>,
+) -> Response {
+    let Some(plate) = Plate::parse(&shape, &theme) else {
+        return plain(
+            StatusCode::NOT_FOUND,
+            "unknown plate; use rounded|superellipse and light|dark",
+        );
+    };
+    serve_icon(app, peer, headers, uri, style, raw, false, Some(plate)).await
+}
+
+async fn plated_catalog_icon(
+    State(app): State<Arc<App>>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+    uri: Uri,
+    Path((style, id, slug, shape, theme)): Path<(String, String, String, String, String)>,
+) -> Response {
+    let Some(plate) = Plate::parse(&shape, &theme) else {
+        return plain(
+            StatusCode::NOT_FOUND,
+            "unknown plate; use rounded|superellipse and light|dark",
+        );
+    };
+    serve_catalog(app, peer, headers, uri, style, id, slug, Some(plate)).await
+}
+
+#[allow(clippy::too_many_arguments)]
 async fn serve_icon(
     app: Arc<App>,
     peer: SocketAddr,
@@ -273,6 +319,7 @@ async fn serve_icon(
     style: String,
     raw: String,
     trailing_slash: bool,
+    plate: Option<Plate>,
 ) -> Response {
     inc(&app.stats.requests);
     let Some(client) = admit(&app, peer, &headers) else {
@@ -299,17 +346,19 @@ async fn serve_icon(
                 .to_lowercase(),
             valid: false,
             style,
+            plate,
             if_none_match,
         };
         return fallback(&app, &req, FallbackReason::InvalidDomain);
     };
     if requested != n.registrable || uri.query().is_some() || trailing_slash {
-        return redirect_to_canonical(&app, style, &n.registrable).await;
+        return redirect_to_canonical(&app, style, &n.registrable, plate).await;
     }
     let req = Req {
         name: n.registrable,
         valid: true,
         style,
+        plate,
         if_none_match,
     };
     let domain = &req.name;
@@ -317,17 +366,22 @@ async fn serve_icon(
         return fallback(&app, &req, FallbackReason::Blocklisted);
     }
 
+    serve_key(&app, &req, client).await
+}
+
+async fn serve_key(app: &Arc<App>, req: &Req, client: ClientKey) -> Response {
+    let domain = &req.name;
     if let Some(meta) = app.store.meta(domain).await {
         let stale = app.is_stale(&meta)
             || (meta.status == Status::Ok && meta.color.is_some() && meta.palette.is_none());
         if stale {
             let _ = app.queue.push(domain, client);
         }
-        return serve_meta(&app, &req, &meta, Source::Cache, stale).await;
+        return serve_meta(app, req, &meta, Source::Cache, stale).await;
     }
 
     match app.queue.push(domain, client) {
-        Enqueue::Rejected => fallback(&app, &req, FallbackReason::Overloaded),
+        Enqueue::Rejected => fallback(app, req, FallbackReason::Overloaded),
         Enqueue::Pending(mut rx) => {
             let wait = Duration::from_millis(app.cfg.fetch.wait_ms);
             if !wait.is_zero()
@@ -336,11 +390,109 @@ async fn serve_icon(
                     .is_ok()
                 && let Some(meta) = app.store.meta(domain).await
             {
-                return serve_meta(&app, &req, &meta, Source::Origin, false).await;
+                return serve_meta(app, req, &meta, Source::Origin, false).await;
             }
-            fallback(&app, &req, FallbackReason::Queued)
+            fallback(app, req, FallbackReason::Queued)
         }
     }
+}
+
+async fn catalog_icon(
+    State(app): State<Arc<App>>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+    uri: Uri,
+    Path((style, id, slug)): Path<(String, String, String)>,
+) -> Response {
+    serve_catalog(app, peer, headers, uri, style, id, slug, None).await
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn serve_catalog(
+    app: Arc<App>,
+    peer: SocketAddr,
+    headers: HeaderMap,
+    uri: Uri,
+    style: String,
+    id: String,
+    slug: String,
+    plate: Option<Plate>,
+) -> Response {
+    inc(&app.stats.requests);
+    let Some(client) = admit(&app, peer, &headers) else {
+        return rate_limited();
+    };
+    let Some(style) = Style::from_path(&style) else {
+        return plain(StatusCode::NOT_FOUND, "unknown style; use color or mono");
+    };
+    let Some(catalog) = app.slugs.get(&id) else {
+        return plain(StatusCode::NOT_FOUND, "unknown catalog");
+    };
+    let wanted = slug
+        .strip_suffix(".svg")
+        .unwrap_or(&slug)
+        .to_ascii_lowercase();
+    if !crate::slugs::is_slug(&wanted) {
+        return plain(StatusCode::NOT_FOUND, "unknown icon");
+    }
+    if wanted != slug || uri.query().is_some() {
+        let suffix = plate.map_or("", Plate::suffix);
+        let location = format!("/{}/{id}/{wanted}{suffix}", style.as_str());
+        let key = crate::slugs::key(&id, &wanted);
+        return redirect(
+            StatusCode::MOVED_PERMANENTLY,
+            &location,
+            &app.profiles.canonical,
+            style,
+            &key,
+        );
+    }
+    if !catalog.is_loaded() {
+        let mut r = plain(StatusCode::SERVICE_UNAVAILABLE, "catalog is loading");
+        r.headers_mut()
+            .insert(RETRY_AFTER, HeaderValue::from_static("5"));
+        return r;
+    }
+    if !catalog.contains(&wanted) {
+        return plain(StatusCode::NOT_FOUND, "unknown icon");
+    }
+    let req = Req {
+        name: crate::slugs::key(&id, &wanted),
+        valid: true,
+        style,
+        plate,
+        if_none_match: headers.get(IF_NONE_MATCH).cloned(),
+    };
+    serve_key(&app, &req, client).await
+}
+
+fn json(body: bytes::Bytes, cache: &'static str) -> Response {
+    let mut r = Response::new(Body::from(body));
+    r.headers_mut()
+        .insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
+    r.headers_mut()
+        .insert(CACHE_CONTROL, HeaderValue::from_static(cache));
+    r
+}
+
+async fn catalogs_index(State(app): State<Arc<App>>) -> Response {
+    json(app.slugs.summaries(), "public, max-age=300")
+}
+
+async fn catalog_listing(State(app): State<Arc<App>>, Path(file): Path<String>) -> Response {
+    let Some(catalog) = file.strip_suffix(".json").and_then(|id| app.slugs.get(id)) else {
+        return plain(StatusCode::NOT_FOUND, "unknown catalog");
+    };
+    if !catalog.is_loaded() {
+        let mut r = plain(StatusCode::SERVICE_UNAVAILABLE, "catalog is loading");
+        r.headers_mut()
+            .insert(RETRY_AFTER, HeaderValue::from_static("5"));
+        return r;
+    }
+    json(
+        catalog.listing(),
+        "public, max-age=3600, stale-while-revalidate=86400",
+    )
 }
 
 #[derive(Clone, Copy)]
@@ -386,25 +538,6 @@ async fn serve_meta(app: &App, req: &Req, meta: &Meta, source: Source, stale: bo
         reason: None,
         stale,
     };
-
-    if app.cfg.cache.redirect_to_public_url
-        && app.store.has_backend()
-        && let Some(url) = app.store.public_url(&meta.domain, shown.slot)
-        && let Ok(loc) = HeaderValue::from_str(&url)
-    {
-        inc(&app.stats.served_redirect);
-        let mut r = Response::new(Body::empty());
-        *r.status_mut() = StatusCode::FOUND;
-        r.headers_mut().insert(LOCATION, loc);
-        let palette = meta.palette.map(|p| p.headers()).unwrap_or_default();
-        let out = Out {
-            domain: HeaderValue::from_str(&meta.domain).ok(),
-            palette: &palette,
-            ..out
-        };
-        decorate(&mut r, &app.profiles.redirect, &out);
-        return r;
-    }
 
     match app.store.image(meta, shown.slot).await {
         Some(icon) => {
@@ -452,34 +585,16 @@ fn rate_limited() -> Response {
     r
 }
 
-async fn redirect_to_canonical(app: &App, style: Style, domain: &str) -> Response {
-    let slot = match style {
-        Style::Color => Slot::Color,
-        Style::Mono => Slot::Mono,
-    };
-    if app.cfg.cache.redirect_to_public_url
-        && app.store.has_backend()
-        && let Some(meta) = app.store.meta(domain).await
-        && meta.status == Status::Ok
-        && match slot {
-            Slot::Color => meta.color.is_some(),
-            Slot::Mono => meta.mono.is_some(),
-        }
-        && let Some(url) = app.store.public_url(domain, slot)
-    {
-        return redirect(
-            app,
-            StatusCode::FOUND,
-            &url,
-            &app.profiles.redirect,
-            style,
-            domain,
-        );
-    }
+async fn redirect_to_canonical(
+    app: &App,
+    style: Style,
+    domain: &str,
+    plate: Option<Plate>,
+) -> Response {
     inc(&app.stats.canonical_redirects);
-    let location = format!("/{}/{domain}", style.as_str());
+    let suffix = plate.map_or("", Plate::suffix);
+    let location = format!("/{}/{domain}{suffix}", style.as_str());
     redirect(
-        app,
         StatusCode::MOVED_PERMANENTLY,
         &location,
         &app.profiles.canonical,
@@ -489,7 +604,6 @@ async fn redirect_to_canonical(app: &App, style: Style, domain: &str) -> Respons
 }
 
 fn redirect(
-    app: &App,
     status: StatusCode,
     location: &str,
     profile: &CacheHeaders,
@@ -499,9 +613,6 @@ fn redirect(
     let Ok(loc) = HeaderValue::from_str(location) else {
         return plain(StatusCode::BAD_REQUEST, "bad domain");
     };
-    if status == StatusCode::FOUND {
-        inc(&app.stats.served_redirect);
-    }
     let mut r = Response::new(Body::empty());
     *r.status_mut() = status;
     r.headers_mut().insert(LOCATION, loc);
@@ -572,6 +683,35 @@ struct Out<'a> {
 }
 
 fn image(icon: &Icon, req: &Req, profile: &CacheHeaders, out: &Out<'_>) -> Response {
+    if let Some(plate) = req.plate {
+        let composed = crate::plate::compose(&icon.data, plate, req.style, &icon.palette);
+        let etag = icon
+            .etag
+            .as_ref()
+            .and_then(|e| e.to_str().ok())
+            .and_then(|e| {
+                let base = e.trim_matches('"');
+                HeaderValue::from_str(&format!("\"{base}{}\"", plate.suffix().replace('/', "-")))
+                    .ok()
+            });
+        if let Some(data) = composed {
+            let plated = Icon {
+                data: data.into(),
+                etag,
+                domain: icon.domain.clone(),
+                palette: icon.palette.clone(),
+            };
+            return image(
+                &plated,
+                &Req {
+                    plate: None,
+                    ..req.clone()
+                },
+                profile,
+                out,
+            );
+        }
+    }
     let not_modified = match (&icon.etag, &req.if_none_match) {
         (Some(e), Some(inm)) => match (inm.to_str(), e.to_str()) {
             (Ok(inm), Ok(e)) => etag_matches(inm, e),
@@ -691,6 +831,7 @@ mod routing_tests {
             .unwrap_or("")
     }
 
+    #[cfg(feature = "site")]
     #[tokio::test]
     async fn serves_the_landing_page() {
         let app = app();
@@ -779,13 +920,185 @@ mod routing_tests {
         assert_eq!(h.get(ACCESS_CONTROL_ALLOW_HEADERS).unwrap(), "*");
     }
 
+    async fn json_of(app: &Arc<App>, path: &str) -> serde_json::Value {
+        let r = get(app, path).await;
+        let body = axum::body::to_bytes(r.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        serde_json::from_slice(&body).unwrap()
+    }
+
+    #[tokio::test]
+    async fn openapi_matches_the_router() {
+        let mut cfg = Config::default();
+        cfg.fetch.wait_ms = 0;
+        cfg.render.sandbox = SandboxMode::Off;
+        cfg.rate_limit.requests_per_second = 0.0;
+        cfg.catalogs = vec![crate::slugs::tests::cfg()];
+        let app = App::new(cfg).unwrap();
+        app.slugs
+            .get("selfhst")
+            .unwrap()
+            .load(crate::slugs::tests::INDEX.as_bytes());
+
+        let spec = json_of(&app, "/openapi.json").await;
+        assert_eq!(spec["openapi"], "3.1.0");
+        assert_eq!(spec["info"]["version"], env!("CARGO_PKG_VERSION"));
+        let mut paths: Vec<String> = spec["paths"].as_object().unwrap().keys().cloned().collect();
+        paths.sort();
+        let mut expected = vec![
+            "/",
+            "/catalogs.json",
+            "/catalogs/{file}",
+            "/healthz",
+            "/llms.txt",
+            "/openapi.json",
+            "/robots.txt",
+            "/{style}/{catalog}/{slug}",
+            "/{style}/{catalog}/{slug}/{shape}/{theme}",
+            "/{style}/{domain}",
+            "/{style}/{domain}/{shape}/{theme}",
+        ];
+        if crate::site::ENABLED {
+            expected.push("/sitemap.xml");
+        }
+        expected.sort();
+        assert_eq!(paths, expected);
+
+        for path in &paths {
+            let concrete = path
+                .replace("{style}", "color")
+                .replace("{domain}", "example.com")
+                .replace("{catalog}", "selfhst")
+                .replace("{slug}", "jellyfin")
+                .replace("{shape}", "superellipse")
+                .replace("{theme}", "dark")
+                .replace("{file}", "selfhst.json");
+            let status = get(&app, &concrete).await.status();
+            assert!(status.is_success(), "{concrete}: {status}");
+        }
+
+        let catalog = &spec["paths"]["/{style}/{catalog}/{slug}"]["get"]["parameters"][1];
+        assert_eq!(catalog["schema"]["enum"][0], "selfhst");
+        let reasons = &spec["components"]["responses"]["Icon"]["headers"]["X-Icon-Fallback-Reason"]
+            ["schema"]["enum"];
+        assert_eq!(reasons.as_array().unwrap().len(), FallbackReason::ALL.len());
+
+        if !crate::site::ENABLED {
+            let r = get(&app, "/").await;
+            assert_eq!(r.headers().get(CONTENT_TYPE).unwrap(), "application/json");
+            assert_eq!(json_of(&app, "/").await, spec);
+        }
+
+        let plain = App::new(Config::default()).unwrap();
+        let spec = json_of(&plain, "/openapi.json").await;
+        assert!(spec["paths"].get("/{style}/{catalog}/{slug}").is_none());
+    }
+
+    #[tokio::test]
+    async fn serves_catalog_icons_by_slug() {
+        let mut cfg = Config::default();
+        cfg.fetch.wait_ms = 0;
+        cfg.render.sandbox = SandboxMode::Off;
+        cfg.rate_limit.requests_per_second = 0.0;
+        cfg.catalogs = vec![crate::slugs::tests::cfg()];
+        let app = App::new(cfg).unwrap();
+
+        let r = get(&app, "/color/selfhst/jellyfin").await;
+        assert_eq!(r.status(), StatusCode::SERVICE_UNAVAILABLE);
+        app.slugs
+            .get("selfhst")
+            .unwrap()
+            .load(crate::slugs::tests::INDEX.as_bytes());
+
+        let r = get(&app, "/color/selfhst/jellyfin").await;
+        assert_eq!(r.status(), StatusCode::OK);
+        assert_eq!(r.headers().get(CONTENT_TYPE).unwrap(), SVG_MIME);
+        assert_eq!(r.headers().get(H_REASON).unwrap(), "queued");
+        assert!(r.headers().get("x-icon-light-plate").is_some());
+
+        let r = get(&app, "/mono/selfhst/Jellyfin.svg").await;
+        assert_eq!(r.status(), StatusCode::MOVED_PERMANENTLY);
+        assert_eq!(location(&r), "/mono/selfhst/jellyfin");
+
+        for path in [
+            "/color/selfhst/missing",
+            "/color/nope/jellyfin",
+            "/purple/selfhst/jellyfin",
+            "/color/selfhst/a.b",
+        ] {
+            assert_eq!(
+                get(&app, path).await.status(),
+                StatusCode::NOT_FOUND,
+                "{path}"
+            );
+        }
+
+        let r = get(&app, "/catalogs.json").await;
+        let body = axum::body::to_bytes(r.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let list: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(list[0]["id"], "selfhst");
+        assert_eq!(list[0]["count"], 3);
+        assert_eq!(list[0]["license"], "CC-BY-4.0");
+
+        let r = get(&app, "/catalogs/selfhst.json").await;
+        assert_eq!(r.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(r.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let listing: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(listing["items"].as_array().unwrap().len(), 3);
+        assert_eq!(
+            get(&app, "/catalogs/nope.json").await.status(),
+            StatusCode::NOT_FOUND
+        );
+    }
+
+    #[tokio::test]
+    async fn draws_icons_on_themed_plates() {
+        let app = app();
+        let r = get(&app, "/color/example.com/rounded/dark").await;
+        assert_eq!(r.status(), StatusCode::OK);
+        assert_eq!(r.headers().get(CONTENT_TYPE).unwrap(), SVG_MIME);
+        let etag = r.headers().get(ETAG).unwrap().to_str().unwrap().to_string();
+        assert!(etag.ends_with("-rounded-dark\""), "{etag}");
+        let body = axum::body::to_bytes(r.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let svg = String::from_utf8(body.to_vec()).unwrap();
+        assert!(svg.contains("clip-path=\"url(#plate)\""));
+
+        let r = get(&app, "/mono/example.com/superellipse/light").await;
+        assert_eq!(r.status(), StatusCode::OK);
+
+        let r = get(&app, "/color/WWW.Example.com/superellipse/dark").await;
+        assert_eq!(r.status(), StatusCode::MOVED_PERMANENTLY);
+        assert_eq!(location(&r), "/color/example.com/superellipse/dark");
+
+        for path in [
+            "/color/example.com/circle/dark",
+            "/color/example.com/rounded/blue",
+            "/color/example.com/rounded",
+        ] {
+            assert_eq!(
+                get(&app, path).await.status(),
+                StatusCode::NOT_FOUND,
+                "{path}"
+            );
+        }
+    }
+
+    #[cfg(feature = "site")]
     #[tokio::test]
     async fn landing_can_be_turned_off() {
         let mut cfg = Config::default();
         cfg.render.sandbox = SandboxMode::Off;
         cfg.server.landing = false;
         let app = App::new(cfg).unwrap();
-        assert_eq!(get(&app, "/").await.status(), StatusCode::NOT_FOUND);
+        let r = get(&app, "/").await;
+        assert_eq!(r.headers().get(CONTENT_TYPE).unwrap(), "application/json");
         assert_eq!(
             get(&app, "/favicon.svg").await.status(),
             StatusCode::NOT_FOUND

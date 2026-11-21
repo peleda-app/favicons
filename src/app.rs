@@ -34,6 +34,7 @@ pub struct App {
     pub store: Store,
     pub policy: Policy,
     pub catalog: Option<crate::catalog::Catalog>,
+    pub slugs: crate::slugs::Catalogs,
     pub client: HttpClient,
     renderer: Renderer,
     dns: Arc<SafeDns>,
@@ -75,6 +76,7 @@ impl App {
                 .build(),
             policy: Policy::new(cfg.policy.clone()),
             catalog: crate::catalog::Catalog::new(&cfg.catalog.thesvg),
+            slugs: crate::slugs::Catalogs::new(&cfg.catalogs),
             renderer: match cfg.render.sandbox {
                 SandboxMode::Off => Renderer::InProcess,
                 SandboxMode::Process => Renderer::Process {
@@ -220,6 +222,9 @@ impl App {
     }
 
     async fn fetch_domain(&self, domain: &str) -> (Meta, Vec<(Slot, Vec<u8>)>) {
+        if let Some((id, slug)) = crate::slugs::parse_key(domain) {
+            return self.fetch_catalog_item(domain, id, slug).await;
+        }
         if let Some(age) = &self.age
             && age.is_too_new(domain).await
         {
@@ -589,16 +594,105 @@ impl App {
             ));
         }
         for (url, provenance, license, mono_url) in sources {
+            if let Some(found) = self
+                .curated(
+                    domain,
+                    domain,
+                    Location::Remote(url),
+                    true,
+                    provenance,
+                    license,
+                    mono_url,
+                )
+                .await
+            {
+                return Some(found);
+            }
+        }
+        None
+    }
+
+    async fn fetch_catalog_item(
+        &self,
+        key: &str,
+        id: &str,
+        slug: &str,
+    ) -> (Meta, Vec<(Slot, Vec<u8>)>) {
+        let Some(entry) = self.slugs.get(id).and_then(|c| c.lookup(slug)) else {
+            return (Meta::new(key, Status::NotFound), vec![]);
+        };
+        let p = &self.cfg.policy;
+        let site = entry
+            .color
+            .host_str()
+            .and_then(|h| normalize(h, p.collapse_private_suffixes, &p.deny_suffixes))
+            .map(|n| n.registrable)
+            .unwrap_or_default();
+        let svg = entry.color.path().ends_with(".svg");
+        let location = match &entry.tint {
+            Some(hex) => {
+                let max = self.cfg.fetch.max_icon_bytes;
+                let Ok(r) = self
+                    .get_checked(&site, &entry.color, ACCEPT_IMAGE, max, false)
+                    .await
+                else {
+                    return (Meta::new(key, Status::FetchFailed), vec![]);
+                };
+                match crate::slugs::tint_svg(&r.bytes, hex) {
+                    Some(tinted) => Location::Inline(tinted),
+                    None => return (Meta::new(key, Status::FetchFailed), vec![]),
+                }
+            }
+            None => Location::Remote(entry.color.clone()),
+        };
+        match self
+            .curated(
+                key,
+                &site,
+                location,
+                svg,
+                Provenance::Catalog,
+                Some(entry.license),
+                entry.mono,
+            )
+            .await
+        {
+            Some(found) => found,
+            None => (Meta::new(key, Status::FetchFailed), vec![]),
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    async fn curated(
+        &self,
+        domain: &str,
+        site: &str,
+        location: Location,
+        svg: bool,
+        provenance: Provenance,
+        license: Option<String>,
+        mono_url: Option<Url>,
+    ) -> Option<(Meta, Vec<(Slot, Vec<u8>)>)> {
+        {
+            let source = match &location {
+                Location::Remote(url) => url.to_string(),
+                Location::Inline(_) => "inline".to_string(),
+            };
             let cand = Candidate {
-                location: Location::Remote(url.clone()),
+                location,
                 declared: discover::SIZE_ANY,
-                svg: true,
+                svg,
                 theme: None,
                 mono: false,
             };
-            let (vector, _) = self.try_candidate(domain, cand).await;
-            let Some(vector) = vector else { continue };
-            tracing::debug!(domain, source = %url, provenance = provenance.as_str(), "curated icon selected");
+            let (vector, _) = self.try_candidate(site, cand).await;
+            let vector = vector?;
+            tracing::debug!(
+                domain,
+                source,
+                provenance = provenance.as_str(),
+                "curated icon selected"
+            );
             let mut meta = Meta::new(domain, Status::Ok);
             meta.provenance = Some(provenance);
             meta.license = license;
@@ -611,7 +705,7 @@ impl App {
             if let Some(mono_url) = mono_url
                 && let Ok(r) = self
                     .get_checked(
-                        domain,
+                        site,
                         &mono_url,
                         ACCEPT_IMAGE,
                         self.cfg.fetch.max_icon_bytes,
@@ -636,9 +730,8 @@ impl App {
                 meta.mono_source = Some(source);
                 images.push((Slot::Mono, v.svg.into_bytes()));
             }
-            return Some((meta, images));
+            Some((meta, images))
         }
-        None
     }
 
     pub fn spawn_disk_sweeper(self: &Arc<Self>) {
@@ -674,6 +767,25 @@ impl App {
                 }
             }
         });
+    }
+
+    pub fn spawn_slug_reloaders(self: &Arc<Self>) {
+        for catalog in self.slugs.all() {
+            let app = self.clone();
+            let catalog = catalog.clone();
+            tokio::spawn(async move {
+                let every = Duration::from_secs(catalog.reload_secs().max(3_600));
+                loop {
+                    catalog.reload(&app.list_client).await;
+                    let retry = if catalog.is_loaded() {
+                        every
+                    } else {
+                        Duration::from_secs(300)
+                    };
+                    tokio::time::sleep(retry).await;
+                }
+            });
+        }
     }
 
     pub fn spawn_policy_reloader(self: &Arc<Self>) {

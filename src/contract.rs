@@ -16,6 +16,8 @@ pub enum Style {
 }
 
 impl Style {
+    pub const ALL: [Style; 2] = [Style::Color, Style::Mono];
+
     pub fn as_str(self) -> &'static str {
         match self {
             Style::Color => "color",
@@ -40,6 +42,8 @@ pub enum MonoSource {
 }
 
 impl MonoSource {
+    pub const ALL: [MonoSource; 2] = [MonoSource::MaskIcon, MonoSource::Derived];
+
     pub fn as_str(self) -> &'static str {
         match self {
             MonoSource::MaskIcon => "mask-icon",
@@ -80,15 +84,25 @@ pub enum Provenance {
     Bimi,
     Thesvg,
     Upstream,
+    Catalog,
 }
 
 impl Provenance {
+    pub const ALL: [Provenance; 5] = [
+        Provenance::Site,
+        Provenance::Bimi,
+        Provenance::Thesvg,
+        Provenance::Upstream,
+        Provenance::Catalog,
+    ];
+
     pub fn as_str(self) -> &'static str {
         match self {
             Provenance::Site => "site",
             Provenance::Bimi => "bimi",
             Provenance::Thesvg => "thesvg",
             Provenance::Upstream => "upstream",
+            Provenance::Catalog => "catalog",
         }
     }
 }
@@ -108,6 +122,8 @@ pub enum Source {
 }
 
 impl Source {
+    pub const ALL: [Source; 3] = [Source::Cache, Source::Origin, Source::Generated];
+
     pub fn as_str(self) -> &'static str {
         match self {
             Source::Cache => "cache",

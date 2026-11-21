@@ -10,40 +10,48 @@ on:
 permissions:
   contents: read
 
-env:
-  IMAGE: ghcr.io/${{ github.repository }}
-
 jobs:
   build:
     strategy:
       fail-fast: false
       matrix:
+        variant: [api, site]
+        arch: [amd64, arm64]
         include:
-          - platform: linux/amd64
+          - arch: amd64
+            platform: linux/amd64
             runner: ubuntu-24.04
-          - platform: linux/arm64
+          - arch: arm64
+            platform: linux/arm64
             runner: ubuntu-24.04-arm
+          - variant: api
+            image: favicons
+            features: ""
+          - variant: site
+            image: favicons-site
+            features: site
     runs-on: ${{ matrix.runner }}
     permissions:
       contents: read
       packages: write
+    env:
+      IMAGE: ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
-      - id: arch
-        run: echo "name=${PLATFORM#linux/}" >> "$GITHUB_OUTPUT"
-        env:
-          PLATFORM: ${{ matrix.platform }}
       - name: build for smoke test
         uses: docker/build-push-action@v6
         with:
           context: .
           platforms: ${{ matrix.platform }}
+          build-args: FEATURES=${{ matrix.features }}
           load: true
           tags: favicons:smoke
-          cache-from: type=gha,scope=${{ steps.arch.outputs.name }}
-          cache-to: type=gha,mode=max,scope=${{ steps.arch.outputs.name }}
+          cache-from: type=gha,scope=${{ matrix.variant }}-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.variant }}-${{ matrix.arch }}
       - name: smoke test
+        env:
+          VARIANT: ${{ matrix.variant }}
         run: |
           docker run --rm favicons:smoke sandbox-selftest render
           for probe in fs write net exec prctl; do
@@ -62,7 +70,17 @@ jobs:
           echo "$headers"
           echo "$headers" | grep -qi '^content-type: image/svg+xml'
           echo "$headers" | grep -qi '^x-icon-light-plate: #'
-          curl -fsS http://127.0.0.1:8080/ | grep -q 'Try any domain'
+          curl -fsS http://127.0.0.1:8080/color/example.com/superellipse/dark | grep -q 'clip-path="url(#plate)"'
+          curl -fsS http://127.0.0.1:8080/llms.txt | grep -q '/color/'
+          page=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/)
+          if [ "$VARIANT" = site ]; then
+            [ "$page" = 200 ]
+            curl -fsS http://127.0.0.1:8080/ | grep -q 'Try any domain'
+            curl -fsS -o /dev/null http://127.0.0.1:8080/fonts/inter.woff2
+          else
+            [ "$page" = 200 ]
+            curl -fsS http://127.0.0.1:8080/ | grep -q '"openapi": "3.1.0"'
+          fi
           docker rm -f smoke
       - uses: docker/login-action@v3
         if: github.event_name != 'pull_request'
@@ -80,9 +98,10 @@ jobs:
         with:
           context: .
           platforms: ${{ matrix.platform }}
+          build-args: FEATURES=${{ matrix.features }}
           labels: ${{ steps.meta.outputs.labels }}
           outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=true
-          cache-from: type=gha,scope=${{ steps.arch.outputs.name }}
+          cache-from: type=gha,scope=${{ matrix.variant }}-${{ matrix.arch }}
       - name: export digest
         if: github.event_name != 'pull_request'
         run: |
@@ -93,7 +112,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: github.event_name != 'pull_request'
         with:
-          name: digest-${{ steps.arch.outputs.name }}
+          name: digest-${{ matrix.variant }}-${{ matrix.arch }}
           path: /tmp/digests/*
           if-no-files-found: error
           retention-days: 1
@@ -101,15 +120,24 @@ jobs:
   publish:
     if: github.event_name != 'pull_request'
     needs: build
+    strategy:
+      matrix:
+        include:
+          - variant: api
+            image: favicons
+          - variant: site
+            image: favicons-site
     runs-on: ubuntu-24.04
     permissions:
       contents: read
       packages: write
+    env:
+      IMAGE: ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}
     steps:
       - uses: actions/download-artifact@v4
         with:
           path: /tmp/digests
-          pattern: digest-*
+          pattern: digest-${{ matrix.variant }}-*
           merge-multiple: true
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
@@ -144,25 +172,49 @@ jobs:
     permissions:
       contents: write
       packages: read
+    env:
+      OWNER: ghcr.io/${{ github.repository_owner }}
     steps:
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: extract binaries from the image
+      - name: extract binaries from the images
         run: |
           version="${GITHUB_REF_NAME#v}"
           mkdir dist
-          for pair in amd64:x86_64 arm64:aarch64; do
-            platform="${pair%%:*}"; arch="${pair##*:}"
-            id=$(docker create --platform "linux/$platform" "$IMAGE:sha-${GITHUB_SHA::7}")
-            docker cp "$id:/favicons" "dist/favicons-$version-$arch-linux-musl"
-            docker rm "$id" >/dev/null
+          for image in favicons favicons-site; do
+            for pair in amd64:x86_64 arm64:aarch64; do
+              platform="${pair%%:*}"; arch="${pair##*:}"
+              id=$(docker create --platform "linux/$platform" "$OWNER/$image:sha-${GITHUB_SHA::7}")
+              docker cp "$id:/favicons" "dist/$image-$version-$arch-linux-musl"
+              docker rm "$id" >/dev/null
+            done
           done
-          (cd dist && sha256sum favicons-* > SHA256SUMS && cat SHA256SUMS)
+          (cd dist && sha256sum favicons* > SHA256SUMS && cat SHA256SUMS)
       - name: create release
         run: gh release create "$GITHUB_REF_NAME" --verify-tag --generate-notes dist/*
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
+
+  crates:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: publish to crates.io
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          if [ -z "$CARGO_REGISTRY_TOKEN" ]; then
+            echo "::warning::CARGO_REGISTRY_TOKEN is not set; skipping crates.io"
+            exit 0
+          fi
+          tag="${GITHUB_REF_NAME#v}"
+          version=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[0].version')
+          [ "$tag" = "$version" ] || { echo "tag $tag does not match Cargo.toml version $version"; exit 1; }
+          cargo publish --locked

@@ -7,7 +7,6 @@ use crate::contract::FallbackReason;
 pub struct Stats {
     pub requests: AtomicU64,
     pub served_cache: AtomicU64,
-    pub served_redirect: AtomicU64,
     pub canonical_redirects: AtomicU64,
     pub rate_limited: AtomicU64,
     pub shed: AtomicU64,
@@ -43,7 +42,6 @@ impl Stats {
         let counters = [
             ("favicons_requests_total", g(&self.requests)),
             ("favicons_served_cache_total", g(&self.served_cache)),
-            ("favicons_served_redirect_total", g(&self.served_redirect)),
             (
                 "favicons_canonical_redirects_total",
                 g(&self.canonical_redirects),

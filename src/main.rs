@@ -11,13 +11,16 @@ mod http;
 mod limiter;
 mod metrics;
 mod net;
+mod openapi;
 mod palette;
+mod plate;
 mod policy;
 mod queue;
 mod render;
 mod sandbox;
 mod server;
 mod site;
+mod slugs;
 mod store;
 mod tls;
 mod trace;
@@ -124,6 +127,7 @@ async fn run(cfg: config::Config) -> anyhow::Result<()> {
     }
     app.spawn_policy_reloader();
     app.spawn_catalog_reloader();
+    app.spawn_slug_reloaders();
     app.spawn_workers();
     app.spawn_disk_sweeper();
 

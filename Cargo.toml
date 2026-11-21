@@ -4,10 +4,25 @@ version = "0.1.0"
 edition = "2024"
 rust-version = "1.88"
 license = "MIT"
-description = "Privacy-first, attack-resistant website icon service"
+description = "Privacy-first favicon and logo API: any site's icon as a clean, sandboxed SVG with light and dark theme colours"
 repository = "https://github.com/peleda-app/favicons"
+homepage = "https://favicons.page"
+documentation = "https://github.com/peleda-app/favicons/blob/main/docs/API.md"
 readme = "README.md"
-publish = false
+keywords = ["favicon", "icons", "svg", "logo", "api"]
+categories = ["web-programming::http-server", "multimedia::images", "command-line-utilities"]
+include = [
+  "/src/**/*.rs",
+  "/site/robots.txt",
+  "/site/llms.txt",
+  "/config.example.toml",
+  "/README.md",
+  "/LICENSE",
+]
+
+[features]
+default = []
+site = []
 
 [dependencies]
 anyhow = "1"

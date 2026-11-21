@@ -142,7 +142,6 @@ pub struct Store {
     pub disk: Option<Arc<Disk>>,
     attributes: bool,
     prefix: Path,
-    public_base: Option<String>,
     timeout: Duration,
     object_cache_control: String,
     meta_mem: Cache<String, Arc<Meta>>,
@@ -167,10 +166,6 @@ impl Store {
             disk,
             attributes,
             prefix,
-            public_base: cfg
-                .public_base_url
-                .as_ref()
-                .map(|u| u.trim_end_matches('/').to_string()),
             timeout: Duration::from_millis(cfg.storage_timeout_ms),
             object_cache_control: http.icon.browser.clone(),
             meta_mem: Cache::builder()
@@ -204,14 +199,6 @@ impl Store {
         } else {
             Path::from(format!("{}/{rel}", self.prefix))
         }
-    }
-
-    pub fn public_url(&self, domain: &str, slot: Slot) -> Option<String> {
-        let base = self.public_base.as_ref()?;
-        Some(format!(
-            "{base}/{LAYOUT_VERSION}/{domain}/{}",
-            object_name(slot)
-        ))
     }
 
     pub async fn meta(&self, domain: &str) -> Option<Arc<Meta>> {

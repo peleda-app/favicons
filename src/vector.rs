@@ -20,6 +20,8 @@ pub enum VectorOrigin {
 }
 
 impl VectorOrigin {
+    pub const ALL: [VectorOrigin; 2] = [VectorOrigin::Original, VectorOrigin::Traced];
+
     pub fn as_str(self) -> &'static str {
         match self {
             VectorOrigin::Original => "original",

@@ -29,6 +29,8 @@ pub enum Shape {
 }
 
 impl Shape {
+    pub const ALL: [Shape; 4] = [Shape::Square, Shape::Rounded, Shape::Circle, Shape::None];
+
     pub fn as_str(self) -> &'static str {
         match self {
             Shape::Square => "square",
@@ -48,6 +50,8 @@ pub enum Fill {
 }
 
 impl Fill {
+    pub const ALL: [Fill; 2] = [Fill::Bleed, Fill::Inset];
+
     pub fn as_str(self) -> &'static str {
         match self {
             Fill::Bleed => "bleed",

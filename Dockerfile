@@ -1,10 +1,11 @@
 FROM rust:1-alpine AS build
 RUN apk add --no-cache musl-dev
+ARG FEATURES=""
 WORKDIR /src
 COPY Cargo.toml Cargo.lock ./
 COPY src ./src
 COPY site ./site
-RUN cargo build --release --locked \
+RUN cargo build --release --locked --features "$FEATURES" \
     && cp target/release/favicons /favicons \
     && mkdir -p /rootfs/run/favicons /rootfs/var/cache/favicons
 

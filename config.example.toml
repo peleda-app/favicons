@@ -11,7 +11,7 @@ request_timeout_ms = 5000
 header_read_timeout_ms = 5000
 shutdown_grace_ms = 10000
 # worker_threads = 2     # async runtime threads; default is one per CPU. Lower it on a box shared with other services
-landing = true          # serve the demo page at / (embedded in the binary)
+landing = true          # serve the demo page at / (only in builds with the "site" feature, e.g. the favicons-site image)
 # public_url = "https://favicons.example.com"  # name and canonical URLs on the page; defaults to tls.domains[0], then the Host header
 
 [client_ip]
@@ -91,10 +91,6 @@ storage_timeout_ms = 2000
 # usage is back under 90% of it. 0 means no cap. Object storage: use lifecycle rules.
 max_disk_bytes = 0            # e.g. 5_000_000_000
 max_disk_entries = 0          # domains
-# When the bucket is publicly readable, answer with 302 to the object instead of
-# streaming bytes through the service.
-redirect_to_public_url = false
-# public_base_url = "https://icons-cdn.example.com"
 
 # Passed straight to object_store; see its docs for all keys.
 [cache.options]
@@ -107,10 +103,6 @@ redirect_to_public_url = false
 [http_cache.icon]
 browser = "public, max-age=604800, stale-while-revalidate=86400"
 cdn = "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800"
-
-[http_cache.redirect]
-browser = "public, max-age=86400"
-cdn = "public, max-age=86400"
 
 [http_cache.canonical]           # 301 from non-canonical URLs to /{style}/{domain}
 browser = "public, max-age=2592000, immutable"
@@ -170,10 +162,63 @@ index_url = "https://raw.githubusercontent.com/GLINCKER/thesvg/main/src/data/ico
 asset_base = "https://raw.githubusercontent.com/GLINCKER/thesvg/main/public/"
 # Licenses are per icon in theSVG. CC0 needs no attribution. Adding "MIT" or
 # "Apache-2.0" also requires you to credit the authors where you show the icons.
-licenses = ["CC0-1.0"]
+licenses = ["CC0-1.0"]       # e.g. ["CC0-1.0", "Unlicense", "MIT", "Apache-2.0", "BSD-2-Clause", "BSD-3-Clause", "CC-BY-4.0", "CC-BY-3.0"]
 collections = ["brands"]
 reload_secs = 86400
 max_index_bytes = 16777216
+
+# Optional icon catalogs addressed by slug instead of domain:
+# GET /color/{id}/{slug}. Icons go through the same checks, sanitizer, palettes
+# and caches as domains; an unknown slug is a 404 and never reaches the network.
+# /catalogs.json and /catalogs/{id}.json list them. Formats: selfhst,
+# simple-icons (tinted with each brand's colour), dashboard-icons, devicon and
+# thesvg (licensed per icon; `licenses` keeps only the ones listed). `license`
+# is sent as X-Icon-License unless the index has one per icon.
+# [[catalogs]]
+# id = "selfhst"
+# name = "selfh.st icons"
+# format = "selfhst"
+# index_url = "https://cdn.jsdelivr.net/gh/selfhst/icons@main/index.json"
+# base_url = "https://cdn.jsdelivr.net/gh/selfhst/icons@main/"
+# license = "CC-BY-4.0"
+# attribution = "https://selfh.st/icons/"
+#
+# [[catalogs]]
+# id = "simple-icons"
+# name = "Simple Icons"
+# format = "simple-icons"
+# index_url = "https://cdn.jsdelivr.net/npm/simple-icons@16/data/simple-icons.json"
+# base_url = "https://cdn.jsdelivr.net/npm/simple-icons@16/"
+# license = "CC0-1.0"
+# attribution = "https://simpleicons.org"
+#
+# [[catalogs]]
+# id = "dashboard-icons"
+# name = "Dashboard Icons"
+# format = "dashboard-icons"
+# index_url = "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons@main/metadata.json"
+# base_url = "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons@main/"
+# license = "Apache-2.0"
+# attribution = "https://github.com/homarr-labs/dashboard-icons"
+#
+# [[catalogs]]
+# id = "devicon"
+# name = "Devicon"
+# format = "devicon"
+# index_url = "https://cdn.jsdelivr.net/gh/devicons/devicon@master/devicon.json"
+# base_url = "https://cdn.jsdelivr.net/gh/devicons/devicon@master/"
+# license = "MIT"
+# attribution = "https://devicon.dev"
+#
+# [[catalogs]]
+# id = "thesvg"
+# name = "theSVG"
+# format = "thesvg"
+# index_url = "https://raw.githubusercontent.com/GLINCKER/thesvg/main/src/data/icons.json"
+# base_url = "https://raw.githubusercontent.com/GLINCKER/thesvg/main/public/"
+# license = "per icon"
+# licenses = ["CC0-1.0", "Unlicense", "MIT", "Apache-2.0", "BSD-2-Clause", "BSD-3-Clause", "CC-BY-4.0", "CC-BY-3.0"]
+# attribution = "https://github.com/GLINCKER/thesvg"
 
 [upstream]
 # Optional third-party sources, tried in order only when the site itself has no

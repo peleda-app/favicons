@@ -13,6 +13,19 @@ Use it whenever you need a logo or favicon for a domain: link previews, bookmark
 
 The response is always `200` with an SVG, even without a real icon: a generated identicon then, explained by `X-Icon-Fallback-Reason`. Other statuses: `304` for a matching `If-None-Match`, `429` when one network asks too fast (`Retry-After: 1`), `503` under overload.
 
+## Ready-made badges
+
+Append `/rounded/light`, `/rounded/dark`, `/superellipse/light` or `/superellipse/dark`
+to get the icon already drawn on its themed plate, e.g.
+`{{origin}}/color/github.com/superellipse/dark`. With `mono` the mask is tinted on its mono plate.
+
+## Self-hosted apps by name
+
+When the server lists catalogs at `{{origin}}/catalogs.json`, icons can also be
+requested by slug: `GET {{origin}}/color/simple-icons/github`, `/color/selfhst/jellyfin`,
+`/color/devicon/rust`. `{{origin}}/catalogs/{id}.json` lists every slug with its name.
+Unknown slugs are `404`. Mind `X-Icon-License` (CC-BY and Apache need credit).
+
 ## Headers worth reading
 
 - `X-Icon-Source`: `cache`, `origin` (fetched just now) or `generated`.

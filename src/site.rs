@@ -11,14 +11,32 @@ use http::{HeaderMap, HeaderName, HeaderValue, StatusCode, Uri};
 
 use crate::config::Config;
 
-const INDEX: &str = include_str!("../site/index.html");
 const ROBOTS: &str = include_str!("../site/robots.txt");
-const SITEMAP: &str = include_str!("../site/sitemap.xml");
 const LLMS: &str = include_str!("../site/llms.txt");
-const OPENAPI: &str = include_str!("../site/openapi.json");
-const FAVICON: &[u8] = include_bytes!("../site/favicon.svg");
-const APPLE_TOUCH_ICON: &[u8] = include_bytes!("../site/apple-touch-icon.png");
-const OG_IMAGE: &[u8] = include_bytes!("../site/og.png");
+
+#[cfg(feature = "site")]
+mod page {
+    pub const INDEX: &str = include_str!("../site/index.html");
+    pub const SITEMAP: &str = include_str!("../site/sitemap.xml");
+    pub const FAVICON: &[u8] = include_bytes!("../site/favicon.svg");
+    pub const APPLE_TOUCH_ICON: &[u8] = include_bytes!("../site/apple-touch-icon.png");
+    pub const OG_IMAGE: &[u8] = include_bytes!("../site/og.png");
+    pub const FONT_SANS: &[u8] = include_bytes!("../site/fonts/inter.woff2");
+    pub const FONT_MONO: &[u8] = include_bytes!("../site/fonts/jetbrains-mono.woff2");
+}
+
+#[cfg(not(feature = "site"))]
+mod page {
+    pub const INDEX: &str = "";
+    pub const SITEMAP: &str = "";
+    pub const FAVICON: &[u8] = &[];
+    pub const APPLE_TOUCH_ICON: &[u8] = &[];
+    pub const OG_IMAGE: &[u8] = &[];
+    pub const FONT_SANS: &[u8] = &[];
+    pub const FONT_MONO: &[u8] = &[];
+}
+
+pub const ENABLED: bool = cfg!(feature = "site");
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Asset {
@@ -30,6 +48,8 @@ pub enum Asset {
     Favicon,
     AppleTouchIcon,
     OgImage,
+    FontSans,
+    FontMono,
 }
 
 impl Asset {
@@ -43,11 +63,10 @@ impl Asset {
 
     fn template(self) -> Option<&'static str> {
         match self {
-            Asset::Index => Some(INDEX),
+            Asset::Index => Some(page::INDEX),
             Asset::Robots => Some(ROBOTS),
-            Asset::Sitemap => Some(SITEMAP),
+            Asset::Sitemap => Some(page::SITEMAP),
             Asset::Llms => Some(LLMS),
-            Asset::OpenApi => Some(OPENAPI),
             _ => None,
         }
     }
@@ -60,6 +79,7 @@ impl Asset {
             Asset::OpenApi => "application/json",
             Asset::Favicon => "image/svg+xml",
             Asset::AppleTouchIcon | Asset::OgImage => "image/png",
+            Asset::FontSans | Asset::FontMono => "font/woff2",
         }
     }
 
@@ -72,6 +92,7 @@ impl Asset {
             Asset::Favicon | Asset::AppleTouchIcon | Asset::OgImage => {
                 "public, max-age=86400, stale-while-revalidate=604800"
             }
+            Asset::FontSans | Asset::FontMono => "public, max-age=31536000, immutable",
         }
     }
 
@@ -107,40 +128,65 @@ impl Page {
         }
     }
 
-    fn rendered(asset: Asset, origin: &str) -> Self {
+    fn rendered(asset: Asset, origin: &str, catalogs: &[String]) -> Self {
+        if asset == Asset::OpenApi {
+            let spec = crate::openapi::Spec {
+                origin,
+                catalogs,
+                site: ENABLED,
+            };
+            return Page::new(asset, Bytes::from(spec.render()));
+        }
         let template = asset.template().unwrap_or_default();
         Page::new(asset, Bytes::from(render(template, origin)))
     }
 }
 
-static FAVICON_PAGE: LazyLock<Page> =
-    LazyLock::new(|| Page::new(Asset::Favicon, Bytes::from_static(FAVICON)));
-static APPLE_PAGE: LazyLock<Page> =
-    LazyLock::new(|| Page::new(Asset::AppleTouchIcon, Bytes::from_static(APPLE_TOUCH_ICON)));
-static OG_PAGE: LazyLock<Page> =
-    LazyLock::new(|| Page::new(Asset::OgImage, Bytes::from_static(OG_IMAGE)));
+fn binary(asset: Asset) -> Option<&'static Page> {
+    static FAVICON: LazyLock<Page> =
+        LazyLock::new(|| Page::new(Asset::Favicon, Bytes::from_static(page::FAVICON)));
+    static APPLE: LazyLock<Page> = LazyLock::new(|| {
+        Page::new(
+            Asset::AppleTouchIcon,
+            Bytes::from_static(page::APPLE_TOUCH_ICON),
+        )
+    });
+    static OG: LazyLock<Page> =
+        LazyLock::new(|| Page::new(Asset::OgImage, Bytes::from_static(page::OG_IMAGE)));
+    static SANS: LazyLock<Page> =
+        LazyLock::new(|| Page::new(Asset::FontSans, Bytes::from_static(page::FONT_SANS)));
+    static MONO: LazyLock<Page> =
+        LazyLock::new(|| Page::new(Asset::FontMono, Bytes::from_static(page::FONT_MONO)));
+    match asset {
+        Asset::Favicon => Some(&FAVICON),
+        Asset::AppleTouchIcon => Some(&APPLE),
+        Asset::OgImage => Some(&OG),
+        Asset::FontSans => Some(&SANS),
+        Asset::FontMono => Some(&MONO),
+        _ => None,
+    }
+}
 
 pub struct Site {
     fixed: Option<Vec<Arc<Page>>>,
+    catalogs: Vec<String>,
 }
 
 impl Site {
     pub fn new(cfg: &Config) -> Self {
+        let catalogs: Vec<String> = cfg.catalogs.iter().map(|c| c.id.clone()).collect();
         let fixed = public_origin(cfg).map(|origin| {
             Asset::TEMPLATED
                 .iter()
-                .map(|a| Arc::new(Page::rendered(*a, &origin)))
+                .map(|a| Arc::new(Page::rendered(*a, &origin, &catalogs)))
                 .collect()
         });
-        Self { fixed }
+        Self { fixed, catalogs }
     }
 
     pub fn serve(&self, asset: Asset, headers: &HeaderMap, uri: &Uri) -> Response {
-        match asset {
-            Asset::Favicon => return respond(&FAVICON_PAGE, headers),
-            Asset::AppleTouchIcon => return respond(&APPLE_PAGE, headers),
-            Asset::OgImage => return respond(&OG_PAGE, headers),
-            _ => {}
+        if let Some(page) = binary(asset) {
+            return respond(page, headers);
         }
         if let Some(page) = self
             .fixed
@@ -150,7 +196,7 @@ impl Site {
             return respond(page, headers);
         }
         respond(
-            &Page::rendered(asset, &origin_from_request(headers, uri)),
+            &Page::rendered(asset, &origin_from_request(headers, uri), &self.catalogs),
             headers,
         )
     }
@@ -213,8 +259,8 @@ fn index_csp(html: &str) -> HeaderValue {
     let hash = base64::engine::general_purpose::STANDARD.encode(digest.as_ref());
     HeaderValue::from_str(&format!(
         "default-src 'none'; script-src 'sha256-{hash}'; style-src 'unsafe-inline'; \
-         img-src 'self' blob:; connect-src 'self'; base-uri 'none'; form-action 'none'; \
-         frame-ancestors 'none'"
+         font-src 'self'; img-src 'self' blob:; connect-src 'self'; base-uri 'none'; \
+         form-action 'none'; frame-ancestors 'none'"
     ))
     .expect("ascii csp")
 }
@@ -271,37 +317,46 @@ mod tests {
     }
 
     fn body(r: Response) -> String {
-        let bytes = futures_executor_block(r);
-        String::from_utf8(bytes).unwrap()
-    }
-
-    fn futures_executor_block(r: Response) -> Vec<u8> {
-        tokio::runtime::Builder::new_current_thread()
+        let bytes = tokio::runtime::Builder::new_current_thread()
             .build()
             .unwrap()
             .block_on(axum::body::to_bytes(r.into_body(), usize::MAX))
-            .unwrap()
-            .to_vec()
+            .unwrap();
+        String::from_utf8_lossy(&bytes).into_owned()
     }
 
+    #[cfg(feature = "site")]
     #[test]
     fn script_hash_covers_the_inline_script() {
-        let script = inline_script(INDEX).unwrap();
+        let script = inline_script(page::INDEX).unwrap();
         assert!(script.contains("fetch(`/${style}/"));
         assert!(!script.contains("{{"));
-        let page = Page::rendered(Asset::Index, "https://favicons.page");
+        let page = Page::rendered(Asset::Index, "https://favicons.page", &[]);
         let csp = page.csp.unwrap();
-        assert!(csp.to_str().unwrap().contains("script-src 'sha256-"));
-        assert_eq!(INDEX.matches("<script>").count(), 1);
+        let csp = csp.to_str().unwrap();
+        assert!(csp.contains("script-src 'sha256-"));
+        assert!(csp.contains("font-src 'self'"));
+        assert!(!csp.contains("https:"));
+        assert_eq!(page::INDEX.matches("<script>").count(), 1);
     }
 
+    #[cfg(feature = "site")]
     #[test]
     fn page_loads_nothing_from_other_origins() {
-        for needle in ["googleapis", "gstatic", "src=\"http", "href=\"//"] {
-            assert!(!INDEX.contains(needle), "{needle}");
+        for needle in [
+            "googleapis",
+            "gstatic",
+            "src=\"http",
+            "href=\"//",
+            "@import",
+        ] {
+            assert!(!page::INDEX.contains(needle), "{needle}");
         }
+        assert!(page::INDEX.contains("url(\"/fonts/inter.woff2\")"));
+        assert!(!page::FONT_SANS.is_empty() && !page::FONT_MONO.is_empty());
     }
 
+    #[cfg(feature = "site")]
     #[test]
     fn names_itself_after_the_configured_origin() {
         let s = site(Some("https://favicons.page/"));
@@ -310,6 +365,11 @@ mod tests {
         assert!(html.contains(r#"<link rel="canonical" href="https://favicons.page/">"#));
         assert!(html.contains("https://favicons.page/og.png"));
         assert!(!html.contains("{{"));
+    }
+
+    #[test]
+    fn docs_name_themselves_after_the_origin() {
+        let s = site(Some("https://favicons.page/"));
         let robots = body(s.serve(Asset::Robots, &HeaderMap::new(), &Uri::from_static("/")));
         assert!(robots.contains("Sitemap: https://favicons.page/sitemap.xml"));
         assert!(robots.contains("Disallow: /color/"));
@@ -333,9 +393,9 @@ mod tests {
     #[test]
     fn every_template_is_well_formed() {
         for asset in Asset::TEMPLATED {
-            let text = render(asset.template().unwrap(), "https://favicons.page");
+            let page = Page::rendered(asset, "https://favicons.page", &["selfhst".into()]);
+            let text = std::str::from_utf8(&page.body).unwrap();
             assert!(!text.contains("{{"), "{asset:?}");
         }
-        serde_json::from_str::<serde_json::Value>(&render(OPENAPI, "https://x.test")).unwrap();
     }
 }

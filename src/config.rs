@@ -23,6 +23,7 @@ pub struct Config {
     pub upstream: Upstream,
     pub bimi: Bimi,
     pub catalog: CatalogCfg,
+    pub catalogs: Vec<SlugCatalog>,
     pub tls: Tls,
 }
 
@@ -104,6 +105,15 @@ impl Config {
                 ),
             ])
             .filter(|(_, s)| s.starts_with("http://") || s.starts_with("https://"));
+        let mut ids = std::collections::HashSet::new();
+        for c in &self.catalogs {
+            c.validate(&urls)?;
+            anyhow::ensure!(
+                ids.insert(c.id.as_str()),
+                "catalogs: id {:?} is used twice",
+                c.id
+            );
+        }
         for (key, raw) in remote {
             let ok = url::Url::parse(raw).is_ok_and(|u| urls.allows(&u));
             anyhow::ensure!(
@@ -136,12 +146,6 @@ impl Config {
             self.render.max_source_dimension >= 16 && self.render.max_source_dimension <= 4096,
             "render.max_source_dimension must be within 16..=4096"
         );
-        if self.cache.redirect_to_public_url {
-            anyhow::ensure!(
-                self.cache.public_base_url.is_some(),
-                "cache.redirect_to_public_url requires cache.public_base_url"
-            );
-        }
         Ok(())
     }
 }
@@ -342,8 +346,6 @@ impl Default for Render {
 pub struct Cache {
     pub storage: String,
     pub options: HashMap<String, String>,
-    pub public_base_url: Option<String>,
-    pub redirect_to_public_url: bool,
     pub ttl_secs: u64,
     pub not_found_ttl_secs: u64,
     pub fetch_failed_ttl_secs: u64,
@@ -374,8 +376,6 @@ impl Default for Cache {
         Self {
             storage: "none".into(),
             options: HashMap::new(),
-            public_base_url: None,
-            redirect_to_public_url: false,
             ttl_secs: 7 * 86_400,
             not_found_ttl_secs: 86_400,
             fetch_failed_ttl_secs: 3_600,
@@ -412,7 +412,6 @@ impl CacheProfile {
 #[serde(default, deny_unknown_fields)]
 pub struct HttpCache {
     pub icon: CacheProfile,
-    pub redirect: CacheProfile,
     pub canonical: CacheProfile,
     pub fallback_transient: CacheProfile,
     pub fallback_stable: CacheProfile,
@@ -426,7 +425,6 @@ impl Default for HttpCache {
                 "public, max-age=604800, stale-while-revalidate=86400",
                 "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
             ),
-            redirect: CacheProfile::new("public, max-age=86400", "public, max-age=86400"),
             canonical: CacheProfile::new(
                 "public, max-age=2592000, immutable",
                 "public, max-age=31536000, immutable",
@@ -614,6 +612,71 @@ impl Default for Bimi {
 #[serde(default, deny_unknown_fields)]
 pub struct CatalogCfg {
     pub thesvg: TheSvg,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub enum IndexFormat {
+    Selfhst,
+    SimpleIcons,
+    DashboardIcons,
+    Devicon,
+    Thesvg,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SlugCatalog {
+    pub id: String,
+    pub name: String,
+    pub format: IndexFormat,
+    pub index_url: String,
+    pub base_url: String,
+    pub license: String,
+    #[serde(default)]
+    pub licenses: Vec<String>,
+    #[serde(default)]
+    pub attribution: Option<String>,
+    #[serde(default = "default_catalog_reload")]
+    pub reload_secs: u64,
+    #[serde(default = "default_catalog_index_bytes")]
+    pub max_index_bytes: usize,
+}
+
+fn default_catalog_reload() -> u64 {
+    86_400
+}
+
+fn default_catalog_index_bytes() -> usize {
+    32 * 1024 * 1024
+}
+
+impl SlugCatalog {
+    fn validate(&self, urls: &crate::net::UrlPolicy) -> anyhow::Result<()> {
+        let id = &self.id;
+        anyhow::ensure!(
+            !id.is_empty()
+                && id.len() <= 32
+                && id
+                    .bytes()
+                    .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
+                && !id.starts_with('-'),
+            "catalogs: id {id:?} must be 1-32 lowercase letters, digits or dashes"
+        );
+        for (key, raw) in [("index_url", &self.index_url), ("base_url", &self.base_url)] {
+            let url = url::Url::parse(raw)
+                .map_err(|e| anyhow::anyhow!("catalogs.{id}.{key} is not a URL: {e}"))?;
+            anyhow::ensure!(
+                url.scheme() == "https" && urls.allows(&url),
+                "catalogs.{id}.{key} must be https and allowed by the fetch policy"
+            );
+        }
+        anyhow::ensure!(
+            self.base_url.ends_with('/'),
+            "catalogs.{id}.base_url must end with /"
+        );
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]

@@ -352,17 +352,7 @@ h2 { font-family: var(--display); font-size: clamp(30px, 3.8vw, 44px); letter-sp
 .figures span { font: 12px var(--mono); color: var(--muted); }
 .machine .note { margin: 20px 0 0; color: var(--muted); font-size: 14px; }
 
-.served { text-align: center; padding: 8px 0 40px; }
-.served-eb { display: inline-flex; align-items: center; gap: 8px; font: 500 13px var(--mono); color: var(--accent); margin-bottom: 14px; }
-.served-dot { width: 7px; height: 7px; border-radius: 50%; background: #7bd88f; animation: served-pulse 2s infinite; }
-@keyframes served-pulse { 0% { box-shadow: 0 0 0 0 rgba(123, 216, 143, .55); } 70% { box-shadow: 0 0 0 9px rgba(123, 216, 143, 0); } 100% { box-shadow: 0 0 0 0 rgba(123, 216, 143, 0); } }
-.odo { display: flex; justify-content: center; align-items: flex-end; font: 800 clamp(52px, 9vw, 92px)/1 var(--display); font-stretch: 85%; letter-spacing: -.01em; color: var(--cream); font-variant-numeric: tabular-nums; }
-.odo .col { display: inline-block; height: 1em; overflow: hidden; }
-.odo .col > span { display: block; }
-.odo .col > span > span { display: block; height: 1em; }
-.odo .sep { width: .28em; color: var(--dim); }
-.served-cap { margin: 16px auto 0; max-width: 460px; color: var(--muted); font-size: 16px; }
-@media (prefers-reduced-motion: reduce) { .served-dot { animation: none; } }
+.served-n { font-weight: 600; font-variant-numeric: tabular-nums; color: var(--cream); background: linear-gradient(100deg, #fffaf2 0%, #fbe6cf 40%, #ffc3a0 80%); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
 .cmp { display: flex; flex-direction: column; gap: 8px; }
 .cmp-row { display: grid; grid-template-columns: minmax(170px, 1.1fr) minmax(0, 1fr) minmax(0, 1fr); gap: 20px; align-items: center; padding: 16px 20px; border-radius: 16px; background: var(--surface); }
 .cmp-row.ours { box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--accent) 45%, transparent); background: color-mix(in oklab, var(--accent) 5%, var(--surface)); }
@@ -468,7 +458,7 @@ footer a { color: var(--muted); }
 
 <header class="hero">
   <h1>Website icons,<br><span>safely.</span></h1>
-  <p class="lead">One request turns any site's icon into a clean, compact SVG. It is sanitized or traced in a sandbox, fitted to its box, and cached, so your users never touch the site.</p>
+  <p class="lead">One request turns any site's icon into a clean, compact SVG<span id="served" hidden> <b class="served-n" id="servedN">0</b> times so far</span>. It is sanitized or traced in a sandbox, fitted to its box, and cached, so your users never touch the site.</p>
 
   <div class="demo" id="demo">
     <div class="mail" id="mail" aria-label="Demo: a mail client using favicons icons and palettes">
@@ -507,11 +497,6 @@ footer a { color: var(--muted); }
   <p class="hint">Icons and palettes come live from this server's API. Take the controls to try it yourself.</p>
 </header>
 
-<section id="served" class="served" hidden aria-live="polite">
-  <div class="served-eb"><span class="served-dot"></span>live · icons served</div>
-  <div class="odo" id="odo" role="img"></div>
-  <p class="served-cap">icons handed out by {{host}} since 1.0. Every one of them sanitized, themed and cached.</p>
-</section>
 
 <section id="api">
   <div class="eyebrow">api</div>
@@ -1285,60 +1270,43 @@ footer a { color: var(--muted); }
   if (location.hostname === "favicons.page") $("#use").hidden = false;
 
   (async () => {
-    const section = $("#served");
-    const odo = $("#odo");
-    const get = (path, opts) => fetch(path, opts).then((r) => (r.ok ? r.json() : null)).catch(() => null);
     if (location.hostname !== "favicons.page") return;
+    const get = (path, opts) => fetch(path, opts).then((r) => (r.ok ? r.json() : null)).catch(() => null);
     const page = await published("stats.json").then((r) => (r.ok ? r.json() : null)).catch(() => null);
     if (!page) return;
     let live = await get("/stats", { cache: "no-store" });
-    const others = () =>
+    const value = () =>
       (page.total || 0) +
       Object.values(page.sources || {}).reduce((n, s) => n + (s.count || 0), 0) +
-      (page.instances || []).filter((i) => !live || i.id !== live.instance).reduce((n, i) => n + (i.count || 0), 0);
-    const value = () => others() + (live ? live.icons || 0 : 0);
+      (page.instances || []).filter((i) => !live || i.id !== live.instance).reduce((n, i) => n + (i.count || 0), 0) +
+      (live ? live.icons || 0 : 0);
     if (value() <= 0) return;
-    const digits = (n) => n.toLocaleString("en-US");
-    let shown = "";
-    const build = (text) => {
-      odo.innerHTML = [...text]
-        .map((ch) => (ch === "," ? '<span class="sep">,</span>' : `<span class="col" data-d="${ch}"><span>${Array.from({ length: 20 }, (_, i) => `<span>${i % 10}</span>`).join("")}</span></span>`))
-        .join("");
-      shown = text;
-    };
-    const roll = (text, first) => {
-      if (text.length !== shown.length) build(text);
-      const cols = [...odo.querySelectorAll(".col")];
-      const plain = text.replace(/,/g, "");
-      cols.forEach((c, i) => {
-        const strip = c.firstElementChild;
-        const d = Number(plain[i]);
-        strip.style.transition = reduce ? "none" : first ? `transform ${1.2 + i * 0.12}s cubic-bezier(.16, 1, .3, 1)` : "transform .6s cubic-bezier(.16, 1, .3, 1)";
-        strip.style.transform = `translateY(-${10 + d}em)`;
-      });
-      shown = text;
-      odo.setAttribute("aria-label", `${text} icons served`);
-    };
-    section.hidden = false;
-    build(digits(value()));
-    let started = false;
-    const start = () => {
-      if (started) return;
-      started = true;
-      requestAnimationFrame(() => requestAnimationFrame(() => roll(digits(value()), true)));
-    };
-    new IntersectionObserver((entries, obs) => {
-      if (entries.some((e) => e.isIntersecting)) {
-        start();
-        obs.disconnect();
+    const out = $("#servedN");
+    let shown = 0;
+    const animate = (to, ms) => {
+      const from = shown;
+      if (reduce || to <= from) {
+        shown = to;
+        out.textContent = to.toLocaleString("en-US");
+        return;
       }
-    }).observe(section);
+      const start = performance.now();
+      const step = (now) => {
+        const t = Math.min(1, (now - start) / ms);
+        shown = Math.round(from + (to - from) * (1 - Math.pow(1 - t, 3)));
+        out.textContent = shown.toLocaleString("en-US");
+        if (t < 1) requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
+    };
+    $("#served").hidden = false;
+    animate(value(), 1400);
     setInterval(async () => {
-      if (document.hidden || !started) return;
+      if (document.hidden) return;
       const fresh = await get("/stats", { cache: "no-store" });
       if (!fresh) return;
       live = fresh;
-      roll(digits(value()), false);
+      animate(value(), 800);
     }, 30000);
   })();
 

@@ -281,6 +281,21 @@ for p in fs write net exec prctl; do docker run --rm favicons sandbox-selftest $
 * User namespaces / gVisor (`runsc`) for the renderer container.
 * Proof-of-work or signed URLs for anonymous high-volume clients.
 
+## Verifying builds
+
+Every published image and release binary carries a signed SLSA build
+provenance attestation (Sigstore, keyless, issued to this repository's GitHub
+Actions workflow). It proves the artifact was built by `.github/workflows/docker.yml`
+from a specific commit of this repository:
+
+```bash
+gh attestation verify oci://ghcr.io/peleda-app/favicons:latest --repo peleda-app/favicons
+gh attestation verify favicons-0.1.1-x86_64-linux-musl --repo peleda-app/favicons
+```
+
+The output names the commit and workflow run. Images can be pinned by the
+verified digest.
+
 ## Reporting a vulnerability
 
 Please use GitHub's private vulnerability reporting on this repository rather

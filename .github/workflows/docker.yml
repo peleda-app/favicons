@@ -70,7 +70,7 @@ jobs:
           echo "$headers"
           echo "$headers" | grep -qi '^content-type: image/svg+xml'
           echo "$headers" | grep -qi '^x-icon-light-plate: #'
-          curl -fsS http://127.0.0.1:8080/color/example.com/superellipse/dark | grep -q 'clip-path="url(#plate)"'
+          curl -fsS http://127.0.0.1:8080/color/example.com/superellipse/dark | grep -q 'clip-path="url(#c-'
           curl -fsS http://127.0.0.1:8080/llms.txt | grep -q '/color/'
           page=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/)
           if [ "$VARIANT" = site ]; then

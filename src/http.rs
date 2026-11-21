@@ -1308,7 +1308,7 @@ mod routing_tests {
         assert!(catalog.sources(false).is_empty());
         let meta = app.store.meta("@emoji.red-square").await.unwrap();
         assert!(meta.source.is_some() && meta.palette.is_some() && !app.is_stale(&meta));
-        assert!(dir.join("v3/@emoji.red-square/color.svg.gz").exists());
+        assert!(dir.join("v4/@emoji.red-square/color.svg.gz").exists());
 
         let r = get_with(
             &app,

@@ -18,7 +18,7 @@ use crate::disk::Disk;
 use crate::palette::Palette;
 use crate::vector::VectorOrigin;
 
-pub const LAYOUT_VERSION: &str = "v3";
+pub const LAYOUT_VERSION: &str = "v4";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -81,6 +81,28 @@ pub fn now() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_or(0, |d| d.as_secs())
+}
+
+fn drop_old_layouts(root: &std::path::Path) {
+    let Ok(entries) = std::fs::read_dir(root) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let name = entry.file_name();
+        let name = name.to_string_lossy();
+        let layout = name
+            .strip_prefix('v')
+            .is_some_and(|n| !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()));
+        if !layout || name == LAYOUT_VERSION || !entry.path().is_dir() {
+            continue;
+        }
+        match std::fs::remove_dir_all(entry.path()) {
+            Ok(()) => tracing::info!(layout = %name, "dropped an old cache layout"),
+            Err(e) => {
+                tracing::warn!(layout = %name, error = %e, "could not drop an old cache layout")
+            }
+        }
+    }
 }
 
 pub fn object_name(slot: Slot) -> &'static str {
@@ -225,6 +247,9 @@ pub struct Store {
 impl Store {
     pub fn new(cfg: &CacheCfg, http: &HttpCache) -> anyhow::Result<Self> {
         let (backend, prefix, attributes, local) = build_backend(cfg)?;
+        if let Some(root) = local.clone() {
+            std::thread::spawn(move || drop_old_layouts(&root));
+        }
         let disk = local.and_then(|root| {
             Disk::new(
                 root.join(LAYOUT_VERSION),
@@ -533,6 +558,19 @@ fn build_backend(cfg: &CacheCfg) -> anyhow::Result<Backend> {
 mod tests {
     use super::*;
 
+    #[test]
+    fn drops_old_cache_layouts_only() {
+        let dir = std::env::temp_dir().join(format!("favicons-layouts-{}", std::process::id()));
+        for d in ["v3/example.com", "v4/example.com", "vendor", "catalogs"] {
+            std::fs::create_dir_all(dir.join(d)).unwrap();
+        }
+        super::drop_old_layouts(&dir);
+        assert!(!dir.join("v3").exists());
+        assert!(dir.join("v4/example.com").exists());
+        assert!(dir.join("vendor").exists() && dir.join("catalogs").exists());
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
     fn store_in(dir: &std::path::Path) -> Store {
         let cfg = CacheCfg {
             storage: format!("file://{}", dir.display()),
@@ -562,24 +600,24 @@ mod tests {
             fresh.image(&meta, Slot::Mono).await.unwrap().raw().as_ref(),
             [4, 5]
         );
-        assert!(dir.join("v3/example.com/color.svg.gz").exists());
-        assert!(dir.join("v3/example.com/mono.svg.gz").exists());
-        assert!(!dir.join("v3/example.com/color.svg").exists());
+        assert!(dir.join("v4/example.com/color.svg.gz").exists());
+        assert!(dir.join("v4/example.com/mono.svg.gz").exists());
+        assert!(!dir.join("v4/example.com/color.svg").exists());
         let _ = std::fs::remove_dir_all(dir);
     }
 
     #[tokio::test]
     async fn reads_either_layout_and_keeps_one_on_disk() {
         let dir = std::env::temp_dir().join(format!("favicons-test-{}", rand::random::<u64>()));
-        std::fs::create_dir_all(dir.join("v3/old.com")).unwrap();
+        std::fs::create_dir_all(dir.join("v4/old.com")).unwrap();
         let mut meta = Meta::new("old.com", Status::Ok);
         meta.color = Some(VectorOrigin::Original);
         std::fs::write(
-            dir.join("v3/old.com/meta.json"),
+            dir.join("v4/old.com/meta.json"),
             serde_json::to_vec(&meta).unwrap(),
         )
         .unwrap();
-        std::fs::write(dir.join("v3/old.com/color.svg"), b"<svg/>").unwrap();
+        std::fs::write(dir.join("v4/old.com/color.svg"), b"<svg/>").unwrap();
 
         let gz = store_in(&dir);
         let icon = gz.image(&meta, Slot::Color).await.unwrap();
@@ -604,8 +642,8 @@ mod tests {
                 vec![(Slot::Mono, b"<svg id=\"m\"/>".to_vec())],
             )
             .await;
-        assert!(dir.join("v3/old.com/mono.svg").exists());
-        assert!(!dir.join("v3/old.com/mono.svg.gz").exists());
+        assert!(dir.join("v4/old.com/mono.svg").exists());
+        assert!(!dir.join("v4/old.com/mono.svg.gz").exists());
         let mono = store_in(&dir).image(&meta, Slot::Mono).await.unwrap();
         assert_eq!(mono.raw().as_ref(), b"<svg id=\"m\"/>");
         let _ = std::fs::remove_dir_all(dir);

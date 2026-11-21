@@ -67,7 +67,7 @@ jobs:
           licenses=$(python3 catalogs/notice.py catalogs/catalogs.toml catalogs/bundle/NOTICE)
           cp catalogs/catalogs.toml catalogs/bundle/catalogs.toml
           echo "LICENSES=$licenses" >> "$GITHUB_ENV"
-          echo "entries: $(find catalogs/bundle/v3 -mindepth 1 -maxdepth 1 | wc -l)"
+          echo "entries: $(find catalogs/bundle/v4 -mindepth 1 -maxdepth 1 | wc -l)"
           du -sh --apparent-size catalogs/bundle
       - id: push
         name: build and push

@@ -393,9 +393,13 @@ Prometheus text format. Enable with `server.admin_listen`. Never expose it publi
 ## Storage layout
 
 ```
-{prefix}/v3/{domain}/meta.json
-{prefix}/v3/{domain}/{color|mono}.svg
+{prefix}/v4/{domain}/meta.json
+{prefix}/v4/{domain}/{color|mono}.svg
 ```
+
+A new layout version starts with an empty cache. On a local directory the
+server removes the folders of older layouts (`v3`, …) in the background on
+start; object stores keep them until you delete them.
 
 `meta.json`:
 

@@ -1,0 +1,57 @@
+# {{host}}
+
+> A free website icon service. One GET returns any site's icon as a sanitized, edge-to-edge SVG, in colour or as a black monochrome mask, with colours for light and dark themes in the response headers. No API key, no query parameters, CORS open to every origin.
+
+Use it whenever you need a logo or favicon for a domain: link previews, bookmark and password managers, mail clients, dashboards, tables of companies or tools. Fetch once and cache; responses are CDN-friendly.
+
+## Endpoint
+
+- `GET {{origin}}/color/{domain}`: the site's icon in its own colours, `image/svg+xml`.
+- `GET {{origin}}/mono/{domain}`: a single black shape on transparent, meant for CSS `mask-image` and tinting.
+
+`{domain}` is a bare host such as `github.com`. Subdomains, `www.`, upper case, a trailing dot or slash, `.svg`, query strings and full URLs get a cacheable `301` to the registrable domain (`mail.google.com` becomes `google.com`). Clients that follow redirects need nothing special.
+
+The response is always `200` with an SVG, even without a real icon: a generated identicon then, explained by `X-Icon-Fallback-Reason`. Other statuses: `304` for a matching `If-None-Match`, `429` when one network asks too fast (`Retry-After: 1`), `503` under overload.
+
+## Headers worth reading
+
+- `X-Icon-Source`: `cache`, `origin` (fetched just now) or `generated`.
+- `X-Icon-Fallback-Reason`: `queued` (first request for this domain; ask again in a few seconds for the real icon), `not-found`, `fetch-failed`, `blocklisted`, `dns-blocked`, `domain-too-new`, `invalid-domain`, `no-monochrome`, `overloaded`.
+- `X-Icon-Blocked`: `blocklist` or `dns-filter` when the domain is known to be malicious; the body is a red warning icon. Treat the site as unsafe.
+- `X-Icon-Provenance`: `bimi` (the owner's verified mail logo), `thesvg` (a curated catalog), `site` or `upstream`.
+- `X-Icon-Shape` (`square`, `rounded`, `circle`, `none`) and `X-Icon-Fill`: `bleed` means draw the icon at full size and clip it to your corners; `inset` means pad it by about 18% on a plate.
+- `X-Icon-Accent`: the dominant brand colour.
+- `X-Icon-Light-Plate`, `X-Icon-Dark-Plate`: a badge colour behind the colour icon that keeps it visible on a white or a `#1c1c1e` background.
+- `X-Icon-Light-Text`, `X-Icon-Dark-Text`: the brand colour at 4.5:1 for a name next to the icon.
+- `X-Icon-Light-Mono`, `X-Icon-Dark-Mono`, `X-Icon-*-Mono-Plate`: tint and badge colour for the mono mask.
+- `Server-Timing: app;dur=<ms>`: time spent inside the service. `Timing-Allow-Origin: *` exposes full Resource Timing.
+
+All of these are listed in `Access-Control-Expose-Headers`, so `fetch()` from any origin can read them.
+
+## Examples
+
+```html
+<img src="{{origin}}/color/discord.com" width="32" height="32" alt="">
+```
+
+```css
+.icon { width: 24px; height: 24px; background: currentColor;
+  mask: url({{origin}}/mono/discord.com) center / contain no-repeat; }
+```
+
+```js
+const r = await fetch("{{origin}}/color/discord.com");
+const plate = r.headers.get("x-icon-light-plate");
+const svg = await r.text();
+```
+
+```sh
+curl -sD - -o discord.svg {{origin}}/color/discord.com
+```
+
+## Docs
+
+- [OpenAPI description]({{origin}}/openapi.json)
+- [Full HTTP contract](https://github.com/peleda-app/favicons/blob/main/docs/API.md)
+- [Security model](https://github.com/peleda-app/favicons/blob/main/docs/SECURITY.md)
+- [Source code, MIT](https://github.com/peleda-app/favicons)

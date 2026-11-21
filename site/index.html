@@ -3,10 +3,58 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>favicons: website icons, safely</title>
-<meta name="description" content="A small, privacy-first service that turns any site's icon into a clean SVG. Sandboxed, vetted, cache-friendly.">
+<title>{{host}} · website icons as clean SVG, with colours for every theme</title>
+<meta name="description" content="Free API that turns any website's favicon or logo into a sanitized SVG, in colour or as a monochrome mask, with badge and text colours for light and dark themes. No key, CORS open, open source.">
+<link rel="canonical" href="{{origin}}/">
+<meta name="robots" content="index, follow, max-image-preview:large">
 <meta name="theme-color" content="#141416">
-<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<meta name="color-scheme" content="dark">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="alternate" type="text/markdown" href="/llms.txt" title="Docs for language models">
+<link rel="service-desc" type="application/json" href="/openapi.json">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="{{host}}">
+<meta property="og:url" content="{{origin}}/">
+<meta property="og:title" content="{{host}}: website icons, safely">
+<meta property="og:description" content="Any site's icon as a clean, safe SVG, with colours that fit every theme. One GET, no key.">
+<meta property="og:image" content="{{origin}}/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="{{host}}: a grid of icons on coloured plates next to GET /mono/example.com">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="{{host}}: website icons, safely">
+<meta name="twitter:description" content="Any site's icon as a clean, safe SVG, with colours that fit every theme. One GET, no key.">
+<meta name="twitter:image" content="{{origin}}/og.png">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "WebSite",
+      "name": "{{host}}",
+      "url": "{{origin}}/",
+      "description": "Website icons as sanitized SVG, with colours for light and dark themes."
+    },
+    {
+      "@type": "WebAPI",
+      "name": "{{host}} icon API",
+      "url": "{{origin}}/",
+      "documentation": "{{origin}}/openapi.json",
+      "description": "GET /{color|mono}/{domain} returns the site's icon as an edge-to-edge SVG. Palette headers give badge, text and mask colours for both themes.",
+      "isAccessibleForFree": true,
+      "provider": { "@type": "Organization", "name": "peleda", "url": "https://github.com/peleda-app" }
+    },
+    {
+      "@type": "SoftwareSourceCode",
+      "name": "favicons",
+      "codeRepository": "https://github.com/peleda-app/favicons",
+      "programmingLanguage": "Rust",
+      "license": "https://opensource.org/licenses/MIT"
+    }
+  ]
+}
+</script>
 <style>
 :root {
   --bg: #141416;
@@ -112,10 +160,61 @@ section { padding: 72px 0; }
 h2 { font-size: clamp(28px, 3.4vw, 38px); letter-spacing: -.025em; line-height: 1.15; margin: 0 0 12px; font-weight: 700; }
 .sub { color: var(--muted); max-width: 620px; margin: 0 0 36px; }
 
-.api { display: grid; grid-template-columns: 1fr 1fr; gap: 48px 56px; }
-.endpoint { grid-column: 1 / -1; font: 18px var(--mono); }
-.endpoint b { color: var(--accent); font-weight: 500; margin-right: 12px; }
-.endpoint em { color: var(--cream); font-style: normal; }
+.api { display: grid; grid-template-columns: 1fr 1fr; gap: 48px 56px; margin-top: 56px; }
+
+.probe { margin-bottom: 20px; }
+.field { display: flex; align-items: center; gap: 4px; padding: 8px 8px 8px 18px; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; font: 16px var(--mono); transition: border-color .2s, box-shadow .2s; }
+.field:focus-within { border-color: color-mix(in oklab, var(--accent) 55%, var(--line)); box-shadow: 0 0 0 4px color-mix(in oklab, var(--accent) 14%, transparent); }
+.verb { color: var(--accent); margin-right: 10px; font-weight: 500; }
+.path { color: var(--dim); }
+.styles { display: inline-flex; padding: 3px; gap: 2px; background: var(--bg); border-radius: 10px; }
+.styles button { border: 0; background: transparent; color: var(--muted); font: 15px var(--mono); padding: 5px 10px; border-radius: 7px; cursor: pointer; transition: background .2s, color .2s; }
+.styles button[aria-pressed="true"] { background: var(--cream); color: var(--bg); }
+.field input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--text); font: inherit; padding: 8px 4px; }
+.go { border: 0; background: var(--accent); color: #2a160b; font: 600 15px var(--sans); padding: 11px 20px; border-radius: 11px; cursor: pointer; transition: transform .12s, filter .2s; }
+.go:hover { filter: brightness(1.06); }
+.go:active { transform: scale(.97); }
+.examples { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; font-size: 13px; color: var(--dim); }
+.examples button { border: 1px solid var(--line); background: transparent; color: var(--muted); font: 13px var(--mono); padding: 4px 10px; border-radius: 999px; cursor: pointer; transition: color .2s, border-color .2s; }
+.examples button:hover { color: var(--text); border-color: var(--dim); }
+
+.result { display: grid; grid-template-columns: 220px 1fr 300px; gap: 16px; margin-bottom: 16px; }
+.result.loading .raw img, .result.loading .scene .badge { opacity: .35; }
+.raw { background: var(--surface); border-radius: 18px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.checker { flex: 1; min-height: 188px; display: grid; place-items: center; border-radius: 12px; background: conic-gradient(#232328 25%, #1b1b1f 0 50%, #232328 0 75%, #1b1b1f 0) 0 0 / 16px 16px; }
+.checker img { width: 112px; height: 112px; transition: opacity .25s; }
+.checker img:not([src]) { visibility: hidden; }
+.raw-meta { font: 12px/1.5 var(--mono); color: var(--muted); }
+.scenes { display: grid; grid-template-rows: repeat(3, 1fr); gap: 10px; }
+.scene { position: relative; border-radius: 18px; padding: 16px 18px; display: flex; align-items: center; }
+.scene.light { background: #ffffff; color: #1c1c1e; }
+.scene.dark, .scene.mono { background: #1c1c1e; color: #ececee; box-shadow: inset 0 0 0 1px #2c2c30; }
+.scene .label { position: absolute; top: 10px; right: 14px; font: 11px var(--mono); opacity: .45; }
+.contact { display: flex; align-items: center; gap: 14px; width: 100%; }
+.contact > div:nth-child(2) { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.contact b { font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--name, inherit); transition: color .3s; }
+.contact small { font-size: 12.5px; opacity: .55; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pill { font: 600 12px var(--sans); padding: 6px 12px; border-radius: 999px; background: var(--pill, #8e8e96); color: var(--pill-text, #fff); transition: background .3s, color .3s; }
+.scene .badge { width: 44px; height: 44px; border-radius: 12px; }
+.scene.mono .badge { background: var(--mono-plate); }
+.scene.mono .badge img { opacity: 0; }
+.scene.mono .badge .mask { opacity: 1; }
+.facts { background: var(--surface); border-radius: 18px; padding: 18px; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.status { font: 13px var(--mono); color: var(--muted); display: flex; flex-wrap: wrap; gap: 6px 10px; }
+.status b { color: var(--text); font-weight: 500; }
+.status .ok { color: #7bd88f; }
+.status .warn { color: #ff8a6b; }
+.meta { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; margin: 0; font: 12.5px var(--mono); }
+.meta dt { color: var(--dim); }
+.meta dd { margin: 0; color: var(--cream); overflow-wrap: anywhere; }
+.swatches { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px; padding-top: 12px; border-top: 1px solid var(--line); font: 11.5px var(--mono); color: var(--muted); }
+.swatches h4 { grid-column: 1 / -1; margin: 6px 0 0; font: 500 11px var(--mono); color: var(--dim); text-transform: uppercase; letter-spacing: .06em; }
+.swatches div { display: flex; align-items: center; gap: 7px; min-width: 0; white-space: nowrap; }
+.swatches i { flex: none; width: 14px; height: 14px; border-radius: 4px; box-shadow: inset 0 0 0 1px rgba(255,255,255,.12); }
+.snippets .tabs { display: flex; gap: 4px; margin-bottom: 8px; }
+.snippets .tabs button { border: 0; background: transparent; color: var(--muted); font: 13px var(--sans); padding: 7px 12px; border-radius: 9px; cursor: pointer; }
+.snippets .tabs button[aria-selected="true"] { background: var(--surface); color: var(--text); }
+.snippets pre { white-space: pre-wrap; word-break: break-all; }
 .api h3 { font-size: 15px; font-weight: 600; margin: 0 0 12px; }
 .api ul { list-style: none; padding: 0; margin: 0; }
 .api li { padding: 9px 0; border-top: 1px solid var(--line); color: var(--muted); font-size: 15px; }
@@ -156,6 +255,10 @@ footer a { color: var(--muted); }
   .copy { border-radius: 8px; }
   .line i { border-radius: 4px; }
 }
+@media (max-width: 980px) {
+  .result { grid-template-columns: 1fr 1fr; }
+  .facts { grid-column: 1 / -1; }
+}
 @media (max-width: 860px) {
   .api { grid-template-columns: 1fr; }
   .perf { grid-template-columns: 1fr; }
@@ -172,6 +275,10 @@ footer a { color: var(--muted); }
   .tint { width: 118px; gap: 8px; }
   .tint button { padding: 6px 8px; }
   .figures { grid-template-columns: 1fr 1fr; }
+  .result { grid-template-columns: 1fr; }
+  .field { flex-wrap: wrap; padding: 10px 12px; }
+  .field input { flex-basis: 100%; order: 5; padding: 10px 2px 4px; }
+  .go { order: 6; flex: 1; }
 }
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }
@@ -183,8 +290,8 @@ footer a { color: var(--muted); }
 
 <nav>
   <a class="brand" href="#">
-    <svg viewBox="0 0 32 32" aria-hidden="true"><rect x="2" y="2" width="28" height="28" rx="8" fill="#ffb38a"/><path d="M11 9h11v3.2h-7.4v3h6.2v3.2h-6.2V23H11z" fill="#141416"/></svg>
-    favicons
+    <svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="16" fill="#1f1f24"/><rect x="10" y="10" width="20" height="20" rx="6" fill="#ffb38a"/><rect x="34" y="10" width="20" height="20" rx="6" fill="#fbf0df"/><rect x="10" y="34" width="20" height="20" rx="6" fill="#e8613c"/><rect x="35.5" y="35.5" width="17" height="17" rx="4.5" fill="none" stroke="#fbf0df" stroke-opacity=".55" stroke-width="3"/></svg>
+    {{host}}
   </a>
   <div class="links">
     <a href="#api">API</a>
@@ -233,57 +340,93 @@ footer a { color: var(--muted); }
     </div>
   </div>
   <div class="line" id="line"></div>
-  <p class="hint">Icons and palettes come live from this server's <code>/v1/icon</code>. Take the controls to try it yourself.</p>
+  <p class="hint">Icons and palettes come live from this server's API. Take the controls to try it yourself.</p>
 </header>
 
 <section id="api">
   <div class="eyebrow">api</div>
-  <h2>One endpoint.</h2>
-  <p class="sub">No query parameters, one URL per site, always <code>image/svg+xml</code>, with the colours to put around the icon in the headers. The full contract is in <a href="https://github.com/peleda-app/favicons/blob/main/docs/API.md">docs/API.md</a>.</p>
+  <h2>Try any domain.</h2>
+  <p class="sub">One GET per site, no key, CORS open. The SVG comes back with the colours to put around it, for light and dark themes. Everything below is this server answering live.</p>
+
+  <form class="probe" id="probe" autocomplete="off">
+    <div class="field">
+      <span class="verb">GET</span>
+      <span class="path">/</span>
+      <span class="styles" role="group" aria-label="Style">
+        <button type="button" data-style="color" aria-pressed="true">color</button>
+        <button type="button" data-style="mono" aria-pressed="false">mono</button>
+      </span>
+      <span class="path">/</span>
+      <input id="domain" name="domain" value="discord.com" maxlength="253" spellcheck="false" autocapitalize="off" aria-label="Domain">
+      <button class="go" type="submit">Fetch</button>
+    </div>
+    <div class="examples" id="examples">
+      <span>Try</span>
+      <button type="button">discord.com</button>
+      <button type="button">github.com</button>
+      <button type="button">spotify.com</button>
+      <button type="button">figma.com</button>
+      <button type="button">wikipedia.org</button>
+      <button type="button">malware.testcategory.com</button>
+      <button type="button">nope-zzzq-xx.com</button>
+    </div>
+  </form>
+
+  <div class="result" id="result" aria-live="polite">
+    <div class="raw">
+      <div class="checker"><img id="rawImg" alt=""></div>
+      <div class="raw-meta" id="rawMeta">&nbsp;</div>
+    </div>
+    <div class="scenes">
+      <div class="scene light">
+        <span class="label">light</span>
+        <div class="contact"><div class="badge" data-slot="light"></div><div><b data-name="light"></b><small data-host></small></div><span class="pill" data-pill="light">Open</span></div>
+      </div>
+      <div class="scene dark">
+        <span class="label">dark</span>
+        <div class="contact"><div class="badge" data-slot="dark"></div><div><b data-name="dark"></b><small data-host></small></div><span class="pill" data-pill="dark">Open</span></div>
+      </div>
+      <div class="scene mono">
+        <span class="label">mono</span>
+        <div class="contact"><div class="badge" data-slot="mono"></div><div><b data-name="mono"></b><small data-host></small></div><span class="pill" data-pill="mono">Open</span></div>
+      </div>
+    </div>
+    <div class="facts">
+      <div class="status" id="status">&nbsp;</div>
+      <dl class="meta" id="meta"></dl>
+      <div class="swatches" id="swatches"></div>
+    </div>
+  </div>
+
+  <div class="snippets">
+    <div class="tabs" role="tablist" id="tabs">
+      <button type="button" role="tab" data-tab="html" aria-selected="true">HTML</button>
+      <button type="button" role="tab" data-tab="css" aria-selected="false">CSS mask</button>
+      <button type="button" role="tab" data-tab="js" aria-selected="false">JavaScript</button>
+      <button type="button" role="tab" data-tab="curl" aria-selected="false">curl</button>
+    </div>
+    <div class="code"><button class="copy" id="snippetCopy">copy</button><pre id="snippet"></pre></div>
+  </div>
+
   <div class="api">
-    <div class="endpoint"><b>GET</b>/v1/icon/<em>{color|mono}</em>/<em>{domain}</em></div>
     <div>
       <h3>Behaviour</h3>
       <ul>
         <li>Sources in order: the owner's BIMI logo, the theSVG catalog, the site itself.</li>
         <li>Subdomains, query strings, a trailing slash or <code>.svg</code> get a cacheable <code>301</code> to the registrable domain.</li>
-        <li>Every icon is fitted edge to edge. <code>mono</code> is a single black path for CSS masks.</li>
         <li>No real icon? You still get <code>200</code> with a generated one, and the headers say why.</li>
-      </ul>
-    </div>
-    <div>
-      <h3>Headers</h3>
-      <ul>
-        <li><code>X-Icon-Provenance</code>bimi, thesvg, site or upstream</li>
-        <li><code>X-Icon-Vector</code>original, traced or generated</li>
-        <li><code>X-Icon-Fallback-Reason</code>queued, not-found, blocklisted, …</li>
-        <li><code>X-Icon-Blocked</code>blocklist or dns-filter</li>
-        <li><code>CDN-Cache-Control</code>separate from browser caching</li>
+        <li>Machine-readable docs: <a href="/openapi.json">openapi.json</a> and <a href="/llms.txt">llms.txt</a>. The full contract is in <a href="https://github.com/peleda-app/favicons/blob/main/docs/API.md">docs/API.md</a>.</li>
       </ul>
     </div>
     <div>
       <h3>Palette headers</h3>
       <ul>
-        <li><code>X-Icon-Shape</code>does the icon bring its own square, rounded square or circle</li>
         <li><code>X-Icon-Fill</code><code>bleed</code> to draw it edge to edge, <code>inset</code> to pad it on the plate</li>
         <li><code>X-Icon-*-Plate</code>a badge fill that keeps the icon visible, never one that swallows a cut-out logo</li>
         <li><code>X-Icon-*-Text</code>the brand colour at 4.5:1 on the theme background</li>
-        <li><code>X-Icon-*-Mono</code>the colour for the <code>mono</code> mask, at least 3:1</li>
-        <li><code>X-Icon-*-Mono-Plate</code>a badge fill in the same hue for that mask</li>
+        <li><code>X-Icon-*-Mono</code>the colour for the <code>mono</code> mask, at least 3:1, on its <code>Mono-Plate</code></li>
       </ul>
     </div>
-    <div class="code"><pre><span class="c"># GET /v1/icon/color/spotify.com</span>
-x-icon-shape: circle
-x-icon-fill: inset
-x-icon-accent: #1ed760
-x-icon-light-plate: #1c1c1e
-x-icon-light-text: #13883d
-x-icon-light-mono: #17a249
-x-icon-light-mono-plate: #e7f8ed
-x-icon-dark-plate: #183f26
-x-icon-dark-text: #1ed760
-x-icon-dark-mono: #1ed760
-x-icon-dark-mono-plate: #1d442b</pre></div>
   </div>
 </section>
 
@@ -344,8 +487,8 @@ for p in fs write net exec prctl; do docker run --rm favicons sandbox-selftest $
 
 
 <footer>
-  <span>favicons · MIT</span>
-  <span><a href="https://github.com/peleda-app/favicons">GitHub</a> · <a href="https://github.com/peleda-app/favicons/blob/main/docs/API.md">API</a> · <a href="https://github.com/peleda-app/favicons/blob/main/docs/SECURITY.md">Security</a></span>
+  <span>{{host}} · open source, MIT</span>
+  <span><a href="https://github.com/peleda-app/favicons">GitHub</a> · <a href="https://github.com/peleda-app/favicons/blob/main/docs/API.md">API</a> · <a href="/openapi.json">OpenAPI</a> · <a href="/llms.txt">llms.txt</a> · <a href="https://github.com/peleda-app/favicons/blob/main/docs/SECURITY.md">Security</a></span>
 </footer>
 
 </div>
@@ -649,7 +792,7 @@ for p in fs write net exec prctl; do docker run --rm favicons sandbox-selftest $
 
   async function load(style, domain) {
     for (let attempt = 0; ; attempt++) {
-      const r = await fetch(`/v1/icon/${style}/${encodeURIComponent(domain)}`, { cache: "no-store" });
+      const r = await fetch(`/${style}/${encodeURIComponent(domain)}`, { cache: "no-store" });
       if (!r.ok) throw new Error(String(r.status));
       if (!pending.has(r.headers.get("x-icon-fallback-reason")) || attempt >= 20) {
         return { headers: r.headers, url: URL.createObjectURL(await r.blob()) };
@@ -667,7 +810,7 @@ for p in fs write net exec prctl; do docker run --rm favicons sandbox-selftest $
     .join("");
   document.querySelectorAll("#rows .row").forEach((el, i) => (items[i].el = el));
   setTheme("light");
-  $("#line").textContent = "asking /v1/icon for every sender…";
+  $("#line").textContent = "asking this server for every sender’s icon…";
 
   Promise.all(
     items.map(async (item) => {
@@ -693,11 +836,173 @@ for p in fs write net exec prctl; do docker run --rm favicons sandbox-selftest $
   ).then(() => {
     caption();
     if (!items.some((i) => i.palette)) {
-      $("#line").textContent = "Could not reach /v1/icon on this server.";
+      $("#line").textContent = "Could not reach the icon API on this server.";
       demo.classList.add("manual");
     } else if (auto) play();
     else demo.classList.add("manual");
   });
+
+  (() => {
+    const input = $("#domain");
+    const result = $("#result");
+    const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    const clean = (v) => v.trim().toLowerCase().replace(/^[a-z][a-z0-9+.-]*:\/\//, "").split(/[/?#\s]/)[0].slice(0, 253);
+    const title = (d) => { const first = d.split(".")[0] || d; return first.charAt(0).toUpperCase() + first.slice(1); };
+    const bytes = (n) => (n < 1024 ? `${n} B` : `${(n / 1024).toFixed(1)} KB`);
+    const serverMs = (h) => { const m = /app;dur=([\d.]+)/.exec(h.get("server-timing") || ""); return m ? Number(m[1]) : null; };
+    let style = "color";
+    let tab = "html";
+    let state = null;
+    let run = 0;
+
+    async function get(path, onQueued) {
+      for (let attempt = 0; ; attempt++) {
+        const started = performance.now();
+        const r = await fetch(path, { cache: "no-store" });
+        const blob = await r.blob();
+        const total = performance.now() - started;
+        if (!pending.has(r.headers.get("x-icon-fallback-reason")) || attempt >= 20) return { r, blob, total };
+        if (onQueued) onQueued(attempt);
+        await sleep(600 + attempt * 200);
+      }
+    }
+
+    function snippet() {
+      if (!state) return "";
+      const o = location.origin;
+      const d = state.domain;
+      const l = state.palette.light;
+      switch (tab) {
+        case "css":
+          return `.icon {\n  width: 24px;\n  height: 24px;\n  background: ${l.mono || "currentColor"};\n  mask: url(${o}/mono/${d}) center / contain no-repeat;\n}`;
+        case "js":
+          return `const r = await fetch("${o}/color/${d}");\nconst plate = r.headers.get("x-icon-light-plate"); // ${l.plate || "—"}\nconst text = r.headers.get("x-icon-light-text");   // ${l.text || "—"}\nconst svg = await r.text();`;
+        case "curl":
+          return `curl -sD - -o ${d}.svg ${o}/${style}/${d}`;
+        default:
+          return `<img src="${o}/${style}/${d}" width="32" height="32" alt="${title(d)}">`;
+      }
+    }
+
+    function paintRaw() {
+      if (!state) return;
+      const shown = style === "mono" ? state.mono : state.color;
+      $("#rawImg").src = style === "mono" ? state.monoUrl : state.colorUrl;
+      const vector = shown.r.headers.get("x-icon-vector") || "";
+      $("#rawMeta").textContent = `${style} · ${bytes(shown.blob.size)}${vector ? ` · ${vector}` : ""}`;
+      $("#snippet").textContent = snippet();
+    }
+
+    function render() {
+      const h = state.color.r.headers;
+      const p = state.palette;
+      for (const t of ["light", "dark", "mono"]) {
+        const scene = document.querySelector(`.scene.${t}`);
+        const s = t === "light" ? p.light : p.dark;
+        const badge = scene.querySelector(".badge");
+        badge.className = p.fill === "bleed" ? "badge bleed" : "badge";
+        badge.innerHTML = `<img src="${esc(state.colorUrl)}" alt=""><div class="mask" style="--src:url('${esc(state.monoUrl)}')"></div>`;
+        badge.style.setProperty("--plate", s.plate || "#8e8e96");
+        badge.style.setProperty("--mono", s.mono || "#8e8e96");
+        badge.style.setProperty("--mono-plate", s.monoPlate || "#2a2a30");
+        const accent = (t === "mono" ? s.mono : s.text) || "#8e8e96";
+        const name = scene.querySelector("b");
+        name.textContent = title(state.domain);
+        name.style.setProperty("--name", accent);
+        scene.querySelector("small").textContent = state.domain;
+        const pill = scene.querySelector(".pill");
+        const blocked = Boolean(h.get("x-icon-blocked"));
+        pill.textContent = blocked ? "Blocked" : "Open";
+        pill.style.setProperty("--pill", blocked ? "#d03b2c" : accent);
+        pill.style.setProperty("--pill-text", onColor(blocked ? "#d03b2c" : accent));
+      }
+      const st = state.color.r.status;
+      const server = serverMs(h);
+      const source = h.get("x-icon-source") || "";
+      $("#status").innerHTML = [
+        `<b class="${st === 200 ? "ok" : "warn"}">${st}</b>`,
+        source && `<span>${esc(source)}</span>`,
+        server !== null && `<span>server <b>${server < 10 ? server.toFixed(2) : Math.round(server)} ms</b></span>`,
+        `<span>round trip <b>${Math.round(state.color.total)} ms</b></span>`,
+      ].filter(Boolean).join("");
+      const rows = [
+        ["domain", h.get("x-icon-domain")],
+        ["provenance", h.get("x-icon-provenance")],
+        ["vector", h.get("x-icon-vector")],
+        ["shape", [h.get("x-icon-shape"), h.get("x-icon-fill")].filter(Boolean).join(" · ")],
+        ["fallback", h.get("x-icon-fallback-reason")],
+        ["blocked", h.get("x-icon-blocked")],
+        ["cache", h.get("cdn-cache-control")],
+      ].filter(([, v]) => v);
+      $("#meta").innerHTML = rows.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("");
+      const sw = (label, hex) => (hex ? `<div><i style="background:${esc(hex)}"></i>${esc(label)} ${esc(hex)}</div>` : "");
+      const scheme = (name, s) => `<h4>${name}</h4>${sw("plate", s.plate)}${sw("text", s.text)}${sw("mono", s.mono)}${sw("mono plate", s.monoPlate)}`;
+      const accent = h.get("x-icon-accent");
+      $("#swatches").innerHTML = (accent ? `<h4>accent</h4>${sw("brand", accent)}` : "") + scheme("light", p.light) + scheme("dark", p.dark);
+      paintRaw();
+    }
+
+    async function inspect(raw) {
+      const domain = clean(raw);
+      if (!domain) return;
+      input.value = domain;
+      const id = ++run;
+      result.classList.add("loading");
+      $("#status").innerHTML = `<span>asking for <b>${esc(domain)}</b>…</span>`;
+      try {
+        const color = await get(`/color/${encodeURIComponent(domain)}`, (n) => {
+          if (id === run) $("#status").innerHTML = `<b class="warn">queued</b><span>first request for ${esc(domain)}, fetching the site · ${n + 1}</span>`;
+        });
+        const mono = await get(`/mono/${encodeURIComponent(domain)}`);
+        if (id !== run) return;
+        if (state) [state.colorUrl, state.monoUrl].forEach((u) => URL.revokeObjectURL(u));
+        state = {
+          domain: color.r.headers.get("x-icon-domain") || domain,
+          color,
+          mono,
+          colorUrl: URL.createObjectURL(color.blob),
+          monoUrl: URL.createObjectURL(mono.blob),
+          palette: palette(color.r.headers),
+        };
+        render();
+      } catch {
+        if (id === run) $("#status").innerHTML = `<b class="warn">error</b><span>could not reach the API</span>`;
+      } finally {
+        if (id === run) result.classList.remove("loading");
+      }
+    }
+
+    $("#probe").addEventListener("submit", (e) => {
+      e.preventDefault();
+      inspect(input.value);
+    });
+    $("#examples").addEventListener("click", (e) => {
+      const b = e.target.closest("button");
+      if (b) inspect(b.textContent);
+    });
+    document.querySelector(".styles").addEventListener("click", (e) => {
+      const b = e.target.closest("button");
+      if (!b) return;
+      style = b.dataset.style;
+      document.querySelectorAll(".styles button").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+      paintRaw();
+    });
+    $("#tabs").addEventListener("click", (e) => {
+      const b = e.target.closest("button");
+      if (!b) return;
+      tab = b.dataset.tab;
+      document.querySelectorAll("#tabs button").forEach((x) => x.setAttribute("aria-selected", String(x === b)));
+      $("#snippet").textContent = snippet();
+    });
+    $("#snippetCopy").addEventListener("click", () => {
+      if (!navigator.clipboard || !state) return;
+      navigator.clipboard.writeText(snippet()).then(() => {
+        $("#snippetCopy").textContent = "copied";
+        setTimeout(() => ($("#snippetCopy").textContent = "copy"), 1200);
+      }, () => {});
+    });
+    inspect(input.value);
+  })();
 })();
 </script>
 </body>

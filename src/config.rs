@@ -45,6 +45,17 @@ impl Config {
 
     fn validate(&self) -> anyhow::Result<()> {
         self.tls.validate()?;
+        if let Some(u) = &self.server.public_url {
+            let url = url::Url::parse(u)
+                .map_err(|e| anyhow::anyhow!("server.public_url {u:?} is not a URL: {e}"))?;
+            anyhow::ensure!(
+                matches!(url.scheme(), "http" | "https")
+                    && url.host_str().is_some()
+                    && url.path() == "/"
+                    && url.query().is_none(),
+                "server.public_url must be an origin like https://favicons.example.com"
+            );
+        }
         anyhow::ensure!(
             (self.cache.max_disk_bytes == 0 && self.cache.max_disk_entries == 0)
                 || self.cache.is_local_dir(),
@@ -147,6 +158,7 @@ pub struct Server {
     pub shutdown_grace_ms: u64,
     pub worker_threads: Option<usize>,
     pub landing: bool,
+    pub public_url: Option<String>,
 }
 
 impl Default for Server {
@@ -161,6 +173,7 @@ impl Default for Server {
             shutdown_grace_ms: 10_000,
             worker_threads: None,
             landing: true,
+            public_url: None,
         }
     }
 }

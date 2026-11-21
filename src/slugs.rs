@@ -33,6 +33,18 @@ pub struct Item {
     mono_inline: Option<Packed>,
     #[serde(skip)]
     source: Option<String>,
+    #[serde(skip)]
+    dropped: bool,
+}
+
+impl Item {
+    fn source_key(&self) -> Option<String> {
+        if self.inline.is_some() || self.dropped {
+            return self.source.clone();
+        }
+        let raw = format!("{}|{:?}|{:?}", self.color, self.mono, self.tint);
+        Some(blake3::hash(raw.as_bytes()).to_hex()[..20].to_string())
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -65,6 +77,7 @@ pub struct Entry {
     pub inline: Option<Vec<u8>>,
     pub mono_inline: Option<Vec<u8>>,
     pub source: Option<String>,
+    pub dropped: bool,
 }
 
 struct Index {
@@ -176,12 +189,12 @@ impl Catalog {
         self.cfg.prerender
     }
 
-    pub fn sources(&self) -> Vec<(String, String)> {
+    pub fn sources(&self, remote: bool) -> Vec<(String, String)> {
         self.current()
             .items
             .values()
-            .filter(|i| i.inline.is_some())
-            .filter_map(|i| Some((i.slug.clone(), i.source.clone()?)))
+            .filter(|i| i.inline.is_some() || (remote && !i.dropped))
+            .filter_map(|i| Some((i.slug.clone(), i.source_key()?)))
             .collect()
     }
 
@@ -189,9 +202,12 @@ impl Catalog {
         let index = self.current();
         let mut items = index.items.clone();
         for slug in done {
-            if let Some(item) = items.get_mut(slug) {
+            if let Some(item) = items.get_mut(slug)
+                && item.inline.is_some()
+            {
                 item.inline = None;
                 item.mono_inline = None;
+                item.dropped = true;
             }
         }
         if let Ok(mut g) = self.index.write() {
@@ -248,7 +264,8 @@ impl Catalog {
                 .unwrap_or_else(|| self.cfg.license.clone()),
             inline: item.inline.as_ref().and_then(Packed::unpack),
             mono_inline: item.mono_inline.as_ref().and_then(Packed::unpack),
-            source: item.source.clone(),
+            source: item.source_key(),
+            dropped: item.dropped,
         })
     }
 
@@ -557,6 +574,7 @@ pub fn parse_index(
                         inline: None,
                         mono_inline: None,
                         source: None,
+                        dropped: false,
                         slug,
                     },
                 );
@@ -579,6 +597,7 @@ pub fn parse_index(
                         inline: None,
                         mono_inline: None,
                         source: None,
+                        dropped: false,
                         slug,
                     },
                 );
@@ -609,6 +628,7 @@ pub fn parse_index(
                         inline: None,
                         mono_inline: None,
                         source: None,
+                        dropped: false,
                         slug,
                     },
                 );
@@ -641,6 +661,7 @@ pub fn parse_index(
                         inline: None,
                         mono_inline: None,
                         source: None,
+                        dropped: false,
                         slug,
                     },
                 );
@@ -690,6 +711,7 @@ pub fn parse_index(
                         inline: Some(Packed::new(&set.svg(icon))),
                         mono_inline: None,
                         source: None,
+                        dropped: false,
                         slug: slug.clone(),
                     },
                 );
@@ -734,6 +756,7 @@ pub fn parse_index(
                         inline: None,
                         mono_inline: None,
                         source: None,
+                        dropped: false,
                         slug: e.slug.trim().to_ascii_lowercase(),
                     },
                 );

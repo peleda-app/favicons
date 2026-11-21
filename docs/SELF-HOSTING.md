@@ -23,9 +23,9 @@ x-icon-vector: original
 ```
 
 Docker: `favicons/favicons` (also `ghcr.io/peleda-app/favicons`) is the API alone, a `scratch` image for
-amd64 and arm64 with one static binary, running as uid 65534 (7.3 MB to
-download). `favicons/favicons-site` is the same plus the page at `/`
-and its fonts. Tags: `latest` and `main` follow the main branch, `sha-<commit>`
+amd64 and arm64 with one static binary, running as uid 65534 (8.5 MB to
+download). `ghcr.io/peleda-app/favicons.page` is what runs favicons.page: the page at `/`,
+its fonts and every catalog prerendered. Tags: `latest` and `main` follow the main branch, `sha-<commit>`
 pins a build, and `1.2.3` / `1.2` appear for release tags.
 
 Each [release](https://github.com/peleda-app/favicons/releases) also carries the
@@ -57,7 +57,7 @@ Every key can also be set via environment variable:
 
 The page at `/` is compiled into the binary; `server.landing = false` turns it
 off and `server.public_url` names it. It is only compiled into builds with the
-`site` feature (`cargo build --features site`, or the `favicons-site` image).
+`site` feature (`cargo build --features site`, the `favicons-site` release binary, or the `favicons.page` image).
 
 ## HTTPS without a proxy
 

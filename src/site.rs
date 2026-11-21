@@ -24,6 +24,7 @@ mod page {
     pub const FONT_DISPLAY: &[u8] = include_bytes!("../site/fonts/archivo.woff2");
     pub const FONT_MONO: &[u8] = include_bytes!("../site/fonts/martian-mono.woff2");
     pub const CONFIG_EXAMPLE: &[u8] = include_bytes!("../config.example.toml");
+    pub const COMPOSE: &[u8] = include_bytes!("../docker-compose.yml");
 }
 
 #[cfg(not(feature = "site"))]
@@ -36,6 +37,7 @@ mod page {
     pub const FONT_DISPLAY: &[u8] = &[];
     pub const FONT_MONO: &[u8] = &[];
     pub const CONFIG_EXAMPLE: &[u8] = &[];
+    pub const COMPOSE: &[u8] = &[];
 }
 
 pub const ENABLED: bool = cfg!(feature = "site");
@@ -53,6 +55,7 @@ pub enum Asset {
     FontDisplay,
     FontMono,
     ConfigExample,
+    Compose,
 }
 
 impl Asset {
@@ -77,7 +80,9 @@ impl Asset {
     fn content_type(self) -> &'static str {
         match self {
             Asset::Index => "text/html; charset=utf-8",
-            Asset::Robots | Asset::Llms | Asset::ConfigExample => "text/plain; charset=utf-8",
+            Asset::Robots | Asset::Llms | Asset::ConfigExample | Asset::Compose => {
+                "text/plain; charset=utf-8"
+            }
             Asset::Sitemap => "application/xml; charset=utf-8",
             Asset::OpenApi => "application/json",
             Asset::Favicon => "image/svg+xml",
@@ -93,7 +98,8 @@ impl Asset {
             | Asset::Sitemap
             | Asset::Llms
             | Asset::OpenApi
-            | Asset::ConfigExample => "public, max-age=3600, stale-while-revalidate=86400",
+            | Asset::ConfigExample
+            | Asset::Compose => "public, max-age=3600, stale-while-revalidate=86400",
             Asset::Favicon | Asset::AppleTouchIcon | Asset::OgImage => {
                 "public, max-age=86400, stale-while-revalidate=604800"
             }
@@ -168,7 +174,10 @@ fn binary(asset: Asset) -> Option<&'static Page> {
             Bytes::from_static(page::CONFIG_EXAMPLE),
         )
     });
+    static COMPOSE: LazyLock<Page> =
+        LazyLock::new(|| Page::new(Asset::Compose, Bytes::from_static(page::COMPOSE)));
     match asset {
+        Asset::Compose => Some(&COMPOSE),
         Asset::ConfigExample => Some(&CONFIG),
         Asset::Favicon => Some(&FAVICON),
         Asset::AppleTouchIcon => Some(&APPLE),

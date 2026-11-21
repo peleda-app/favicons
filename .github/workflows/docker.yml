@@ -28,7 +28,7 @@ jobs:
             image: favicons
             features: ""
           - variant: site
-            image: favicons-site
+            image: favicons.page
             features: site
     runs-on: ${{ matrix.runner }}
     permissions:
@@ -125,8 +125,19 @@ jobs:
         include:
           - variant: api
             image: favicons
+            prefix: ""
+            tags: |
+              type=raw,value=latest,enable={{is_default_branch}}
+              type=ref,event=branch
+              type=semver,pattern={{version}}
+              type=semver,pattern={{major}}.{{minor}}
+              type=sha,format=short
           - variant: site
-            image: favicons-site
+            image: favicons.page
+            prefix: bare-
+            tags: |
+              type=raw,value=bare,enable={{is_default_branch}}
+              type=sha,format=short,prefix=bare-sha-
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -151,12 +162,7 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.IMAGE }}
-          tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
-            type=ref,event=branch
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=sha,format=short
+          tags: ${{ matrix.tags }}
       - name: create multi-arch manifest
         working-directory: /tmp/digests
         run: |
@@ -166,9 +172,11 @@ jobs:
           docker buildx imagetools create "${tags[@]}" "${refs[@]}"
       - id: digest
         name: inspect
+        env:
+          PREFIX: ${{ matrix.prefix }}
         run: |
-          docker buildx imagetools inspect "$IMAGE:sha-${GITHUB_SHA::7}"
-          digest=$(docker buildx imagetools inspect "$IMAGE:sha-${GITHUB_SHA::7}" --format '{{json .Manifest}}' | jq -r .digest)
+          docker buildx imagetools inspect "$IMAGE:${PREFIX}sha-${GITHUB_SHA::7}"
+          digest=$(docker buildx imagetools inspect "$IMAGE:${PREFIX}sha-${GITHUB_SHA::7}" --format '{{json .Manifest}}' | jq -r .digest)
           echo "digest=$digest" >> "$GITHUB_OUTPUT"
       - uses: actions/attest-build-provenance@v2
         with:
@@ -176,12 +184,12 @@ jobs:
           subject-digest: ${{ steps.digest.outputs.digest }}
           push-to-registry: true
       - uses: docker/login-action@v3
-        if: vars.DOCKERHUB_USERNAME != ''
+        if: vars.DOCKERHUB_USERNAME != '' && matrix.variant == 'api'
         with:
           username: ${{ vars.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
       - name: mirror to Docker Hub
-        if: vars.DOCKERHUB_USERNAME != ''
+        if: vars.DOCKERHUB_USERNAME != '' && matrix.variant == 'api'
         env:
           HUB: docker.io/${{ vars.DOCKERHUB_USERNAME }}/${{ matrix.image }}
           DIGEST: ${{ steps.digest.outputs.digest }}
@@ -190,7 +198,7 @@ jobs:
           docker buildx imagetools create "${tags[@]}" "$IMAGE@$DIGEST"
           docker buildx imagetools inspect "$HUB:sha-${GITHUB_SHA::7}" --format '{{json .Manifest}}' | jq -r .digest | grep -qx "$DIGEST"
       - uses: actions/attest-build-provenance@v2
-        if: vars.DOCKERHUB_USERNAME != ''
+        if: vars.DOCKERHUB_USERNAME != '' && matrix.variant == 'api'
         with:
           subject-name: docker.io/${{ vars.DOCKERHUB_USERNAME }}/${{ matrix.image }}
           subject-digest: ${{ steps.digest.outputs.digest }}
@@ -217,11 +225,12 @@ jobs:
         run: |
           version="${GITHUB_REF_NAME#v}"
           mkdir dist
-          for image in favicons favicons-site; do
-            for pair in amd64:x86_64 arm64:aarch64; do
-              platform="${pair%%:*}"; arch="${pair##*:}"
-              id=$(docker create --platform "linux/$platform" "$OWNER/$image:sha-${GITHUB_SHA::7}")
-              docker cp "$id:/favicons" "dist/$image-$version-$arch-linux-musl"
+          for pair in favicons:favicons:sha favicons-site:favicons.page:bare-sha; do
+            name="${pair%%:*}"; rest="${pair#*:}"; image="${rest%%:*}"; tag="${rest#*:}-${GITHUB_SHA::7}"
+            for arch_pair in amd64:x86_64 arm64:aarch64; do
+              platform="${arch_pair%%:*}"; arch="${arch_pair##*:}"
+              id=$(docker create --platform "linux/$platform" "$OWNER/$image:$tag")
+              docker cp "$id:/favicons" "dist/$name-$version-$arch-linux-musl"
               docker rm "$id" >/dev/null
             done
           done

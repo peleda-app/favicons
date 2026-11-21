@@ -717,7 +717,7 @@ impl App {
         let Some(entry) = catalog.lookup(slug) else {
             return (Meta::new(key, Status::NotFound), vec![]);
         };
-        if entry.inline.is_none() && entry.source.is_some() {
+        if entry.dropped {
             catalog.wake.notify_one();
             return (Meta::new(key, Status::FetchFailed), vec![]);
         }
@@ -891,9 +891,9 @@ impl App {
         self.list_client.clone()
     }
 
-    pub(crate) async fn prerender(&self, catalog: &crate::slugs::Catalog) {
+    pub(crate) async fn prerender(&self, catalog: &crate::slugs::Catalog, remote: bool) {
         let id = catalog.id().to_string();
-        let sources = catalog.sources();
+        let sources = catalog.sources(remote);
         if sources.is_empty() {
             return;
         }
@@ -949,7 +949,7 @@ impl App {
                         let _turn = gate.acquire().await;
                         catalog.reload(&app.list_client).await;
                         if catalog.prerender() && app.store.has_backend() {
-                            app.prerender(&catalog).await;
+                            app.prerender(&catalog, false).await;
                         }
                     }
                     let retry = if catalog.is_loaded() {

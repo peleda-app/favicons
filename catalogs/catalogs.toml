@@ -1,4 +1,50 @@
 [[catalogs]]
+id = "selfhst"
+name = "selfh.st icons"
+format = "selfhst"
+index_url = "https://cdn.jsdelivr.net/gh/selfhst/icons@main/index.json"
+base_url = "https://cdn.jsdelivr.net/gh/selfhst/icons@main/"
+license = "CC-BY-4.0"
+attribution = "https://selfh.st/icons/"
+
+[[catalogs]]
+id = "simple-icons"
+name = "Simple Icons"
+format = "simple-icons"
+index_url = "https://cdn.jsdelivr.net/npm/simple-icons@16/data/simple-icons.json"
+base_url = "https://cdn.jsdelivr.net/npm/simple-icons@16/"
+license = "CC0-1.0"
+attribution = "https://simpleicons.org"
+
+[[catalogs]]
+id = "dashboard-icons"
+name = "Dashboard Icons"
+format = "dashboard-icons"
+index_url = "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons@main/metadata.json"
+base_url = "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons@main/"
+license = "Apache-2.0"
+attribution = "https://github.com/homarr-labs/dashboard-icons"
+
+[[catalogs]]
+id = "devicon"
+name = "Devicon"
+format = "devicon"
+index_url = "https://cdn.jsdelivr.net/gh/devicons/devicon@master/devicon.json"
+base_url = "https://cdn.jsdelivr.net/gh/devicons/devicon@master/"
+license = "MIT"
+attribution = "https://devicon.dev"
+
+[[catalogs]]
+id = "thesvg"
+name = "theSVG"
+format = "thesvg"
+index_url = "https://raw.githubusercontent.com/GLINCKER/thesvg/main/src/data/icons.json"
+base_url = "https://raw.githubusercontent.com/GLINCKER/thesvg/main/public/"
+license = "per icon"
+licenses = ["CC0-1.0", "Unlicense", "MIT", "Apache-2.0", "BSD-2-Clause", "BSD-3-Clause", "CC-BY-4.0", "CC-BY-3.0"]
+attribution = "https://github.com/GLINCKER/thesvg"
+
+[[catalogs]]
 id = "fluent-emoji"
 name = "Fluent Emoji"
 format = "iconify"

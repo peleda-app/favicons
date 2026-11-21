@@ -40,6 +40,7 @@ pub fn router(app: Arc<App>) -> Router {
             .route("/", page(Asset::Index))
             .route("/sitemap.xml", page(Asset::Sitemap))
             .route("/config.example.toml", page(Asset::ConfigExample))
+            .route("/docker-compose.yml", page(Asset::Compose))
             .route("/favicon.svg", page(Asset::Favicon))
             .route("/apple-touch-icon.png", page(Asset::AppleTouchIcon))
             .route("/og.png", page(Asset::OgImage))
@@ -1069,6 +1070,7 @@ mod routing_tests {
         if crate::site::ENABLED {
             expected.push("/sitemap.xml");
             expected.push("/config.example.toml");
+            expected.push("/docker-compose.yml");
         }
         expected.sort();
         assert_eq!(paths, expected);
@@ -1270,9 +1272,9 @@ mod routing_tests {
         catalog.load(
             br##"{"width":32,"height":32,"icons":{"red-square":{"body":"<path fill=\"#e5484d\" d=\"M4 4h24v24H4z\"/>"}}}"##,
         );
-        assert_eq!(catalog.sources().len(), 1);
-        app.prerender(&catalog).await;
-        assert!(catalog.sources().is_empty());
+        assert_eq!(catalog.sources(false).len(), 1);
+        app.prerender(&catalog, false).await;
+        assert!(catalog.sources(false).is_empty());
         let meta = app.store.meta("@emoji.red-square").await.unwrap();
         assert!(meta.source.is_some() && meta.palette.is_some() && !app.is_stale(&meta));
         assert!(dir.join("v3/@emoji.red-square/color.svg.gz").exists());
@@ -1287,12 +1289,12 @@ mod routing_tests {
         assert_eq!(r.headers().get(CONTENT_ENCODING).unwrap(), "gzip");
         assert_eq!(r.headers().get("x-icon-provenance").unwrap(), "catalog");
 
-        app.prerender(&catalog).await;
+        app.prerender(&catalog, false).await;
         catalog.load(
             br##"{"width":32,"height":32,"icons":{"red-square":{"body":"<path fill=\"#e5484d\" d=\"M4 4h24v24H4z\"/>"}}}"##,
         );
-        app.prerender(&catalog).await;
-        assert!(catalog.sources().is_empty());
+        app.prerender(&catalog, false).await;
+        assert!(catalog.sources(false).is_empty());
         let _ = std::fs::remove_dir_all(dir);
     }
 

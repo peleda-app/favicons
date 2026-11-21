@@ -345,7 +345,7 @@ header (validated, never cached).
 | `/openapi.json` | OpenAPI 3.1 description, generated at start from this server's config: its origin, version, configured catalogs (as an enum) and whether the page is built in. Builds without the page also serve it at `/`. |
 
 The page, its images and its fonts (Archivo and Martian Mono, OFL) are only in
-builds with the `site` feature, such as the `favicons-site` image; it loads
+builds with the `site` feature, such as the `favicons.page` image; it loads
 nothing from other hosts.
 
 `server.landing = false` turns off the page, the images and the sitemap;

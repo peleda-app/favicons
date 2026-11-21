@@ -84,8 +84,8 @@ docker compose up -d
 ```
 
 Two containers from a 9 MB image (on GHCR and as `favicons/favicons` on Docker Hub): the API, and a renderer with no network, a
-read-only root and no capabilities. `favicons/favicons-site` adds this
-page with its fonts; release binaries are on [GitHub Releases](https://github.com/peleda-app/favicons/releases),
+read-only root and no capabilities. This page itself is built with the
+`site` feature and ships with prerendered catalogs as `ghcr.io/peleda-app/favicons.page`; release binaries are on [GitHub Releases](https://github.com/peleda-app/favicons/releases),
 and `cargo install favicons` builds the API. Built-in Let's Encrypt, local
 disk or S3, GCS and Azure caches, blocklists and every other option are in
 [docs/SELF-HOSTING.md](docs/SELF-HOSTING.md).

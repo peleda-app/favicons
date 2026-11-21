@@ -173,6 +173,13 @@ impl Spec<'_> {
                 }}),
             );
             paths.insert(
+                "/docker-compose.yml".into(),
+                json!({ "get": {
+                    "operationId": "compose", "summary": "Hardened two-container setup",
+                    "responses": { "200": text("YAML", "text/plain") }
+                }}),
+            );
+            paths.insert(
                 "/config.example.toml".into(),
                 json!({ "get": {
                     "operationId": "configExample", "summary": "Every server option, commented",

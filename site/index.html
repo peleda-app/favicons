@@ -244,13 +244,16 @@ h2 { font-family: var(--display); font-size: clamp(30px, 3.8vw, 44px); letter-sp
 .pick { background: var(--surface); border-radius: 18px; padding: 14px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .field.small { font-size: 14px; padding: 6px 6px 6px 14px; background: var(--bg); }
 .field.small .path b { color: var(--cream); font-weight: 400; }
-.grid-scroll { height: 392px; overflow-y: auto; padding-right: 2px; scrollbar-width: thin; }
+.grid-scroll { flex: 1 1 0; min-height: 392px; overflow-y: auto; padding-right: 2px; scrollbar-width: thin; }
 .grid-space { position: relative; }
 .grid { position: absolute; left: 0; right: 0; top: 0; display: grid; grid-template-columns: repeat(var(--cols, 6), minmax(0, 1fr)); grid-auto-rows: 84px; gap: 6px; }
 .grid button { height: 84px; display: flex; flex-direction: column; align-items: center; gap: 7px; padding: 12px 4px 9px; border: 0; border-radius: 12px; background: transparent; color: var(--muted); font: 11.5px var(--sans); cursor: pointer; transition: background .15s, color .15s; min-width: 0; }
 .grid button:hover { background: #222227; color: var(--text); }
 .grid button[aria-selected="true"] { background: #26262c; color: var(--text); box-shadow: inset 0 0 0 1px #3a3a42; }
 .grid img { width: 36px; height: 36px; }
+.grid .skel { display: block; width: 36px; height: 36px; border-radius: 10px; background: linear-gradient(100deg, #222227 30%, #2e2e35 50%, #222227 70%) 0 0 / 300% 100%; animation: skel 1.4s ease-in-out infinite; }
+@keyframes skel { from { background-position: 100% 0; } to { background-position: 0 0; } }
+@media (prefers-reduced-motion: reduce) { .grid .skel { animation: none; } }
 .grid span { max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .grid-note { font: 12px var(--mono); color: var(--dim); }
 .cat-tabs { display: flex; gap: 2px; overflow-x: auto; padding-bottom: 8px; margin-bottom: -4px; scrollbar-width: thin; scrollbar-color: #3a3a42 transparent; overscroll-behavior-x: contain; }
@@ -287,7 +290,7 @@ h2 { font-family: var(--display); font-size: clamp(30px, 3.8vw, 44px); letter-sp
 .pv-name b { font-size: 17px; font-weight: 600; color: var(--name, var(--text)); }
 .pv-name small { font: 12px var(--mono); color: var(--dim); }
 .scene.mono .badge { background: var(--mono-plate); }
-.pv-code { padding: 14px 64px 14px 16px; background: var(--bg); }
+.code.pv-code { padding: 14px 64px 14px 16px; background: var(--bg); }
 .pv-code pre { font-size: 12.5px; white-space: pre-wrap; word-break: break-all; }
 .credit { margin: 0; font-size: 12.5px; color: var(--dim); }
 .snippets .tabs { display: flex; gap: 4px; margin-bottom: 8px; }
@@ -368,6 +371,9 @@ h2 { font-family: var(--display); font-size: clamp(30px, 3.8vw, 44px); letter-sp
 .cmp-name a:hover { color: var(--accent); }
 .cmp-name small { font: 12px var(--mono); color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cmp-name small b { color: var(--muted); font-weight: 500; }
+.cmp-stars { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); }
+.cmp-stars .star { width: 13px; height: 13px; color: #e3b341; }
+.cmp-mark { color: var(--dim); font-size: 10px; margin-left: 1px; }
 .cmp-bar { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .cmp-bar span { display: flex; justify-content: space-between; font: 12px var(--mono); color: var(--dim); }
 .cmp-bar span b { color: var(--cream); font-weight: 500; }
@@ -698,49 +704,10 @@ footer a { color: var(--muted); }
   <h2>Two containers, no network for the renderer.</h2>
   <p class="sub">One <code>docker compose up -d</code>. The API fetches and caches; the renderer decodes untrusted images in seccomp-confined workers with no network, a read-only root and no capabilities. The image is about 9 MB.</p>
   <div class="selfhost">
-    <div class="code compose"><span class="file">docker-compose.yml</span><button class="copy" data-copy="x-hardening: &amp;hardening&#10;  read_only: true&#10;  cap_drop: [ALL]&#10;  security_opt: [&quot;no-new-privileges:true&quot;]&#10;  user: &quot;65534:65534&quot;&#10;  restart: unless-stopped&#10;&#10;services:&#10;  api:&#10;    &lt;&lt;: *hardening&#10;    build: .&#10;    image: favicons/favicons:latest   # or ghcr.io/peleda-app/favicons:latest&#10;    ports: [&quot;8080:8080&quot;]&#10;    environment:&#10;      FAVICONS_RENDER__SANDBOX: socket&#10;      FAVICONS_RENDER__SOCKET_PATH: /run/favicons/render.sock&#10;      FAVICONS_CACHE__STORAGE: /var/cache/favicons&#10;    volumes:&#10;      - render-socket:/run/favicons&#10;      - cache:/var/cache/favicons&#10;    pids_limit: 256&#10;    mem_limit: 512m&#10;    depends_on: [renderer]&#10;&#10;  renderer:&#10;    &lt;&lt;: *hardening&#10;    image: favicons/favicons:latest   # or ghcr.io/peleda-app/favicons:latest&#10;    command: [&quot;render-server&quot;]&#10;    network_mode: none&#10;    environment:&#10;      FAVICONS_RENDER__SOCKET_PATH: /run/favicons/render.sock&#10;    volumes:&#10;      - render-socket:/run/favicons&#10;    pids_limit: 32&#10;    mem_limit: 512m&#10;    cpus: 1&#10;&#10;volumes:&#10;  render-socket:&#10;  cache:">copy</button><pre><span class="k">x-hardening:</span> &amp;hardening
-  <span class="k">read_only:</span> true
-  <span class="k">cap_drop:</span> [ALL]
-  <span class="k">security_opt:</span> ["no-new-privileges:true"]
-  <span class="k">user:</span> "65534:65534"
-  <span class="k">restart:</span> unless-stopped
-
-<span class="k">services:</span>
-  <span class="k">api:</span>
-    <span class="k">&lt;&lt;:</span> *hardening
-    <span class="k">build:</span> .
-    <span class="k">image:</span> favicons/favicons:latest   <span class="c"># or ghcr.io/peleda-app/favicons:latest</span>
-    <span class="k">ports:</span> ["8080:8080"]
-    <span class="k">environment:</span>
-      <span class="k">FAVICONS_RENDER__SANDBOX:</span> socket
-      <span class="k">FAVICONS_RENDER__SOCKET_PATH:</span> /run/favicons/render.sock
-      <span class="k">FAVICONS_CACHE__STORAGE:</span> /var/cache/favicons
-    <span class="k">volumes:</span>
-      - render-socket:/run/favicons
-      - cache:/var/cache/favicons
-    <span class="k">pids_limit:</span> 256
-    <span class="k">mem_limit:</span> 512m
-    <span class="k">depends_on:</span> [renderer]
-
-  <span class="k">renderer:</span>
-    <span class="k">&lt;&lt;:</span> *hardening
-    <span class="k">image:</span> favicons/favicons:latest   <span class="c"># or ghcr.io/peleda-app/favicons:latest</span>
-    <span class="k">command:</span> ["render-server"]
-    <span class="k">network_mode:</span> none
-    <span class="k">environment:</span>
-      <span class="k">FAVICONS_RENDER__SOCKET_PATH:</span> /run/favicons/render.sock
-    <span class="k">volumes:</span>
-      - render-socket:/run/favicons
-    <span class="k">pids_limit:</span> 32
-    <span class="k">mem_limit:</span> 512m
-    <span class="k">cpus:</span> 1
-
-<span class="k">volumes:</span>
-  <span class="k">render-socket:</span>
-  <span class="k">cache:</span></pre></div>
+    <div class="code compose"><span class="file">docker-compose.yml</span><button class="copy" id="composeCopy">copy</button><pre id="composeText"><span class="c">loading…</span></pre></div>
     <div class="steps">
       <div><b>1</b><p>Save the file and run <code>docker compose up -d</code>.</p></div>
-      <div><b>2</b><p>Ask it for an icon: <code>http://localhost:8080/color/github.com</code>. Want this page too? Use the <code>favicons/favicons-site</code> image instead.</p></div>
+      <div><b>2</b><p>Ask it for an icon: <code>http://localhost:8080/color/github.com</code>. Want this page too? Build with <code>--features site</code>.</p></div>
       <div><b>3</b><p>Point a CDN at it. Icons are cacheable for 30 days, so the server sees about one request per icon per month.</p></div>
       <div><b>4</b><p>Check the sandbox on your kernel: <code>docker run --rm favicons/favicons sandbox-selftest net</code> must exit with 159.</p></div>
       <p class="more">TLS with Let's Encrypt, S3, GCS or Azure caches, blocklists and every option: <a href="https://github.com/peleda-app/favicons/blob/main/config.example.toml" target="_blank" rel="noopener">config.example.toml</a>.</p>
@@ -765,6 +732,7 @@ footer a { color: var(--muted); }
   const cursor = $("#cursor");
   const esc = (v) => String(v).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const STAR = `<svg class="star" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M234.29,114.85l-45,38.83L203,211.75a16.4,16.4,0,0,1-24.5,17.82L128,198.49,77.47,229.57A16.4,16.4,0,0,1,53,211.75l13.76-58.07-45-38.83A16.46,16.46,0,0,1,31.08,86l59-4.76,22.76-55.08a16.36,16.36,0,0,1,30.27,0l22.75,55.08,59,4.76a16.46,16.46,0,0,1,9.37,28.86Z"/></svg>`;
   const published = (file) => fetch(`https://stats.favicons.page/${file}?v=${Math.floor(Date.now() / 60000)}`, { cache: "no-store", credentials: "omit" });
   const LETTERS = {
     "discord.com": ["Discord", "3 new messages in #self-hosting", "“Mine runs on a potato and it’s fine”", "09:41"],
@@ -1410,7 +1378,7 @@ footer a { color: var(--muted); }
       const bar = (label, v, max) => `<div class="cmp-bar"><span>${label}<b>${mb(v)}</b></span><i style="--w:${v && max ? Math.max(1, (v / max) * 100).toFixed(1) : 0}%"></i></div>`;
       $("#cmpRows").innerHTML = tools.map((t) => `
         <div class="cmp-row${t.id === "favicons" ? " ours" : ""}">
-          <div class="cmp-name"><a href="https://github.com/${esc(t.repo)}" target="_blank" rel="noopener">${esc(t.name)}</a><small>${esc(t.language || "")}${t.version ? ` · <b>${esc(t.version)}</b>` : ""} · ★ ${(t.stars ?? 0).toLocaleString("en")}${t.note ? "*" : ""}</small></div>
+          <div class="cmp-name"><a href="https://github.com/${esc(t.repo)}" target="_blank" rel="noopener">${esc(t.name)}</a><small>${esc(t.language || "")}${t.version ? ` · <b>${esc(t.version)}</b>` : ""} · <span class="cmp-stars">${STAR}${(t.stars ?? 0).toLocaleString("en")}</span>${t.note ? '<sup class="cmp-mark">*</sup>' : ""}</small></div>
           ${bar("image", t.image_compressed_bytes, maxImg)}
           ${bar("idle memory", t.idle_memory_bytes, maxMem)}
         </div>`).join("");
@@ -1425,6 +1393,25 @@ footer a { color: var(--muted); }
   })();
 
   (async () => {
+    const yamlLine = (l) => {
+      if (/^\s*#/.test(l)) return `<span class="c">${esc(l)}</span>`;
+      const m = /^(\s*(?:-\s+)?)([\w.<-]+:)(\s.*?)?(\s+#.*)?$/.exec(l);
+      if (!m) return esc(l);
+      return `${esc(m[1])}<span class="k">${esc(m[2])}</span>${esc(m[3] || "")}${m[4] ? `<span class="c">${esc(m[4])}</span>` : ""}`;
+    };
+    fetch("/docker-compose.yml")
+      .then((r) => (r.ok ? r.text() : Promise.reject(r.status)))
+      .then((yaml) => {
+        $("#composeText").innerHTML = yaml.trimEnd().split("\n").map(yamlLine).join("\n");
+        $("#composeCopy").addEventListener("click", () => {
+          if (!navigator.clipboard) return;
+          navigator.clipboard.writeText(yaml).then(() => {
+            $("#composeCopy").textContent = "copied";
+            setTimeout(() => ($("#composeCopy").textContent = "copy"), 1200);
+          }, () => {});
+        });
+      })
+      .catch(() => ($("#composeText").innerHTML = `<span class="c">could not load docker-compose.yml</span>`));
     const pre = $("#cfgText");
     let text = "";
     $("#cfgCopy").addEventListener("click", () => {
@@ -1509,13 +1496,19 @@ footer a { color: var(--muted); }
     function pump() {
       while (active < 6 && want.length) {
         const job = want.shift();
-        if (!grid.querySelector(`img[data-key="${CSS.escape(job.key)}"]`)) { thumbs.delete(job.key); continue; }
+        if (!grid.querySelector(`[data-key="${CSS.escape(job.key)}"]`)) { thumbs.delete(job.key); continue; }
         active++;
         get(job.path)
           .then(({ blob }) => {
             const url = URL.createObjectURL(blob);
             thumbs.set(job.key, url);
-            grid.querySelectorAll(`img[data-key="${CSS.escape(job.key)}"]`).forEach((img) => (img.src = url));
+            grid.querySelectorAll(`[data-key="${CSS.escape(job.key)}"]`).forEach((el) => {
+              const img = new Image();
+              img.alt = "";
+              img.dataset.key = job.key;
+              img.src = url;
+              el.replaceWith(img);
+            });
           }, () => thumbs.delete(job.key))
           .finally(() => { active--; pump(); });
       }
@@ -1539,7 +1532,7 @@ footer a { color: var(--muted); }
           const k = `${catalog.id}/${it.slug}`;
           const src = thumbs.get(k);
           if (src === undefined) { thumbs.set(k, null); want.push({ key: k, path: iconPath(it.slug) }); }
-          return `<button type="button" role="option" data-slug="${esc(it.slug)}" aria-selected="${current && current.slug === it.slug}"><img data-key="${esc(k)}" ${src ? `src="${esc(src)}"` : ""} alt=""><span>${esc(it.name)}</span></button>`;
+          return `<button type="button" role="option" data-slug="${esc(it.slug)}" aria-selected="${current && current.slug === it.slug}">${src ? `<img data-key="${esc(k)}" src="${esc(src)}" alt="">` : `<i class="skel" data-key="${esc(k)}"></i>`}<span>${esc(it.name)}</span></button>`;
         })
         .join("");
       for (const [k, v] of thumbs) if (v === null && !want.some((j) => j.key === k)) thumbs.delete(k);

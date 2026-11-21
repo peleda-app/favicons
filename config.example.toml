@@ -11,7 +11,7 @@ request_timeout_ms = 5000
 header_read_timeout_ms = 5000
 shutdown_grace_ms = 10000
 # worker_threads = 2     # async runtime threads; default is one per CPU. Lower it on a box shared with other services
-landing = true          # serve the demo page at / (only in builds with the "site" feature, e.g. the favicons-site image)
+landing = true          # serve the demo page at / (only in builds with the "site" feature, e.g. the favicons.page image)
 # public_url = "https://favicons.example.com"  # name and canonical URLs on the page; defaults to tls.domains[0], then the Host header
 
 [client_ip]

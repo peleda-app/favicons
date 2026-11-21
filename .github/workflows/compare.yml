@@ -33,8 +33,9 @@ jobs:
           jq -e '.tools | length > 0' _site/compare.json
           cp stats/index.html _site/index.html
           cp stats/index.html _site/404.html
-          curl -fsSL "https://stats.favicons.page/stats.json?v=$(date +%s)" -o _site/stats.json \
-            || echo "::warning::stats.json not carried over"
+          for f in stats.json banner.png og.png; do
+            curl -fsSL "https://stats.favicons.page/$f?v=$(date +%s)" -o "_site/$f" || echo "::warning::$f not carried over"
+          done
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site

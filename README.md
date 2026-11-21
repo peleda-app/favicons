@@ -1,6 +1,6 @@
 <div align="center">
 
-![favicons.page](docs/brand/banner.png)
+![favicons.page](https://stats.favicons.page/banner.png)
 
 **Any website's icon as a clean, safe SVG, with colours that fit every theme.**
 

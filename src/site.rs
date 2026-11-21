@@ -253,9 +253,17 @@ fn is_safe_host(host: &str) -> bool {
             .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'-' | b':' | b'[' | b']'))
 }
 
+const LIVE_OG: &str = "https://stats.favicons.page/og.png";
+
 fn render(template: &str, origin: &str) -> String {
     let host = origin.split_once("://").map(|(_, h)| h).unwrap_or(origin);
+    let og = if host == "favicons.page" {
+        LIVE_OG.to_string()
+    } else {
+        format!("{origin}/og.png")
+    };
     template
+        .replace("{{og_image}}", &og)
         .replace("{{origin}}", origin)
         .replace("{{host}}", host)
 }
@@ -376,7 +384,7 @@ mod tests {
         let html = body(s.serve(Asset::Index, &HeaderMap::new(), &Uri::from_static("/")));
         assert!(html.contains("<title>favicons.page"));
         assert!(html.contains(r#"<link rel="canonical" href="https://favicons.page/">"#));
-        assert!(html.contains("https://favicons.page/og.png"));
+        assert!(html.contains("https://stats.favicons.page/og.png"));
         assert!(!html.contains("{{"));
     }
 

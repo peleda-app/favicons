@@ -24,6 +24,7 @@ jobs:
           restore-keys: stats-state-
       - name: merge counters
         env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
           CF_ZONE_ID: ${{ vars.CF_ZONE_ID }}
         run: |
@@ -31,6 +32,12 @@ jobs:
           python3 stats/update.py state/stats.json _site/stats.json \
             https://favicons.page/stats https://stats.favicons.page/stats.json
           cp _site/stats.json state/stats.json
+          sudo apt-get install -y -qq librsvg2-bin fonts-inter python3-pil >/dev/null
+          stars=$(gh api repos/${{ github.repository }} -q .stargazers_count || echo 0)
+          python3 stats/banner.py docs/brand/banner.svg _site/stats.json "$stars" /tmp/banner.svg
+          rsvg-convert -w 1280 -h 640 /tmp/banner.svg -o _site/banner.png
+          rsvg-convert -w 1200 -h 600 -b '#141416' /tmp/banner.svg -o /tmp/og600.png
+          python3 -c "from PIL import Image; im=Image.open('/tmp/og600.png').convert('RGB'); og=Image.new('RGB',(1200,630),(20,20,22)); og.paste(im,(0,15)); og.save('_site/og.png', optimize=True)"
           cp stats/index.html _site/index.html
           cp stats/index.html _site/404.html
           curl -fsSL "https://stats.favicons.page/compare.json?v=$(date +%s)" -o _site/compare.json \

@@ -199,19 +199,22 @@ h2 { font-family: var(--display); font-size: clamp(30px, 3.8vw, 44px); letter-sp
 .opts button:hover { color: var(--text); }
 .opts button[aria-pressed="true"] { background: #2c2c33; color: var(--text); }
 .opts.off { opacity: .4; pointer-events: none; }
-.checker.light { background: conic-gradient(#f4f4f6 25%, #e9e9ee 0 50%, #f4f4f6 0 75%, #e9e9ee 0) 0 0 / 16px 16px; }
+.checker.light, .checker.auto { background: #fff; }
+@media (prefers-color-scheme: dark) { .checker.auto { background: #1c1c1e; } }
+.checker.dark { background: #1c1c1e; }
+.checker.ink img { filter: invert(.86); }
 .checker.busy img { opacity: .35; }
 .examples { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; font-size: 13px; color: var(--dim); }
 .examples button { border: 1px solid var(--line); background: transparent; color: var(--muted); font: 13px var(--mono); padding: 4px 10px; border-radius: 999px; cursor: pointer; transition: color .2s, border-color .2s; }
 .examples button:hover { color: var(--text); border-color: var(--dim); }
 
-.result { display: grid; grid-template-columns: 220px 1fr 320px; grid-template-rows: 420px; gap: 16px; margin-bottom: 16px; }
+.result { display: grid; grid-template-columns: 220px 1fr 320px; gap: 16px; margin-bottom: 16px; }
 .result.loading .raw img, .result.loading .scene .badge { opacity: .35; }
 .raw { background: var(--surface); border-radius: 18px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
-.checker { flex: 1; min-height: 188px; display: grid; place-items: center; border-radius: 12px; background: conic-gradient(#232328 25%, #1b1b1f 0 50%, #232328 0 75%, #1b1b1f 0) 0 0 / 16px 16px; }
+.checker { flex: 1; min-height: 188px; display: grid; place-items: center; border-radius: 12px; background: var(--bd, #1c1c1e); box-shadow: inset 0 0 0 1px rgba(255,255,255,.06); transition: background .25s; }
 .checker img { width: 112px; height: 112px; transition: opacity .25s; }
 .checker img:not([src]) { visibility: hidden; }
-.raw-meta { font: 12px/1.5 var(--mono); color: var(--muted); }
+.raw-meta { font: 12px/1.5 var(--mono); color: var(--muted); min-height: 4.5em; }
 .scenes { display: grid; grid-template-rows: repeat(3, 1fr); gap: 10px; }
 .scene { position: relative; border-radius: 18px; padding: 16px 18px; display: flex; align-items: center; }
 .scene.light { background: #ffffff; color: #1c1c1e; }
@@ -264,11 +267,13 @@ h2 { font-family: var(--display); font-size: clamp(30px, 3.8vw, 44px); letter-sp
 .cat-tabs button:hover { color: var(--text); }
 .cat-tabs button[aria-selected="true"] { background: #26262c; color: var(--text); box-shadow: inset 0 0 0 1px #3a3a42; }
 .preview { background: var(--surface); border-radius: 18px; padding: 20px; display: flex; flex-direction: column; gap: 16px; min-width: 0; }
-.hero-tile { display: grid; place-items: center; height: 150px; border-radius: 14px; background: conic-gradient(#232328 25%, #1b1b1f 0 50%, #232328 0 75%, #1b1b1f 0) 0 0 / 16px 16px; }
+.hero-tile { display: grid; place-items: center; height: 150px; border-radius: 14px; background: #141416; box-shadow: inset 0 0 0 1px #2c2c30; transition: background .25s; }
+.hero-tile.plain { background: var(--bd, #1c1c1e); }
+.hero-tile.plain.mono-plain { background: var(--bd-mono, #1c1c1e); }
 .hero-tile img { width: 96px; height: 96px; transition: opacity .2s; }
 .hero-tile.plain img { width: 80px; height: 80px; }
-.hero-tile.light { background: conic-gradient(#f4f4f6 25%, #e9e9ee 0 50%, #f4f4f6 0 75%, #e9e9ee 0) 0 0 / 16px 16px; }
-.mono-plain img { filter: invert(.84); }
+.hero-tile.light { background: #fff; box-shadow: none; }
+.mono-plain img { filter: invert(.86); }
 .preview.loading .hero-tile img, .preview.loading .vt img { opacity: .3; }
 .variants { display: flex; flex-direction: column; gap: 6px; }
 .vt-head, .vt-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
@@ -278,7 +283,8 @@ h2 { font-family: var(--display); font-size: clamp(30px, 3.8vw, 44px); letter-sp
 .vt-head span:nth-child(3) { grid-column: 4 / 6; }
 .vt { height: 54px; border: 0; border-radius: 12px; display: grid; place-items: center; cursor: pointer; padding: 0; box-shadow: inset 0 0 0 1px #2c2c30; background: #141416; transition: box-shadow .15s, transform .12s; }
 .vt.light { background: #fff; box-shadow: inset 0 0 0 1px #e4e4e8; }
-.vt.plain { background: conic-gradient(#232328 25%, #1b1b1f 0 50%, #232328 0 75%, #1b1b1f 0) 0 0 / 10px 10px; }
+.vt.plain { background: var(--bd, #1c1c1e); }
+.vt.plain.mono-plain { background: var(--bd-mono, #1c1c1e); }
 .vt img { width: 34px; height: 34px; transition: opacity .2s; }
 .vt.plain img { width: 28px; height: 28px; }
 .vt:hover { transform: translateY(-1px); }
@@ -400,7 +406,7 @@ footer a { color: var(--muted); }
   .line i { border-radius: 4px; }
 }
 @media (max-width: 980px) {
-  .result { grid-template-columns: 1fr 1fr; grid-template-rows: 300px 400px; }
+  .result { grid-template-columns: 1fr 1fr; }
   .facts { grid-column: 1 / -1; }
 }
 @media (max-width: 860px) {
@@ -423,7 +429,8 @@ footer a { color: var(--muted); }
   .tint { width: 118px; gap: 8px; }
   .tint button { padding: 6px 8px; }
   .figures { grid-template-columns: 1fr 1fr; }
-  .result { grid-template-columns: minmax(0, 1fr); grid-template-rows: 240px 300px 400px; }
+  .result { grid-template-columns: minmax(0, 1fr); }
+  .scenes { grid-template-rows: none; }
   .field { flex-wrap: wrap; padding: 10px 12px; }
   .field input { flex-basis: 100%; order: 5; padding: 10px 2px 4px; }
   .plate-path { order: 6; }
@@ -516,7 +523,7 @@ footer a { color: var(--muted); }
     <div class="plate-opts" id="plateOpts">
       <span>Plate</span>
       <span class="opts" data-k="shape" role="group" aria-label="Plate shape"><button type="button" data-v="" aria-pressed="true">none</button><button type="button" data-v="rounded" aria-pressed="false">rounded</button><button type="button" data-v="superellipse" aria-pressed="false">superellipse</button></span>
-      <span class="opts off" data-k="theme" role="group" aria-label="Plate theme"><button type="button" data-v="light" aria-pressed="true">light</button><button type="button" data-v="dark" aria-pressed="false">dark</button></span>
+      <span class="opts off" data-k="theme" role="group" aria-label="Plate theme"><button type="button" data-v="auto" aria-pressed="true" title="Follows the viewer's system light or dark scheme">auto</button><button type="button" data-v="light" aria-pressed="false">light</button><button type="button" data-v="dark" aria-pressed="false">dark</button></span>
     </div>
     <div class="examples" id="examples">
       <span>Try</span>
@@ -525,7 +532,7 @@ footer a { color: var(--muted); }
       <button type="button">spotify.com</button>
       <button type="button">figma.com</button>
       <button type="button">youtube.com</button>
-      <button type="button">malware.testcategory.com</button>
+      <button type="button">testcategory.com</button>
       <button type="button">no-such-site-zq.com</button>
     </div>
   </form>
@@ -621,8 +628,8 @@ footer a { color: var(--muted); }
         <div class="vt-grid" id="pvVariants" role="radiogroup" aria-label="Variants"></div>
         <div class="vt-name" id="pvVariant">&nbsp;</div>
       </div>
-      <div class="code pv-code"><button class="copy" data-copy="url">copy</button><pre id="pvUrl">&nbsp;</pre></div>
-      <div class="code pv-code"><button class="copy" data-copy="html">copy</button><pre id="pvHtml">&nbsp;</pre></div>
+      <div class="code pv-code"><button class="copy" data-pv="url">copy</button><pre id="pvUrl">&nbsp;</pre></div>
+      <div class="code pv-code"><button class="copy" data-pv="html">copy</button><pre id="pvHtml">&nbsp;</pre></div>
       <p class="credit" id="pvCredit">&nbsp;</p>
     </div>
   </div>
@@ -722,7 +729,7 @@ footer a { color: var(--muted); }
     "youtube.com": ["YouTube", "New video from a channel you follow", "“Building a squircle in pure SVG”", "08:44"],
     "shopify.com": ["Shopify", "You have 3 new orders", "Your store made $412 today", "08:30"],
     "cloudflare.com": ["Cloudflare", "Your cache hit ratio is 98%", "Weekly analytics for favicons.page", "Yesterday"],
-    "malware.testcategory.com": ["Account Team", "Your account will be suspended", "Verify your details within 24 hours", "Mon"],
+    "testcategory.com": ["Account Team", "Your account will be suspended", "Verify your details within 24 hours", "Mon"],
     "no-such-site-zq.com": ["Billing", "Invoice #4821", "Payment due on receipt", "Mon"],
   };
   let theme = "light";
@@ -975,7 +982,7 @@ footer a { color: var(--muted); }
         await visit("spotify.com", "#dno");
         await click(seg("dark"));
         await wait(1300);
-        await visit("malware.testcategory.com", "#dyes");
+        await visit("testcategory.com", "#dyes");
         await click(seg("mono"));
         await wait(1500);
         await drag();
@@ -1068,7 +1075,7 @@ footer a { color: var(--muted); }
     const serverMs = (h) => { const m = /app;dur=([\d.]+)/.exec(h.get("server-timing") || ""); return m ? Number(m[1]) : null; };
     let style = "color";
     let shape = "";
-    let theme = "light";
+    let theme = "auto";
     let tab = "html";
     let state = null;
     let run = 0;
@@ -1085,7 +1092,7 @@ footer a { color: var(--muted); }
       }
     }
 
-    const suffix = () => (shape ? `/${shape}/${theme}` : "");
+    const suffix = () => (!shape ? "" : theme === "auto" ? `/${shape}` : `/${shape}/${theme}`);
     function snippet() {
       if (!state) return "";
       const o = location.origin;
@@ -1098,7 +1105,7 @@ footer a { color: var(--muted); }
         case "js":
           return `const r = await fetch("${o}/color/${d}");\nconst plate = r.headers.get("x-icon-light-plate"); // ${l.plate || "—"}\nconst text = r.headers.get("x-icon-light-text");   // ${l.text || "—"}\nconst svg = await r.text();`;
         case "plate":
-          return `<img src="${o}/${style}/${d}/superellipse/light" width="40" height="40" alt="${title(d)}">\n<img src="${o}/${style}/${d}/rounded/dark" width="40" height="40" alt="${title(d)}">`;
+          return `<!-- follows the system light or dark scheme -->\n<img src="${o}/${style}/${d}/superellipse" width="40" height="40" alt="${title(d)}">\n<!-- or pin one theme -->\n<img src="${o}/${style}/${d}/rounded/dark" width="40" height="40" alt="${title(d)}">`;
         case "curl":
           return `curl -sD - -o ${d}.svg ${o}/${style}/${d}${suffix()}`;
         default:
@@ -1113,7 +1120,9 @@ footer a { color: var(--muted); }
       $("#snippet").textContent = snippet();
       const key = style + suffix();
       const checker = document.querySelector(".checker");
-      checker.classList.toggle("light", shape !== "" && theme === "light");
+      const dark = state.palette.dark;
+      checker.className = `checker ${shape ? theme : style === "mono" ? "ink" : ""}`;
+      checker.style.setProperty("--bd", (style === "mono" ? dark.monoPlate : dark.plate) || "#1c1c1e");
       let shown = state.variants.get(key);
       if (!shown) {
         const s = state;
@@ -1131,7 +1140,7 @@ footer a { color: var(--muted); }
       checker.classList.remove("busy");
       $("#rawImg").src = shown.url;
       const vector = shown.r.headers.get("x-icon-vector") || "";
-      const plate = shape ? ` · ${shape} · ${theme}` : "";
+      const plate = shape ? ` · ${shape} · ${theme === "auto" ? "system theme" : theme}` : "";
       $("#rawMeta").textContent = `${style}${plate} · ${bytes(shown.blob.size)}${vector ? ` · ${vector}` : ""}`;
     }
 
@@ -1441,6 +1450,7 @@ footer a { color: var(--muted); }
     let vi = 0;
     let view = "";
     let active = 0;
+    const inflight = new Set();
     let urls = [];
     let run = 0;
     let creditHtml = "";
@@ -1466,6 +1476,7 @@ footer a { color: var(--muted); }
         const job = want.shift();
         if (!grid.querySelector(`[data-key="${CSS.escape(job.key)}"]`)) { thumbs.delete(job.key); continue; }
         active++;
+        inflight.add(job.key);
         get(job.path)
           .then(({ blob }) => {
             const url = URL.createObjectURL(blob);
@@ -1478,7 +1489,7 @@ footer a { color: var(--muted); }
               el.replaceWith(img);
             });
           }, () => thumbs.delete(job.key))
-          .finally(() => { active--; pump(); });
+          .finally(() => { active--; inflight.delete(job.key); pump(); });
       }
     }
 
@@ -1494,6 +1505,7 @@ footer a { color: var(--muted); }
       grid.style.setProperty("--cols", cols);
       grid.style.top = `${first * ROW}px`;
       want.length = 0;
+      for (const [k, v] of thumbs) if (v === null && !inflight.has(k)) thumbs.delete(k);
       grid.innerHTML = shown
         .slice(first * cols, last * cols)
         .map((it) => {
@@ -1503,7 +1515,6 @@ footer a { color: var(--muted); }
           return `<button type="button" role="option" data-slug="${esc(it.slug)}" aria-selected="${current && current.slug === it.slug}">${src ? `<img data-key="${esc(k)}" src="${esc(src)}" alt="">` : `<i class="skel" data-key="${esc(k)}"></i>`}<span>${esc(it.name)}</span></button>`;
         })
         .join("");
-      for (const [k, v] of thumbs) if (v === null && !want.some((j) => j.key === k)) thumbs.delete(k);
       pump();
     }
     let frame = 0;
@@ -1572,6 +1583,8 @@ footer a { color: var(--muted); }
         const headers = results[0].r.headers;
         const p = palette(headers);
         $("#pvName").style.setProperty("--name", p.dark.text || "");
+        $("#slugPreview").style.setProperty("--bd", p.dark.plate || "#1c1c1e");
+        $("#slugPreview").style.setProperty("--bd-mono", p.dark.monoPlate || "#1c1c1e");
         const license = headers.get("x-icon-license") || it.license || catalog.license;
         $("#pvCredit").innerHTML = `${creditHtml} · ${esc(license)}`;
         $("#slugPreview").classList.remove("loading");
@@ -1594,7 +1607,7 @@ footer a { color: var(--muted); }
     search.addEventListener("input", filter);
     document.querySelectorAll(".pv-code .copy").forEach((btn) => btn.addEventListener("click", () => {
       if (!navigator.clipboard || !current) return;
-      const pre = btn.dataset.copy === "url" ? $("#pvUrl") : $("#pvHtml");
+      const pre = btn.dataset.pv === "url" ? $("#pvUrl") : $("#pvHtml");
       navigator.clipboard.writeText(pre.textContent).then(() => {
         btn.textContent = "copied";
         setTimeout(() => (btn.textContent = "copy"), 1200);

@@ -1318,12 +1318,12 @@ footer a { color: var(--muted); }
       ["Ready-made plates", ["favicons"]],
       ["Icon catalogs by slug", ["favicons"]],
       ["Sandboxed image decoding", ["favicons"]],
-      ["Private address (SSRF) guard", ["favicons", "vemetric"]],
+      ["Private address (SSRF) guard", ["favicons", "vemetric", "besticon", "bitwarden"]],
       ["Blocklists and domain age", ["favicons"]],
-      ["Own cache", ["favicons", "besticon", "faser", "r0gger"]],
+      ["Own cache", ["favicons", "besticon", "faser", "r0gger", "bitwarden"]],
       ["Any output size", ["favicons", "vemetric", "faser"]],
       ["Tiny favicons upscaled", ["favicons"]],
-      ["Generated fallback icon", ["favicons", "besticon", "vemetric", "faser"]],
+      ["Generated fallback icon", ["favicons", "besticon", "vemetric", "faser", "seadfeng"]],
     ];
     const mb = (b) => (b == null ? "—" : `${(b / 1048576).toFixed(b < 10485760 ? 1 : 0)} MB`);
     const ago = (iso) => {
@@ -1355,7 +1355,7 @@ footer a { color: var(--muted); }
         `<tr><th></th>${tools.map((t) => `<th class="${t.id === "favicons" ? "ours" : ""}">${esc(t.name)}</th>`).join("")}</tr>` +
         FEATURES.map(([f, has]) => `<tr><td>${esc(f)}</td>${tools.map((t) => (has.includes(t.id) ? '<td class="y">✓</td>' : '<td class="n">—</td>')).join("")}</tr>`).join("");
       const noted = tools.filter((t) => t.note).map((t) => `* ${esc(t.name)}: ${esc(t.note)}.`).join(" ");
-      $("#cmpNote").innerHTML = `Measured ${ago(data.generated_at)} on ${esc(data.platform || "linux/amd64")} after ${data.idle_seconds || 30} s idle; image sizes are compressed. Features as each project documents them. ${noted}`;
+      $("#cmpNote").innerHTML = `Measured ${ago(data.generated_at)} on ${esc(data.platform || "linux/amd64")} after ${data.idle_seconds || 30} s idle; image sizes are compressed. Features as each project documents or implements them. ${noted}`;
       $("#compare").hidden = false;
       $("#compareLink").hidden = false;
     } catch {}

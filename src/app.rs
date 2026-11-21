@@ -50,6 +50,7 @@ pub struct App {
     pub site: crate::site::Site,
     generated_palettes: Cache<[u8; 32], Palette>,
     placeholders: moka::future::Cache<String, Option<String>>,
+    pub compare: std::sync::RwLock<Option<Bytes>>,
     decode_slots: Arc<Semaphore>,
     pub request_slots: Arc<Semaphore>,
 }
@@ -75,6 +76,7 @@ impl App {
                 .max_capacity(10_000)
                 .time_to_idle(Duration::from_secs(3_600))
                 .build(),
+            compare: std::sync::RwLock::new(None),
             placeholders: moka::future::Cache::builder()
                 .max_capacity(64)
                 .time_to_live(Duration::from_secs(86_400))
@@ -872,6 +874,43 @@ impl App {
                 }
             });
         }
+    }
+
+    pub fn spawn_compare_reloader(self: &Arc<Self>) {
+        if !crate::site::ENABLED
+            || !self.cfg.server.landing
+            || self.cfg.server.compare_url.is_empty()
+        {
+            return;
+        }
+        let Ok(url) = Url::parse(&self.cfg.server.compare_url) else {
+            tracing::warn!("server.compare_url is not a valid url");
+            return;
+        };
+        let app = self.clone();
+        tokio::spawn(async move {
+            loop {
+                let fresh = match app.list_client.get(&url, "application/json", 1 << 20).await {
+                    Ok(f) if serde_json::from_slice::<serde_json::Value>(&f.bytes).is_ok() => {
+                        Some(Bytes::from(f.bytes))
+                    }
+                    Ok(_) => {
+                        tracing::warn!("compare.json is not valid json");
+                        None
+                    }
+                    Err(e) => {
+                        tracing::debug!(error = %e, "compare.json fetch failed");
+                        None
+                    }
+                };
+                let loaded = fresh.is_some();
+                if let (Some(body), Ok(mut slot)) = (fresh, app.compare.write()) {
+                    *slot = Some(body);
+                }
+                let wait = if loaded { 3_600 } else { 300 };
+                tokio::time::sleep(Duration::from_secs(wait)).await;
+            }
+        });
     }
 
     pub fn spawn_policy_reloader(self: &Arc<Self>) {

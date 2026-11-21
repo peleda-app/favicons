@@ -1,0 +1,7 @@
+[
+  { "id": "favicons", "name": "favicons", "repo": "peleda-app/favicons", "image": "ghcr.io/peleda-app/favicons:latest", "port": 8080 },
+  { "id": "besticon", "name": "besticon", "repo": "mat/besticon", "image": "matthiasluedtke/iconserver:latest", "port": 8080 },
+  { "id": "vemetric", "name": "Vemetric Favicon API", "repo": "vemetric/favicon-api", "image": "vemetric/favicon-api:latest", "port": 3000 },
+  { "id": "bitwarden", "name": "Bitwarden Icons", "repo": "bitwarden/server", "image": "ghcr.io/bitwarden/icons:latest", "port": 5000, "note": "part of the Bitwarden server repository" },
+  { "id": "faser", "name": "Faser", "repo": "pirsch-analytics/faser", "image": "pirsch/faser:latest", "port": 8080 }
+]

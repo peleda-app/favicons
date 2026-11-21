@@ -40,6 +40,7 @@ pub fn router(app: Arc<App>) -> Router {
             .route("/", page(Asset::Index))
             .route("/sitemap.xml", page(Asset::Sitemap))
             .route("/config.example.toml", page(Asset::ConfigExample))
+            .route("/compare.json", get(compare))
             .route("/favicon.svg", page(Asset::Favicon))
             .route("/apple-touch-icon.png", page(Asset::AppleTouchIcon))
             .route("/og.png", page(Asset::OgImage))
@@ -487,6 +488,19 @@ fn json(body: bytes::Bytes, cache: &'static str) -> Response {
     r.headers_mut()
         .insert(CACHE_CONTROL, HeaderValue::from_static(cache));
     r
+}
+
+async fn compare(State(app): State<Arc<App>>) -> Response {
+    let body = app.compare.read().ok().and_then(|b| b.clone());
+    match body {
+        Some(b) => json(b, "public, max-age=3600, stale-while-revalidate=86400"),
+        None => {
+            let mut r = plain(StatusCode::SERVICE_UNAVAILABLE, "comparison is loading");
+            r.headers_mut()
+                .insert(RETRY_AFTER, HeaderValue::from_static("60"));
+            r
+        }
+    }
 }
 
 async fn catalogs_index(State(app): State<Arc<App>>) -> Response {

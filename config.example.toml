@@ -13,6 +13,7 @@ shutdown_grace_ms = 10000
 # worker_threads = 2     # async runtime threads; default is one per CPU. Lower it on a box shared with other services
 landing = true          # serve the demo page at / (only in builds with the "site" feature, e.g. the favicons-site image)
 # public_url = "https://favicons.example.com"  # name and canonical URLs on the page; defaults to tls.domains[0], then the Host header
+compare_url = "https://peleda-app.github.io/favicons/compare.json"   # comparison with similar projects on the page, refreshed hourly; "" disables
 
 [client_ip]
 # peer | x-forwarded-for | x-real-ip | cf-connecting-ip

@@ -332,6 +332,35 @@ h2 { font-size: clamp(28px, 3.4vw, 38px); letter-spacing: -.025em; line-height: 
 .figures span { font: 12px var(--mono); color: var(--muted); }
 .machine .note { margin: 20px 0 0; color: var(--muted); font-size: 14px; }
 
+.cmp { display: flex; flex-direction: column; gap: 8px; }
+.cmp-row { display: grid; grid-template-columns: minmax(170px, 1.1fr) minmax(0, 1fr) minmax(0, 1fr); gap: 20px; align-items: center; padding: 16px 20px; border-radius: 16px; background: var(--surface); }
+.cmp-row.ours { box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--accent) 45%, transparent); background: color-mix(in oklab, var(--accent) 5%, var(--surface)); }
+.cmp-name { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.cmp-name a { color: var(--text); font-weight: 600; font-size: 15px; }
+.cmp-name a:hover { color: var(--accent); }
+.cmp-name small { font: 12px var(--mono); color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cmp-name small b { color: var(--muted); font-weight: 500; }
+.cmp-bar { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.cmp-bar span { display: flex; justify-content: space-between; font: 12px var(--mono); color: var(--dim); }
+.cmp-bar span b { color: var(--cream); font-weight: 500; }
+.cmp-bar i { display: block; height: 6px; border-radius: 3px; background: #2a2a30; overflow: hidden; }
+.cmp-bar i::after { content: ""; display: block; height: 100%; width: var(--w); min-width: 3px; border-radius: 3px; background: #6b6b75; }
+.cmp-row.ours .cmp-bar i::after { background: var(--accent); }
+.cmp-features { margin-top: 16px; overflow-x: auto; background: var(--surface); border-radius: 16px; padding: 6px 20px; }
+.cmp-features table { width: 100%; border-collapse: collapse; font-size: 14px; min-width: 620px; }
+.cmp-features th, .cmp-features td { padding: 10px 8px; text-align: center; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.cmp-features tr:last-child td { border-bottom: 0; }
+.cmp-features th { font: 500 12px var(--mono); color: var(--dim); }
+.cmp-features th.ours { color: var(--accent); }
+.cmp-features td:first-child, .cmp-features th:first-child { text-align: left; color: var(--muted); }
+.cmp-features td.y { color: #7bd88f; }
+.cmp-features td.n { color: #3d3d45; }
+.cmp-note { margin: 12px 0 0; font-size: 13px; color: var(--dim); }
+@media (max-width: 760px) {
+  .cmp-row { grid-template-columns: 1fr 1fr; }
+  .cmp-name { grid-column: 1 / -1; }
+}
+
 footer { padding: 56px 0 64px; color: var(--dim); font-size: 14px; display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
 footer a { color: var(--muted); }
 
@@ -395,6 +424,7 @@ footer a { color: var(--muted); }
     <a href="#catalogs" id="catalogsLink" hidden>Catalogs</a>
     <a href="#safety">Safety</a>
     <a href="#performance">Performance</a>
+    <a href="#compare" id="compareLink" hidden>Compare</a>
     <a href="#self-host">Self-host</a>
     <a href="https://github.com/peleda-app/favicons" target="_blank" rel="noopener">GitHub</a>
   </div>
@@ -603,6 +633,15 @@ footer a { color: var(--muted); }
       <p class="note">wrk and favicons shared the six performance cores; the service itself was not short of CPU.</p>
     </div>
   </div>
+</section>
+
+<section id="compare" hidden>
+  <div class="eyebrow">compare</div>
+  <h2>Next to the other open-source servers.</h2>
+  <p class="sub" id="compareSub">Every day a GitHub Action pulls each project's latest image on linux/amd64, starts it with default settings and reads its memory after it has sat idle. Stars and versions come from GitHub on the same run.</p>
+  <div class="cmp" id="cmpRows"></div>
+  <div class="cmp-features"><table id="cmpFeatures"></table></div>
+  <p class="cmp-note" id="cmpNote"></p>
 </section>
 
 <section id="self-host">
@@ -1223,6 +1262,50 @@ footer a { color: var(--muted); }
       }, () => {});
     });
     inspect(input.value);
+  })();
+
+  (async () => {
+    const FEATURES = [
+      ["SVG output", ["favicons"]],
+      ["Monochrome mask", ["favicons"]],
+      ["Colours for light and dark", ["favicons"]],
+      ["Ready-made plates", ["favicons"]],
+      ["Icon catalogs by slug", ["favicons"]],
+      ["Sandboxed image decoding", ["favicons"]],
+      ["Private address (SSRF) guard", ["favicons", "vemetric"]],
+      ["Blocklists and domain age", ["favicons"]],
+      ["Own cache", ["favicons", "besticon", "faser"]],
+      ["Resizing", ["vemetric", "faser"]],
+      ["Generated fallback icon", ["favicons", "besticon", "vemetric", "faser"]],
+    ];
+    const mb = (b) => (b == null ? "—" : `${(b / 1048576).toFixed(b < 10485760 ? 1 : 0)} MB`);
+    const ago = (iso) => {
+      const h = Math.round((Date.now() - Date.parse(iso)) / 3600000);
+      return h < 1 ? "less than an hour ago" : h < 48 ? `${h} h ago` : `${Math.round(h / 24)} days ago`;
+    };
+    try {
+      const r = await fetch("/compare.json");
+      if (!r.ok) return;
+      const data = await r.json();
+      const tools = (data.tools || []).slice().sort((a, b) => (b.id === "favicons") - (a.id === "favicons") || (b.stars || 0) - (a.stars || 0));
+      if (!tools.length) return;
+      const maxImg = Math.max(...tools.map((t) => t.image_compressed_bytes || 0));
+      const maxMem = Math.max(...tools.map((t) => t.idle_memory_bytes || 0));
+      const bar = (label, v, max) => `<div class="cmp-bar"><span>${label}<b>${mb(v)}</b></span><i style="--w:${v && max ? Math.max(1, (v / max) * 100).toFixed(1) : 0}%"></i></div>`;
+      $("#cmpRows").innerHTML = tools.map((t) => `
+        <div class="cmp-row${t.id === "favicons" ? " ours" : ""}">
+          <div class="cmp-name"><a href="https://github.com/${esc(t.repo)}" target="_blank" rel="noopener">${esc(t.name)}</a><small>${esc(t.language || "")}${t.version ? ` · <b>${esc(t.version)}</b>` : ""} · ★ ${(t.stars ?? 0).toLocaleString("en")}${t.note ? "*" : ""}</small></div>
+          ${bar("image", t.image_compressed_bytes, maxImg)}
+          ${bar("idle memory", t.idle_memory_bytes, maxMem)}
+        </div>`).join("");
+      $("#cmpFeatures").innerHTML =
+        `<tr><th></th>${tools.map((t) => `<th class="${t.id === "favicons" ? "ours" : ""}">${esc(t.name)}</th>`).join("")}</tr>` +
+        FEATURES.map(([f, has]) => `<tr><td>${esc(f)}</td>${tools.map((t) => (has.includes(t.id) ? '<td class="y">✓</td>' : '<td class="n">—</td>')).join("")}</tr>`).join("");
+      const noted = tools.filter((t) => t.note).map((t) => `* ${esc(t.name)}: ${esc(t.note)}.`).join(" ");
+      $("#cmpNote").innerHTML = `Measured ${ago(data.generated_at)} on ${esc(data.platform || "linux/amd64")} after ${data.idle_seconds || 30} s idle; image sizes are compressed. Features as each project documents them. ${noted}`;
+      $("#compare").hidden = false;
+      $("#compareLink").hidden = false;
+    } catch {}
   })();
 
   (async () => {

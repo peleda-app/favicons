@@ -126,6 +126,7 @@ async fn run(cfg: config::Config) -> anyhow::Result<()> {
         _ => {}
     }
     app.spawn_policy_reloader();
+    app.spawn_compare_reloader();
     app.spawn_catalog_reloader();
     app.spawn_slug_reloaders();
     app.spawn_workers();

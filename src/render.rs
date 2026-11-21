@@ -376,44 +376,15 @@ pub fn monochrome(img: &RgbaImage, source: MonoSource) -> anyhow::Result<RgbaIma
     ensure!(w > 0 && h > 0, "empty image");
     let ink: Vec<u8> = match source {
         MonoSource::MaskIcon => img.pixels().map(|p| p[3]).collect(),
-        MonoSource::Derived => {
-            let border: Vec<image::Rgba<u8>> = (0..w)
-                .flat_map(|x| [(x, 0), (x, h - 1)])
-                .chain((0..h).flat_map(|y| [(0, y), (w - 1, y)]))
-                .map(|(x, y)| *img.get_pixel(x, y))
-                .collect();
-            let transparent = border.iter().filter(|p| p[3] < 32).count();
-            let opaque: Vec<&image::Rgba<u8>> = border.iter().filter(|p| p[3] >= 200).collect();
-            let tile_bg = (transparent * 2 < border.len() && !opaque.is_empty())
-                .then(|| {
-                    let median = |c: usize| {
-                        let mut v: Vec<u8> = opaque.iter().map(|p| p[c]).collect();
-                        v.sort_unstable();
-                        f32::from(v[v.len() / 2])
-                    };
-                    [median(0), median(1), median(2)]
-                })
-                .filter(|bg| {
-                    let near = opaque
-                        .iter()
-                        .filter(|p| color_distance(p, *bg) < 0.12)
-                        .count();
-                    near * 10 >= opaque.len() * 8
-                });
-            match tile_bg {
-                Some(bg) => img
-                    .pixels()
-                    .map(|p| {
-                        let soft = smoothstep(0.10, 0.30, color_distance(p, bg));
-                        (soft * f32::from(p[3])).round() as u8
-                    })
-                    .collect(),
-                None => white_ground(img).unwrap_or_else(|| knockout_or_silhouette(img)),
-            }
-        }
+        MonoSource::Derived => match tile_ink(img, 0) {
+            Some(ink) if coverage(&ink, w, h) <= 0.9 => ink,
+            Some(ink) => tile_ink(img, w.min(h) / 24)
+                .filter(|inner| (0.01..=0.9).contains(&coverage(inner, w, h)))
+                .unwrap_or(ink),
+            None => white_ground(img).unwrap_or_else(|| knockout_or_silhouette(img)),
+        },
     };
-    let coverage = ink.iter().map(|a| u64::from(*a)).sum::<u64>() as f64
-        / (255.0 * f64::from(w) * f64::from(h));
+    let coverage = coverage(&ink, w, h);
     ensure!(coverage >= 0.01, "no visible shape for a monochrome icon");
     ensure!(
         coverage <= 0.99,
@@ -421,6 +392,52 @@ pub fn monochrome(img: &RgbaImage, source: MonoSource) -> anyhow::Result<RgbaIma
     );
     let raw = ink.into_iter().flat_map(|a| [0, 0, 0, a]).collect();
     RgbaImage::from_raw(w, h, raw).context("building mask")
+}
+
+fn coverage(ink: &[u8], w: u32, h: u32) -> f64 {
+    ink.iter().map(|a| u64::from(*a)).sum::<u64>() as f64 / (255.0 * f64::from(w) * f64::from(h))
+}
+
+fn tile_ink(img: &RgbaImage, inset: u32) -> Option<Vec<u8>> {
+    let (w, h) = img.dimensions();
+    if inset * 2 + 2 > w.min(h) {
+        return None;
+    }
+    let (x0, y0, x1, y1) = (inset, inset, w - 1 - inset, h - 1 - inset);
+    let border: Vec<image::Rgba<u8>> = (x0..=x1)
+        .flat_map(|x| [(x, y0), (x, y1)])
+        .chain((y0..=y1).flat_map(|y| [(x0, y), (x1, y)]))
+        .map(|(x, y)| *img.get_pixel(x, y))
+        .collect();
+    let transparent = border.iter().filter(|p| p[3] < 32).count();
+    let opaque: Vec<&image::Rgba<u8>> = border.iter().filter(|p| p[3] >= 200).collect();
+    if transparent * 2 >= border.len() || opaque.is_empty() {
+        return None;
+    }
+    let median = |c: usize| {
+        let mut v: Vec<u8> = opaque.iter().map(|p| p[c]).collect();
+        v.sort_unstable();
+        f32::from(v[v.len() / 2])
+    };
+    let bg = [median(0), median(1), median(2)];
+    let near = opaque
+        .iter()
+        .filter(|p| color_distance(p, bg) < 0.12)
+        .count();
+    if near * 10 < opaque.len() * 8 {
+        return None;
+    }
+    Some(
+        img.enumerate_pixels()
+            .map(|(x, y, p)| {
+                if x < x0 || x > x1 || y < y0 || y > y1 {
+                    return 0;
+                }
+                let soft = smoothstep(0.10, 0.30, color_distance(p, bg));
+                (soft * f32::from(p[3])).round() as u8
+            })
+            .collect(),
+    )
 }
 
 fn is_compressed_container(bytes: &[u8]) -> bool {
@@ -691,6 +708,27 @@ mod tests {
         let m = monochrome(&logo, MonoSource::Derived).unwrap();
         assert_eq!(alpha_at(&m, 32, 32), 255);
         assert_eq!(alpha_at(&m, 1, 1), 0);
+    }
+
+    #[test]
+    fn looks_past_a_thin_frame_around_the_tile() {
+        let img = RgbaImage::from_fn(128, 128, |x, y| {
+            let d = (x as i32 - 64).pow(2) + (y as i32 - 64).pow(2);
+            if x < 2 || y < 2 || x > 125 || y > 125 {
+                image::Rgba([255, 255, 255, 255])
+            } else if (54..74).contains(&x) && (54..74).contains(&y) {
+                image::Rgba([0, 80, 170, 255])
+            } else if d < 50 * 50 {
+                image::Rgba([255, 240, 0, 255])
+            } else {
+                image::Rgba([0, 80, 170, 255])
+            }
+        });
+        let m = monochrome(&img, MonoSource::Derived).unwrap();
+        assert_eq!(alpha_at(&m, 64, 30), 255, "the disc is the mark");
+        assert_eq!(alpha_at(&m, 64, 64), 0, "the lettering is cut out");
+        assert_eq!(alpha_at(&m, 8, 8), 0, "the tile is not ink");
+        assert_eq!(alpha_at(&m, 0, 64), 0, "the frame is dropped");
     }
 
     #[test]

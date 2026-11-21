@@ -1,6 +1,6 @@
 use std::io::Cursor;
 
-use anyhow::{Context, ensure};
+use anyhow::{Context, bail, ensure};
 use image::imageops::{self, FilterType as Resample};
 use image::{ImageFormat, ImageReader, Limits, RgbaImage};
 use resvg::usvg;
@@ -251,7 +251,8 @@ fn trace_color(img: &RgbaImage, cfg: &RenderCfg) -> anyhow::Result<String> {
         "image is fully transparent"
     );
     let reference = reference(img);
-    let work = quantize(&resize_premultiplied(img, WORK_PX), MAX_PALETTE);
+    let resized = resize_premultiplied(img, WORK_PX);
+    let work = quantize(&resized, MAX_PALETTE);
     let mut best: Option<(f32, String)> = None;
     for p in [trace::BALANCED, trace::FINE] {
         let Ok(svg) = traced(&trace::color(&work, &p), false, false, cfg) else {
@@ -266,10 +267,23 @@ fn trace_color(img: &RgbaImage, cfg: &RenderCfg) -> anyhow::Result<String> {
             best = Some((d, svg));
         }
     }
-    match best {
-        Some((_, svg)) => Ok(svg),
-        None => traced(&trace::color(&work, &trace::COARSE), false, false, cfg),
+    if let Some((_, svg)) = best {
+        return Ok(svg);
     }
+    if let Ok(svg) = traced(&trace::color(&work, &trace::COARSE), false, false, cfg) {
+        return Ok(svg);
+    }
+    for (side, colors) in [(WORK_PX, 6), (WORK_PX / 2, 6), (WORK_PX / 2, 3)] {
+        let small = quantize(&resize_premultiplied(&resized, side), colors);
+        if let Ok(svg) = traced(&trace::color(&small, &trace::COARSE), false, false, cfg) {
+            let d = fidelity(&reference, &svg)?;
+            tracing::debug!(side, colors, d, "coarse trace");
+            if d <= cfg.svg_fidelity * 4.0 {
+                return Ok(svg);
+            }
+        }
+    }
+    bail!("traced svg too large")
 }
 
 fn trace_mask(mask: &RgbaImage, cfg: &RenderCfg) -> anyhow::Result<String> {

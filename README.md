@@ -29,10 +29,11 @@ x-icon-accent: #5a67f2          x-icon-dark-text:   #6b77f3
 ```
 
 Or let the server draw the badge for you, on a rounded square or an iOS-style
-superellipse in the right colour for each theme:
+superellipse. It follows the viewer's light or dark theme by itself; add
+`/light` or `/dark` to pin one:
 
 ```html
-<img src="https://favicons.page/color/discord.com/superellipse/light" width="40" height="40" alt="">
+<img src="https://favicons.page/color/discord.com/superellipse" width="40" height="40" alt="">
 ```
 
 Need a single-colour icon for a toolbar or a tab bar? Ask for the mask and tint it with CSS:
@@ -43,6 +44,8 @@ Need a single-colour icon for a toolbar or a tab bar? Ask for the mask and tint 
   mask: url(https://favicons.page/mono/discord.com) center / contain no-repeat;
 }
 ```
+
+![Favicons of any site, 17 icon packs, ready-made badges and monochrome masks](docs/brand/showcase.png)
 
 ## Why favicons
 
@@ -75,6 +78,18 @@ response naming its license:
 <img src="https://favicons.page/color/simple-icons/github" width="32" height="32" alt="">
 <img src="https://favicons.page/color/selfhst/jellyfin/superellipse" width="40" height="40" alt="">
 ```
+
+![The same selfh.st icons as they come and through favicons.page](docs/brand/before-after.png)
+
+## On your dashboard
+
+Any dashboard that takes an icon URL works:
+[Homepage](https://gethomepage.dev) with ready-made badges,
+[Glance](https://github.com/glanceapp/glance) with monochrome masks tinted to its theme.
+
+![Homepage before and after](docs/brand/homepage.png)
+
+![Glance before and after](docs/brand/glance.png)
 
 ## Self-host in one command
 

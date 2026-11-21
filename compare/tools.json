@@ -4,5 +4,6 @@
   {"id": "vemetric", "name": "Vemetric Favicon API", "repo": "vemetric/favicon-api", "image": "vemetric/favicon-api:latest", "port": 3000},
   {"id": "bitwarden", "name": "Bitwarden Icons", "repo": "bitwarden/server", "image": "ghcr.io/bitwarden/icons:latest", "port": 5000, "note": "a standalone service from the Bitwarden server repository, so the stars are that repository's"},
   {"id": "faser", "name": "Faser", "repo": "pirsch-analytics/faser", "image": "pirsch/faser:latest", "port": 8080},
-  {"id": "r0gger", "name": "FaviconAPI", "repo": "R0GGER/favicon-api", "image": "ghcr.io/r0gger/favicon-api:latest", "port": 3000, "note": "aggregates upstream icon APIs and runs besticon as a sidecar; only its own container is measured"}
+  {"id": "r0gger", "name": "FaviconAPI", "repo": "R0GGER/favicon-api", "image": "ghcr.io/r0gger/favicon-api:latest", "port": 3000, "note": "aggregates upstream icon APIs and runs besticon as a sidecar; only its own container is measured"},
+  {"id": "seadfeng", "name": "Favicon Downloader", "repo": "seadfeng/favicon-downloader", "image": "seadfeng/favicon-downloader:latest", "port": 3000, "note": "built mainly for Cloudflare Pages; the Docker image runs the same Next.js app"}
 ]

@@ -15,7 +15,7 @@ function init()
 end
 
 function request()
-  local path = "/v1/icon/" .. styles[math.random(#styles)] .. "/" .. domains[math.random(#domains)]
+  local path = "/" .. styles[math.random(#styles)] .. "/" .. domains[math.random(#domains)]
   local ip = "10." .. math.random(1, 250) .. "." .. math.random(0, 250) .. "." .. math.random(1, 250)
   return wrk.format("GET", path, { ["X-Forwarded-For"] = ip })
 end

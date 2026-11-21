@@ -1,6 +1,6 @@
 # HTTP API contract (v1)
 
-## `GET /v1/icon/{style}/{domain}`
+## `GET /{style}/{domain}`
 
 `HEAD` is also supported. There are no query parameters.
 
@@ -62,17 +62,17 @@ from it as usual.
 
 ### Canonical URLs
 
-Every icon has exactly one URL: `/v1/icon/{style}/{registrable domain}`. Any
+Every icon has exactly one URL: `/{style}/{registrable domain}`. Any
 other form gets a permanent redirect there, without fetching anything:
 
 | Request | Redirects to |
 |---------|--------------|
-| `/v1/icon/color/super-domain.evil-example.com` | `/v1/icon/color/evil-example.com` |
-| `/v1/icon/color/EXAMPLE.com`, `…/example.com.` | `/v1/icon/color/example.com` |
-| `/v1/icon/mono/example.com.svg` | `/v1/icon/mono/example.com` |
-| `/v1/icon/color/https%3A%2F%2Fwww.example.co.uk%2Fpath` | `/v1/icon/color/example.co.uk` |
-| `/v1/icon/color/example.com?anything` | `/v1/icon/color/example.com` |
-| `/v1/icon/mono/example.com/` | `/v1/icon/mono/example.com` |
+| `/color/super-domain.evil-example.com` | `/color/evil-example.com` |
+| `/color/EXAMPLE.com`, `…/example.com.` | `/color/example.com` |
+| `/mono/example.com.svg` | `/mono/example.com` |
+| `/color/https%3A%2F%2Fwww.example.co.uk%2Fpath` | `/color/example.co.uk` |
+| `/color/example.com?anything` | `/color/example.com` |
+| `/mono/example.com/` | `/mono/example.com` |
 
 The redirect is `301` with `http_cache.canonical` headers (`immutable`, a month in
 browsers, a year in CDNs), so browsers and CDNs remember it and keep one cached
@@ -88,7 +88,7 @@ not redirected; they get a generated icon with reason `invalid-domain`.
 
 ### Monochrome icons
 
-`/v1/icon/mono/{domain}` returns a single-colour SVG: **one black (`#000`) path on
+`/mono/{domain}` returns a single-colour SVG: **one black (`#000`) path on
 transparency**. It is meant for CSS masks, so
 the consumer picks the colour:
 
@@ -97,8 +97,8 @@ the consumer picks the colour:
   width: 16px;
   height: 16px;
   background-color: currentColor;
-  -webkit-mask: url("https://icons.example.com/v1/icon/mono/github.com") center / contain no-repeat;
-  mask: url("https://icons.example.com/v1/icon/mono/github.com") center / contain no-repeat;
+  -webkit-mask: url("https://icons.example.com/mono/github.com") center / contain no-repeat;
+  mask: url("https://icons.example.com/mono/github.com") center / contain no-repeat;
 }
 ```
 
@@ -181,7 +181,7 @@ TLS, time to first byte) for pages on other origins, and
 request:
 
 ```js
-const url = "https://favicons.page/v1/icon/color/github.com";
+const url = "https://favicons.page/color/github.com";
 const r = await fetch(url);
 const [t] = performance.getEntriesByName(r.url);
 console.log(t.responseStart - t.requestStart, t.serverTiming, r.headers.get("x-icon-source"));
@@ -269,11 +269,23 @@ always gets the same image on every instance that shares the salt.
   a `queued` icon gets the real one on its next refresh.
 * Honour `ETag` / `If-None-Match`; revalidation is cheap.
 
-## `GET /` and `GET /favicon.svg`
+## The page and machine-readable docs
 
-The demo page, compiled into the binary. It calls `/v1/icon` on the same origin,
-loads nothing from other hosts, and allows only its own inline script by hash in
-its `Content-Security-Policy`. `server.landing = false` turns both routes off.
+All compiled into the binary. Their names and absolute URLs come from
+`server.public_url`, else `https://{tls.domains[0]}`, else the request's `Host`
+header (validated, never cached).
+
+| Path | What |
+|------|------|
+| `/` | The demo page. It calls `/color` and `/mono` on the same origin, loads nothing from other hosts, and allows only its own inline script by hash in its `Content-Security-Policy`. |
+| `/favicon.svg`, `/apple-touch-icon.png`, `/og.png` | Icons and the 1200×630 share image. |
+| `/sitemap.xml` | The page's URL. |
+| `/robots.txt` | Lets search engines index the page but not `/color/` and `/mono/`, and lets user-driven AI agents (`ChatGPT-User`, `Claude-User`, `Perplexity-User`, `MistralAI-User`) fetch everything. Icon responses also carry `X-Robots-Tag: noindex`. |
+| `/llms.txt` | How to use the API, for language models and agents ([llmstxt.org](https://llmstxt.org)). |
+| `/openapi.json` | OpenAPI 3.1 description of the icon endpoint. |
+
+`server.landing = false` turns off the page, the images and the sitemap;
+`robots.txt`, `llms.txt` and `openapi.json` stay.
 
 ## `GET /healthz`
 

@@ -58,11 +58,11 @@ jobs:
             favicons:smoke
           for _ in $(seq 1 30); do curl -fs http://127.0.0.1:8080/healthz && break; sleep 0.5; done
           curl -fs http://127.0.0.1:8080/healthz || { docker logs smoke; exit 1; }
-          headers=$(curl -fsS -D - -o /dev/null http://127.0.0.1:8080/v1/icon/color/example.com)
+          headers=$(curl -fsS -D - -o /dev/null http://127.0.0.1:8080/color/example.com)
           echo "$headers"
           echo "$headers" | grep -qi '^content-type: image/svg+xml'
           echo "$headers" | grep -qi '^x-icon-light-plate: #'
-          curl -fsS http://127.0.0.1:8080/ | grep -q '/v1/icon/'
+          curl -fsS http://127.0.0.1:8080/ | grep -q 'Try any domain'
           docker rm -f smoke
       - uses: docker/login-action@v3
         if: github.event_name != 'pull_request'

@@ -26,24 +26,24 @@ use crate::contract::{
 use crate::domain::{MAX_INPUT_LEN, normalize};
 use crate::metrics::inc;
 use crate::queue::{ClientKey, Enqueue};
-use crate::site;
+use crate::site::Asset;
 use crate::store::{Icon, Meta, Status};
 
 pub fn router(app: Arc<App>) -> Router {
-    let mut r = Router::new();
+    let mut r = Router::new()
+        .route("/robots.txt", page(Asset::Robots))
+        .route("/llms.txt", page(Asset::Llms))
+        .route("/openapi.json", page(Asset::OpenApi));
     if app.cfg.server.landing {
         r = r
-            .route(
-                "/",
-                get(|h: HeaderMap| async move { site::serve(&site::INDEX_PAGE, &h) }),
-            )
-            .route(
-                "/favicon.svg",
-                get(|h: HeaderMap| async move { site::serve(&site::FAVICON_PAGE, &h) }),
-            );
+            .route("/", page(Asset::Index))
+            .route("/sitemap.xml", page(Asset::Sitemap))
+            .route("/favicon.svg", page(Asset::Favicon))
+            .route("/apple-touch-icon.png", page(Asset::AppleTouchIcon))
+            .route("/og.png", page(Asset::OgImage));
     }
-    r.route("/v1/icon/{style}/{domain}", get(icon))
-        .route("/v1/icon/{style}/{domain}/", get(icon_slash))
+    r.route("/{style}/{domain}", get(icon))
+        .route("/{style}/{domain}/", get(icon_slash))
         .route("/.well-known/acme-challenge/{token}", get(acme_challenge))
         .route("/healthz", get(|| async { "ok" }))
         .fallback(|| async { plain(StatusCode::NOT_FOUND, "not found") })
@@ -51,6 +51,14 @@ pub fn router(app: Arc<App>) -> Router {
         .layer(middleware::from_fn(preflight))
         .layer(middleware::map_response(security_headers))
         .with_state(app)
+}
+
+fn page(asset: Asset) -> axum::routing::MethodRouter<Arc<App>> {
+    get(
+        move |State(app): State<Arc<App>>, uri: Uri, h: HeaderMap| async move {
+            app.site.serve(asset, &h, &uri)
+        },
+    )
 }
 
 async fn preflight(req: Request, next: Next) -> Response {
@@ -469,7 +477,7 @@ async fn redirect_to_canonical(app: &App, style: Style, domain: &str) -> Respons
         );
     }
     inc(&app.stats.canonical_redirects);
-    let location = format!("/v1/icon/{}/{domain}", style.as_str());
+    let location = format!("/{}/{domain}", style.as_str());
     redirect(
         app,
         StatusCode::MOVED_PERMANENTLY,
@@ -713,7 +721,7 @@ mod routing_tests {
         let r = get(&app, "/favicon.svg").await;
         assert_eq!(r.headers().get(CONTENT_TYPE).unwrap(), SVG_MIME);
 
-        let r = get(&app, "/v1/icon/color/example.com").await;
+        let r = get(&app, "/color/example.com").await;
         let csp = r.headers().get(CONTENT_SECURITY_POLICY).unwrap();
         assert!(csp.to_str().unwrap().contains("sandbox"));
         assert_eq!(r.headers().get("x-robots-tag").unwrap(), "noindex");
@@ -722,7 +730,7 @@ mod routing_tests {
     #[tokio::test]
     async fn lets_other_origins_read_headers_and_timings() {
         let app = app();
-        let r = get(&app, "/v1/icon/color/example.com").await;
+        let r = get(&app, "/color/example.com").await;
         let h = r.headers();
         assert_eq!(h.get(ACCESS_CONTROL_ALLOW_ORIGIN).unwrap(), "*");
         assert_eq!(h.get("timing-allow-origin").unwrap(), "*");
@@ -749,7 +757,7 @@ mod routing_tests {
 
         let mut req = http::Request::builder()
             .method(http::Method::OPTIONS)
-            .uri("/v1/icon/color/example.com")
+            .uri("/color/example.com")
             .header("origin", "https://mail.example.org")
             .header("access-control-request-method", "GET")
             .header("access-control-request-headers", "if-none-match")
@@ -789,23 +797,20 @@ mod routing_tests {
         let app = app();
         for (path, target) in [
             (
-                "/v1/icon/color/super-domain.evil-example.com",
-                "/v1/icon/color/evil-example.com",
+                "/color/super-domain.evil-example.com",
+                "/color/evil-example.com",
             ),
-            ("/v1/icon/color/EXAMPLE.com", "/v1/icon/color/example.com"),
-            ("/v1/icon/color/example.com.", "/v1/icon/color/example.com"),
-            ("/v1/icon/mono/example.com.svg", "/v1/icon/mono/example.com"),
+            ("/color/EXAMPLE.com", "/color/example.com"),
+            ("/color/example.com.", "/color/example.com"),
+            ("/mono/example.com.svg", "/mono/example.com"),
+            ("/color/example.com?size=64", "/color/example.com"),
+            ("/color/example.com?", "/color/example.com"),
+            ("/mono/example.com/", "/mono/example.com"),
             (
-                "/v1/icon/color/example.com?size=64",
-                "/v1/icon/color/example.com",
+                "/color/https%3A%2F%2Fwww.example.co.uk%2Fpath",
+                "/color/example.co.uk",
             ),
-            ("/v1/icon/color/example.com?", "/v1/icon/color/example.com"),
-            ("/v1/icon/mono/example.com/", "/v1/icon/mono/example.com"),
-            (
-                "/v1/icon/color/https%3A%2F%2Fwww.example.co.uk%2Fpath",
-                "/v1/icon/color/example.co.uk",
-            ),
-            ("/v1/icon/color/u-123.github.io", "/v1/icon/color/github.io"),
+            ("/color/u-123.github.io", "/color/github.io"),
         ] {
             let r = get(&app, path).await;
             assert_eq!(r.status(), StatusCode::MOVED_PERMANENTLY, "{path}");
@@ -818,11 +823,11 @@ mod routing_tests {
     #[tokio::test]
     async fn serves_canonical_paths_without_redirect() {
         let app = app();
-        let r = get(&app, "/v1/icon/color/example.com").await;
+        let r = get(&app, "/color/example.com").await;
         assert_eq!(r.status(), StatusCode::OK);
         assert_eq!(r.headers().get(CONTENT_TYPE).unwrap(), SVG_MIME);
         assert_eq!(r.headers().get(H_REASON).unwrap(), "queued");
-        let r = get(&app, "/v1/icon/mono/127.0.0.1").await;
+        let r = get(&app, "/mono/127.0.0.1").await;
         assert_eq!(r.status(), StatusCode::OK);
         assert_eq!(r.headers().get(H_REASON).unwrap(), "invalid-domain");
         assert_eq!(r.headers().get(H_STYLE).unwrap(), "mono");
@@ -831,7 +836,7 @@ mod routing_tests {
     #[tokio::test]
     async fn sends_palette_headers_and_exposes_them() {
         let app = app();
-        for path in ["/v1/icon/color/example.com", "/v1/icon/mono/example.com"] {
+        for path in ["/color/example.com", "/mono/example.com"] {
             let r = get(&app, path).await;
             assert_eq!(r.status(), StatusCode::OK);
             let h = r.headers();
@@ -857,7 +862,7 @@ mod routing_tests {
                 assert!(EXPOSED.contains(name), "{name} not exposed");
             }
         }
-        let r = get(&app, "/v1/icon/color/example.com").await;
+        let r = get(&app, "/color/example.com").await;
         let exposed = r.headers().get(ACCESS_CONTROL_EXPOSE_HEADERS).unwrap();
         assert!(exposed.to_str().unwrap().contains("x-icon-dark-plate"));
         assert_eq!(
@@ -870,15 +875,19 @@ mod routing_tests {
     async fn rejects_unknown_styles_and_old_paths() {
         let app = app();
         assert_eq!(
-            get(&app, "/v1/icon/purple/example.com").await.status(),
+            get(&app, "/purple/example.com").await.status(),
             StatusCode::NOT_FOUND
         );
         assert_eq!(
-            get(&app, "/v1/icon/example.com").await.status(),
+            get(&app, "/example.com").await.status(),
             StatusCode::NOT_FOUND
         );
         assert_eq!(
-            get(&app, "/v1/icon/color/a/b").await.status(),
+            get(&app, "/v1/icon/color/example.com").await.status(),
+            StatusCode::NOT_FOUND
+        );
+        assert_eq!(
+            get(&app, "/color/a/b").await.status(),
             StatusCode::NOT_FOUND
         );
     }

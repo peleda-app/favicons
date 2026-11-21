@@ -12,6 +12,7 @@ header_read_timeout_ms = 5000
 shutdown_grace_ms = 10000
 # worker_threads = 2     # async runtime threads; default is one per CPU. Lower it on a box shared with other services
 landing = true          # serve the demo page at / (embedded in the binary)
+# public_url = "https://favicons.example.com"  # name and canonical URLs on the page; defaults to tls.domains[0], then the Host header
 
 [client_ip]
 # peer | x-forwarded-for | x-real-ip | cf-connecting-ip
@@ -111,7 +112,7 @@ cdn = "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=60
 browser = "public, max-age=86400"
 cdn = "public, max-age=86400"
 
-[http_cache.canonical]           # 301 from non-canonical URLs to /v1/icon/{style}/{domain}
+[http_cache.canonical]           # 301 from non-canonical URLs to /{style}/{domain}
 browser = "public, max-age=2592000, immutable"
 cdn = "public, max-age=31536000, immutable"
 

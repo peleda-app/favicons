@@ -91,7 +91,7 @@ export const options = {
 };
 
 function icon(domain, ip, style = "color") {
-  const res = http.get(`${BASE}/v1/icon/${style}/${domain}`, {
+  const res = http.get(`${BASE}/${style}/${domain}`, {
     headers: { "X-Forwarded-For": ip },
     tags: { name: "icon" },
     timeout: "10s",

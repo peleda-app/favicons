@@ -1,12 +1,14 @@
 # favicons
 
+![favicons.page](docs/brand/banner.png)
+
 A website icon service in Rust, built for privacy and for surviving abuse.
 It fetches a site's icon once, sanitises it, stores it in your cache, and
 serves it as a clean, compact **SVG**, in colour or as a monochrome mask, always
 fitted edge to edge.
 
 ```
-GET /v1/icon/mono/github.com
+GET /mono/github.com
 ```
 
 It is built for clients that render many icons for untrusted domains, such as
@@ -21,7 +23,7 @@ request must not leak the user, crash a server or become an attack vector.
   from the largest available image (≤256 px), resampled to 512 px and reduced
   to its dominant colours first, so even a 32 px favicon comes out smooth. Every
   icon is fitted to its box, so padded and full-bleed logos look the same size.
-* **Monochrome masks.** `/v1/icon/mono/{domain}` returns a black-on-transparent shape for
+* **Monochrome masks.** `/mono/{domain}` returns a black-on-transparent shape for
   CSS `mask-image`, so consumers can tint it any colour. It is taken from the
   site's `mask-icon` or manifest `monochrome` icon when available, otherwise
   derived from the colour icon.
@@ -58,7 +60,7 @@ request must not leak the user, crash a server or become an attack vector.
 * **Deterministic fallback icons.** When there is no real icon, a symmetric
   identicon is generated from the domain. Headers say why
   (`X-Icon-Fallback-Reason: queued | not-found | blocklisted | domain-too-new | …`).
-* **One URL per site.** `/v1/icon/{color|mono}/{domain}` only. Subdomains,
+* **One URL per site.** `/{color|mono}/{domain}` only. Subdomains,
   case variants, query strings and trailing slashes get a cacheable `301` to
   the registrable domain, so caches never fill up with copies of one icon.
 * **Privacy.** Every request is collapsed to its registrable domain
@@ -87,7 +89,7 @@ cargo run --release -- --config config.example.toml
 ```
 
 ```bash
-curl -sI 'http://localhost:8080/v1/icon/color/github.com'
+curl -sI 'http://localhost:8080/color/github.com'
 ```
 
 ```
@@ -127,7 +129,7 @@ docker run --rm -p 8080:8080 --read-only --cap-drop ALL --security-opt no-new-pr
 ## Documentation
 
 **[favicons.page](https://favicons.page)** is a one-pager served by the service
-itself. Its animated demo asks this server's `/v1/icon` for every sender, switches
+itself. Its animated demo asks this server's `/color` and `/mono` for every sender, switches
 the icons between colour and monochrome, tints the masks with a hue slider, and
 carries the API reference. The page lives in [`site/`](site) and is compiled into
 the binary; any instance serves it at `/` unless `server.landing = false`.
@@ -145,7 +147,7 @@ Every config key can also be set via environment variable:
 
 ```
 request ─► conn limit ─► load shed ─► subnet rate limit ─► normalize to eTLD+1
-        ─► not canonical? 301 to /v1/icon/{style}/{eTLD+1} ─► blocklist
+        ─► not canonical? 301 to /{style}/{eTLD+1} ─► blocklist
         ─► memory cache ─► storage ─► hit:  SVG (or 302 to public bucket)
                                     └► miss: fair queue ─► wait ≤ wait_ms
                                                           ├► done: SVG

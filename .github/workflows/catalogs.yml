@@ -90,6 +90,24 @@ jobs:
           subject-name: ${{ env.IMAGE }}
           subject-digest: ${{ steps.push.outputs.digest }}
           push-to-registry: true
+      - uses: docker/login-action@v3
+        if: vars.DOCKERHUB_USERNAME != ''
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: mirror to Docker Hub
+        if: vars.DOCKERHUB_USERNAME != ''
+        env:
+          HUB: docker.io/${{ vars.DOCKERHUB_USERNAME }}/favicons-catalogs
+          DIGEST: ${{ steps.push.outputs.digest }}
+          SHA: ${{ steps.base.outputs.sha }}
+        run: docker buildx imagetools create -t "$HUB:latest" -t "$HUB:sha-$SHA" "$IMAGE@$DIGEST"
+      - uses: actions/attest-build-provenance@v2
+        if: vars.DOCKERHUB_USERNAME != ''
+        with:
+          subject-name: docker.io/${{ vars.DOCKERHUB_USERNAME }}/favicons-catalogs
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
       - name: smoke test
         run: |
           { printf '[cache]\nseed = "/catalogs"\n\n'; cat catalogs/catalogs.toml; } > /tmp/serve.toml

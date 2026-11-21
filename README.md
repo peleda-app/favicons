@@ -6,6 +6,7 @@
 
 [![CI](https://github.com/peleda-app/favicons/actions/workflows/ci.yml/badge.svg)](https://github.com/peleda-app/favicons/actions/workflows/ci.yml)
 [![Docker](https://img.shields.io/badge/ghcr.io-peleda--app%2Ffavicons-2496ED?logo=docker&logoColor=white)](https://github.com/peleda-app/favicons/pkgs/container/favicons)
+[![Docker Hub](https://img.shields.io/badge/docker.io-favicons%2Ffavicons-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/r/favicons/favicons)
 [![License: MIT](https://img.shields.io/badge/license-MIT-ffb38a)](LICENSE)
 
 [**Try it on favicons.page**](https://favicons.page) · [API](docs/API.md) · [Self-hosting](docs/SELF-HOSTING.md) · [Security](docs/SECURITY.md)
@@ -93,7 +94,7 @@ curl -O https://raw.githubusercontent.com/peleda-app/favicons/main/docker-compos
 docker compose up -d
 ```
 
-Two containers from a 9 MB image: the API, and a renderer with no network, a
+Two containers from a 9 MB image (on GHCR and as `favicons/favicons` on Docker Hub): the API, and a renderer with no network, a
 read-only root and no capabilities. `ghcr.io/peleda-app/favicons-site` adds this
 page with its fonts; release binaries are on [GitHub Releases](https://github.com/peleda-app/favicons/releases),
 and `cargo install favicons` builds the API. Built-in Let's Encrypt, local

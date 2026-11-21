@@ -59,7 +59,7 @@ jobs:
           mkdir -p catalogs/bundle
           chmod 0777 catalogs/bundle
           {
-            printf '[render]\ndecode_concurrency = 4\n\n[cache]\nstorage = "file:///out"\n\n'
+            printf '[render]\ndecode_concurrency = %s\n\n[cache]\nstorage = "file:///out"\n\n' "$(nproc)"
             cat catalogs/catalogs.toml
           } > /tmp/prerender.toml
           docker run --rm -v /tmp/prerender.toml:/etc/prerender.toml:ro -v "$PWD/catalogs/bundle:/out" \
@@ -76,7 +76,7 @@ jobs:
           SHA: ${{ steps.base.outputs.sha }}
         run: |
           docker buildx build catalogs \
-            --platform linux/amd64,linux/arm64 \
+            --platform linux/amd64 \
             --build-arg "BASE=$BASE" \
             --build-arg "LICENSES=$LICENSES" \
             --label "org.opencontainers.image.revision=$GITHUB_SHA" \

@@ -130,10 +130,11 @@ async fn prerender_catalogs(cfg: config::Config) -> anyhow::Result<()> {
         .cloned()
         .map(|catalog| {
             let app = app.clone();
+            let parallel = app.cfg.render.decode_concurrency * 2;
             tokio::spawn(async move {
                 catalog.reload(&app.list_client_ref()).await;
                 anyhow::ensure!(catalog.is_loaded(), "catalog {} did not load", catalog.id());
-                app.prerender(&catalog, true).await;
+                app.prerender(&catalog, true, parallel).await;
                 Ok(())
             })
         })

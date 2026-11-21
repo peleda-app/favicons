@@ -1273,7 +1273,7 @@ mod routing_tests {
             br##"{"width":32,"height":32,"icons":{"red-square":{"body":"<path fill=\"#e5484d\" d=\"M4 4h24v24H4z\"/>"}}}"##,
         );
         assert_eq!(catalog.sources(false).len(), 1);
-        app.prerender(&catalog, false).await;
+        app.prerender(&catalog, false, 4).await;
         assert!(catalog.sources(false).is_empty());
         let meta = app.store.meta("@emoji.red-square").await.unwrap();
         assert!(meta.source.is_some() && meta.palette.is_some() && !app.is_stale(&meta));
@@ -1289,11 +1289,11 @@ mod routing_tests {
         assert_eq!(r.headers().get(CONTENT_ENCODING).unwrap(), "gzip");
         assert_eq!(r.headers().get("x-icon-provenance").unwrap(), "catalog");
 
-        app.prerender(&catalog, false).await;
+        app.prerender(&catalog, false, 4).await;
         catalog.load(
             br##"{"width":32,"height":32,"icons":{"red-square":{"body":"<path fill=\"#e5484d\" d=\"M4 4h24v24H4z\"/>"}}}"##,
         );
-        app.prerender(&catalog, false).await;
+        app.prerender(&catalog, false, 4).await;
         assert!(catalog.sources(false).is_empty());
         let _ = std::fs::remove_dir_all(dir);
     }

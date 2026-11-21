@@ -891,7 +891,12 @@ impl App {
         self.list_client.clone()
     }
 
-    pub(crate) async fn prerender(&self, catalog: &crate::slugs::Catalog, remote: bool) {
+    pub(crate) async fn prerender(
+        self: &Arc<Self>,
+        catalog: &crate::slugs::Catalog,
+        remote: bool,
+        parallel: usize,
+    ) {
         let id = catalog.id().to_string();
         let sources = catalog.sources(remote);
         if sources.is_empty() {
@@ -900,30 +905,33 @@ impl App {
         let started = std::time::Instant::now();
         let (mut rendered, mut kept, mut failed) = (0u32, 0u32, 0u32);
         let mut done = std::collections::HashSet::new();
-        for (slug, source) in sources {
-            let key = crate::slugs::key(&id, &slug);
-            let current = self.store.peek_meta(&key).await;
-            if current
-                .as_ref()
-                .is_some_and(|m| m.status == Status::Ok && m.source.as_deref() == Some(&source))
-            {
+        let mut tally = |r: Result<(String, Prerendered), tokio::task::JoinError>| match r {
+            Ok((slug, Prerendered::Kept)) => {
                 kept += 1;
                 done.insert(slug);
-                continue;
             }
-            let (mut meta, images) = self.fetch_catalog_item(&key, &id, &slug).await;
-            if meta.status != Status::Ok {
-                failed += 1;
-                continue;
+            Ok((slug, Prerendered::Rendered)) => {
+                rendered += 1;
+                done.insert(slug);
             }
-            if let Some((_, svg)) = images.iter().find(|(s, _)| *s == Slot::Color) {
-                meta.palette = self.analyze(svg).await;
-                meta.palette_rev = crate::palette::REVISION;
+            _ => failed += 1,
+        };
+        let mut set = tokio::task::JoinSet::new();
+        for (slug, source) in sources {
+            while set.len() >= parallel.max(1) {
+                if let Some(r) = set.join_next().await {
+                    tally(r);
+                }
             }
-            self.store.put_cold(meta, images).await;
-            rendered += 1;
-            done.insert(slug);
-            tokio::time::sleep(Duration::from_millis(2)).await;
+            let app = self.clone();
+            let id = id.clone();
+            set.spawn(async move {
+                let outcome = app.prerender_one(&id, &slug, &source).await;
+                (slug, outcome)
+            });
+        }
+        while let Some(r) = set.join_next().await {
+            tally(r);
         }
         catalog.drop_sources(&done);
         tracing::info!(
@@ -934,6 +942,28 @@ impl App {
             secs = started.elapsed().as_secs(),
             "catalog prerendered"
         );
+    }
+
+    async fn prerender_one(&self, id: &str, slug: &str, source: &str) -> Prerendered {
+        let key = crate::slugs::key(id, slug);
+        let current = self.store.peek_meta(&key).await;
+        if current
+            .as_ref()
+            .is_some_and(|m| m.status == Status::Ok && m.source.as_deref() == Some(source))
+        {
+            return Prerendered::Kept;
+        }
+        let (mut meta, images) = self.fetch_catalog_item(&key, id, slug).await;
+        if meta.status != Status::Ok {
+            return Prerendered::Failed;
+        }
+        if let Some((_, svg)) = images.iter().find(|(s, _)| *s == Slot::Color) {
+            meta.palette = self.analyze(svg).await;
+            meta.palette_rev = crate::palette::REVISION;
+        }
+        self.store.put_cold(meta, images).await;
+        tokio::time::sleep(Duration::from_millis(2)).await;
+        Prerendered::Rendered
     }
 
     pub fn spawn_slug_reloaders(self: &Arc<Self>) {
@@ -949,7 +979,7 @@ impl App {
                         let _turn = gate.acquire().await;
                         catalog.reload(&app.list_client).await;
                         if catalog.prerender() && app.store.has_backend() {
-                            app.prerender(&catalog, false).await;
+                            app.prerender(&catalog, false, 1).await;
                         }
                     }
                     let retry = if catalog.is_loaded() {
@@ -976,4 +1006,10 @@ impl App {
             }
         });
     }
+}
+
+enum Prerendered {
+    Kept,
+    Rendered,
+    Failed,
 }

@@ -93,7 +93,7 @@ curl -O https://raw.githubusercontent.com/peleda-app/favicons/main/docker-compos
 docker compose up -d
 ```
 
-Two containers from a 7 MB image: the API, and a renderer with no network, a
+Two containers from a 9 MB image: the API, and a renderer with no network, a
 read-only root and no capabilities. `ghcr.io/peleda-app/favicons-site` adds this
 page with its fonts; release binaries are on [GitHub Releases](https://github.com/peleda-app/favicons/releases),
 and `cargo install favicons` builds the API. Built-in Let's Encrypt, local

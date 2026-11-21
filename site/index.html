@@ -88,6 +88,14 @@ nav { display: flex; align-items: center; gap: 28px; height: 68px; }
 nav .links { margin-left: auto; display: flex; gap: 24px; font-size: 14px; }
 nav .links a { color: var(--muted); }
 nav .links a:hover { color: var(--text); text-decoration: none; }
+nav .links { align-items: center; }
+nav .links a.gh { display: inline-flex; align-items: stretch; height: 30px; border-radius: 8px; border: 1px solid #34343c; background: #1e1e23; color: var(--text); font: 500 13px var(--sans); overflow: hidden; transition: border-color .2s, background .2s; }
+nav .links a.gh:hover { border-color: #4a4a54; background: #24242a; }
+.gh-l, .gh-n { display: inline-flex; align-items: center; gap: 6px; padding: 0 10px; }
+.gh-n { border-left: 1px solid #34343c; color: var(--muted); font-family: var(--mono); font-size: 12px; }
+.gh-n[hidden] { display: none; }
+.gh svg { width: 15px; height: 15px; }
+.gh-n svg { width: 12px; height: 12px; color: #e3b341; }
 
 .hero { padding: 80px 0 40px; text-align: center; }
 h1 { font-size: clamp(40px, 6.4vw, 72px); line-height: 1.05; letter-spacing: -.035em; margin: 0 0 22px; font-weight: 700; }
@@ -303,6 +311,7 @@ h2 { font-size: clamp(28px, 3.4vw, 38px); letter-spacing: -.025em; line-height: 
 .threat::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: #ff8a6b; box-shadow: 0 0 0 3px color-mix(in oklab, #ff8a6b 20%, transparent); flex: none; }
 
 .code { background: var(--surface); border-radius: 14px; padding: 20px 22px; position: relative; }
+.code { min-width: 0; max-width: 100%; }
 .code pre { margin: 0; font: 13px/1.7 var(--mono); color: #cfcdc8; overflow-x: auto; }
 .code .c { color: var(--dim); }
 .copy { position: absolute; top: 12px; right: 12px; border: 0; background: transparent; color: var(--dim); font: 13px var(--sans); cursor: pointer; padding: 4px 6px; border-radius: 6px; }
@@ -322,6 +331,7 @@ h2 { font-size: clamp(28px, 3.4vw, 38px); letter-spacing: -.025em; line-height: 
 .steps div { display: flex; gap: 14px; }
 .steps b { flex: none; width: 28px; height: 28px; border-radius: 9px; display: grid; place-items: center; background: var(--surface); color: var(--cream); font: 600 13px var(--mono); }
 .steps p { margin: 3px 0 0; color: var(--muted); font-size: 15px; }
+.steps p code, .points p code, .use-more code { overflow-wrap: anywhere; }
 .steps .more { margin: 6px 0 0; font-size: 14px; color: var(--dim); }
 .perf { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
 .machine { background: var(--surface); border-radius: 18px; padding: 24px; }
@@ -386,18 +396,18 @@ footer a { color: var(--muted); }
   .facts { grid-column: 1 / -1; }
 }
 @media (max-width: 860px) {
-  .api { grid-template-columns: 1fr; }
-  .picker { grid-template-columns: 1fr; }
-  .selfhost { grid-template-columns: 1fr; }
-  .perf { grid-template-columns: 1fr; }
+  .api { grid-template-columns: minmax(0, 1fr); }
+  .picker { grid-template-columns: minmax(0, 1fr); }
+  .selfhost { grid-template-columns: minmax(0, 1fr); }
+  .perf { grid-template-columns: minmax(0, 1fr); }
   .points { grid-template-columns: 1fr 1fr; }
   .points.use { grid-template-columns: 1fr 1fr; }
   nav .links a:not(:last-child) { display: none; }
 }
 @media (max-width: 560px) {
   .hero { padding-top: 48px; }
-  .points { grid-template-columns: 1fr; }
-  .points.use { grid-template-columns: 1fr; }
+  .points { grid-template-columns: minmax(0, 1fr); }
+  .points.use { grid-template-columns: minmax(0, 1fr); }
   .when, .dots { display: none; }
   .row { padding: 0 12px; gap: 12px; }
   .seg button { padding: 6px 9px; }
@@ -405,7 +415,7 @@ footer a { color: var(--muted); }
   .tint { width: 118px; gap: 8px; }
   .tint button { padding: 6px 8px; }
   .figures { grid-template-columns: 1fr 1fr; }
-  .result { grid-template-columns: 1fr; grid-template-rows: 240px 300px 400px; }
+  .result { grid-template-columns: minmax(0, 1fr); grid-template-rows: 240px 300px 400px; }
   .field { flex-wrap: wrap; padding: 10px 12px; }
   .field input { flex-basis: 100%; order: 5; padding: 10px 2px 4px; }
   .plate-path { order: 6; }
@@ -431,7 +441,7 @@ footer a { color: var(--muted); }
     <a href="#performance">Performance</a>
     <a href="#compare" id="compareLink" hidden>Compare</a>
     <a href="#self-host">Self-host</a>
-    <a href="https://github.com/peleda-app/favicons" target="_blank" rel="noopener">GitHub</a>
+    <a class="gh" href="https://github.com/peleda-app/favicons" target="_blank" rel="noopener" aria-label="Star peleda-app/favicons on GitHub"><span class="gh-l"><svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M216,104v8a56.06,56.06,0,0,1-48.44,55.47A39.8,39.8,0,0,1,176,192v40a8,8,0,0,1-8,8H104a8,8,0,0,1-8-8V216H72a40,40,0,0,1-40-40A24,24,0,0,0,8,152a8,8,0,0,1,0-16,40,40,0,0,1,40,40,24,24,0,0,0,24,24H96v-8a39.8,39.8,0,0,1,8.44-24.53A56.06,56.06,0,0,1,56,112v-8a58.14,58.14,0,0,1,7.69-28.32A59.78,59.78,0,0,1,69.07,28,8,8,0,0,1,76,24a59.75,59.75,0,0,1,48,24h24a59.75,59.75,0,0,1,48-24,8,8,0,0,1,6.93,4,59.74,59.74,0,0,1,5.37,47.68A58,58,0,0,1,216,104Z"/></svg>Star</span><span class="gh-n" id="ghStars" hidden><svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M234.29,114.85l-45,38.83L203,211.75a16.4,16.4,0,0,1-24.5,17.82L128,198.49,77.47,229.57A16.4,16.4,0,0,1,53,211.75l13.76-58.07-45-38.83A16.46,16.46,0,0,1,31.08,86l59-4.76,22.76-55.08a16.36,16.36,0,0,1,30.27,0l22.75,55.08,59,4.76a16.46,16.46,0,0,1,9.37,28.86Z"/></svg><b></b></span></a>
   </div>
 </nav>
 
@@ -665,7 +675,7 @@ footer a { color: var(--muted); }
 <section id="self-host">
   <div class="eyebrow">self-host</div>
   <h2>Two containers, no network for the renderer.</h2>
-  <p class="sub">One <code>docker compose up -d</code>. The API fetches and caches; the renderer decodes untrusted images in seccomp-confined workers with no network, a read-only root and no capabilities. The image is about 7 MB.</p>
+  <p class="sub">One <code>docker compose up -d</code>. The API fetches and caches; the renderer decodes untrusted images in seccomp-confined workers with no network, a read-only root and no capabilities. The image is about 9 MB.</p>
   <div class="selfhost">
     <div class="code compose"><span class="file">docker-compose.yml</span><button class="copy" data-copy="x-hardening: &amp;hardening&#10;  read_only: true&#10;  cap_drop: [ALL]&#10;  security_opt: [&quot;no-new-privileges:true&quot;]&#10;  user: &quot;65534:65534&quot;&#10;  restart: unless-stopped&#10;&#10;services:&#10;  api:&#10;    &lt;&lt;: *hardening&#10;    build: .&#10;    image: ghcr.io/peleda-app/favicons:latest&#10;    ports: [&quot;8080:8080&quot;]&#10;    environment:&#10;      FAVICONS_RENDER__SANDBOX: socket&#10;      FAVICONS_RENDER__SOCKET_PATH: /run/favicons/render.sock&#10;      FAVICONS_CACHE__STORAGE: /var/cache/favicons&#10;    volumes:&#10;      - render-socket:/run/favicons&#10;      - cache:/var/cache/favicons&#10;    pids_limit: 256&#10;    mem_limit: 512m&#10;    depends_on: [renderer]&#10;&#10;  renderer:&#10;    &lt;&lt;: *hardening&#10;    image: ghcr.io/peleda-app/favicons:latest&#10;    command: [&quot;render-server&quot;]&#10;    network_mode: none&#10;    environment:&#10;      FAVICONS_RENDER__SOCKET_PATH: /run/favicons/render.sock&#10;    volumes:&#10;      - render-socket:/run/favicons&#10;    pids_limit: 32&#10;    mem_limit: 512m&#10;    cpus: 1&#10;&#10;volumes:&#10;  render-socket:&#10;  cache:">copy</button><pre><span class="k">x-hardening:</span> &amp;hardening
   <span class="k">read_only:</span> true
@@ -1307,6 +1317,12 @@ footer a { color: var(--muted); }
       const r = await fetch("/compare.json");
       if (!r.ok) return;
       const data = await r.json();
+      const ours = (data.tools || []).find((t) => t.id === "favicons");
+      if (ours && ours.stars != null) {
+        const n = ours.stars;
+        $("#ghStars b").textContent = n >= 1000 ? `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k` : String(n);
+        $("#ghStars").hidden = false;
+      }
       const tools = (data.tools || []).slice().sort((a, b) => (b.id === "favicons") - (a.id === "favicons") || (b.stars || 0) - (a.stars || 0));
       if (!tools.length) return;
       const maxImg = Math.max(...tools.map((t) => t.image_compressed_bytes || 0));

@@ -266,9 +266,21 @@ impl App {
         {
             return (Meta::new(domain, Status::TooNew), vec![]);
         }
-        if let Err(DnsError::Blocked) = self.dns.resolve(domain).await {
-            tracing::info!(domain, "blocked by the filtering DNS resolver");
-            return (Meta::new(domain, Status::Blocked), vec![]);
+        match self.dns.resolve(domain).await {
+            Err(DnsError::Blocked) => {
+                tracing::info!(domain, "blocked by the filtering DNS resolver");
+                return (Meta::new(domain, Status::Blocked), vec![]);
+            }
+            Err(DnsError::NotFound)
+                if matches!(
+                    self.dns.resolve(&format!("www.{domain}")).await,
+                    Err(DnsError::NotFound)
+                ) =>
+            {
+                tracing::info!(domain, "domain does not resolve");
+                return (Meta::new(domain, Status::NotFound), vec![]);
+            }
+            _ => {}
         }
         if let Some(found) = self.try_curated(domain).await {
             return found;

@@ -118,4 +118,4 @@ tools, and every response exposes its headers and timings to any origin.
 cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test
 ```
 
-[MIT](LICENSE). Banner icons: [Phosphor Icons](https://phosphoricons.com) ([MIT](docs/brand/LICENSE-phosphor-icons)).
+[MIT](LICENSE). The banner shows logos of open-source self-hosted projects, each a trademark of its project ([list](docs/brand/LOGOS.md)); page icons by [Phosphor](https://phosphoricons.com) ([MIT](docs/brand/LICENSE-phosphor-icons)) and [Fluent Emoji](https://github.com/microsoft/fluentui-emoji) ([MIT](docs/brand/LICENSE-fluent-emoji)).

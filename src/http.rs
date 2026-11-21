@@ -19,9 +19,9 @@ use http::{HeaderMap, HeaderName, HeaderValue, StatusCode, Uri};
 use crate::app::App;
 use crate::config::{CacheProfile, HttpCache};
 use crate::contract::{
-    FallbackReason, H_BLOCKED, H_CDN_CACHE_CONTROL, H_DOMAIN, H_FALLBACK, H_LICENSE, H_MONO_SOURCE,
-    H_PROVENANCE, H_REASON, H_SOURCE, H_STALE, H_STYLE, H_UPSTREAM, H_VECTOR, MonoSource,
-    Provenance, SVG_MIME, Slot, Source, Style,
+    FallbackReason, H_BLOCKED, H_CDN_CACHE_CONTROL, H_DOMAIN, H_FALLBACK, H_FETCH, H_LICENSE,
+    H_MONO_SOURCE, H_PROVENANCE, H_REASON, H_SOURCE, H_STALE, H_STYLE, H_UPSTREAM, H_VECTOR,
+    MonoSource, Provenance, SVG_MIME, Slot, Source, Style,
 };
 use crate::domain::{MAX_INPUT_LEN, normalize};
 use crate::metrics::inc;
@@ -257,6 +257,7 @@ struct Req {
     style: Style,
     plate: Option<Plate>,
     if_none_match: Option<HeaderValue>,
+    nested: bool,
 }
 
 async fn icon(
@@ -349,6 +350,7 @@ async fn serve_icon(
             style,
             plate,
             if_none_match,
+            nested: headers.contains_key(H_FETCH),
         };
         return fallback(&app, &req, FallbackReason::InvalidDomain);
     };
@@ -361,6 +363,7 @@ async fn serve_icon(
         style,
         plate,
         if_none_match,
+        nested: headers.contains_key(H_FETCH),
     };
     let domain = &req.name;
     if app.policy.is_blocked(&n.host, domain) {
@@ -377,12 +380,15 @@ async fn serve_key(app: &Arc<App>, req: &Req, client: ClientKey) -> Response {
             || (meta.status == Status::Ok
                 && meta.color.is_some()
                 && (meta.palette.is_none() || meta.palette_rev < crate::palette::REVISION));
-        if stale && app.limiter.escalate(client) {
+        if stale && !req.nested && app.limiter.escalate(client) {
             let _ = app.queue.push(domain, client);
         }
         return serve_meta(app, req, &meta, Source::Cache, stale).await;
     }
 
+    if req.nested {
+        return plain(StatusCode::NOT_FOUND, "not cached");
+    }
     if !app.limiter.escalate(client) {
         inc(&app.stats.rate_limited);
         return rate_limited();
@@ -469,6 +475,7 @@ async fn serve_catalog(
         style,
         plate,
         if_none_match: headers.get(IF_NONE_MATCH).cloned(),
+        nested: headers.contains_key(H_FETCH),
     };
     serve_key(&app, &req, client).await
 }
@@ -640,6 +647,9 @@ fn redirect(
 }
 
 fn fallback(app: &App, req: &Req, reason: FallbackReason) -> Response {
+    if req.nested {
+        return plain(StatusCode::NOT_FOUND, "no icon");
+    }
     app.stats.fallback(reason);
     let profile = if reason.is_transient() {
         &app.profiles.fallback_transient
@@ -925,6 +935,26 @@ mod routing_tests {
                 .contains("GET")
         );
         assert_eq!(h.get(ACCESS_CONTROL_ALLOW_HEADERS).unwrap(), "*");
+    }
+
+    #[tokio::test]
+    async fn nested_fetches_never_queue_or_get_fallbacks() {
+        let app = app();
+        let mut req = http::Request::builder()
+            .uri("/color/example.com")
+            .header(H_FETCH, "1")
+            .body(Body::empty())
+            .unwrap();
+        req.extensions_mut()
+            .insert(ConnectInfo(SocketAddr::from(([198, 51, 100, 7], 4000))));
+        let r = router(app.clone()).oneshot(req).await.unwrap();
+        assert_eq!(r.status(), StatusCode::NOT_FOUND);
+        assert_eq!(app.queue.len(), 0);
+        assert_eq!(
+            get(&app, "/color/example.com").await.status(),
+            StatusCode::OK
+        );
+        assert_eq!(app.queue.len(), 1);
     }
 
     async fn json_of(app: &Arc<App>, path: &str) -> serde_json::Value {

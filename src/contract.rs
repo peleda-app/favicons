@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 pub const H_SOURCE: &str = "x-icon-source";
+pub const H_FETCH: &str = "x-favicons-fetch";
 pub const H_FALLBACK: &str = "x-icon-fallback";
 pub const H_REASON: &str = "x-icon-fallback-reason";
 pub const H_DOMAIN: &str = "x-icon-domain";

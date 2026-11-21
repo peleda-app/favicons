@@ -158,8 +158,14 @@ impl HttpClient {
                 }
             }),
         };
+        let mut headers = reqwest::header::HeaderMap::new();
+        headers.insert(
+            crate::contract::H_FETCH,
+            reqwest::header::HeaderValue::from_static("1"),
+        );
         let client = reqwest::Client::builder()
             .user_agent(&cfg.user_agent)
+            .default_headers(headers)
             .no_proxy()
             .dns_resolver(Arc::new(ReqwestResolver(dns)))
             .redirect(policy)

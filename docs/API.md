@@ -60,6 +60,18 @@ the next provider. The image is vectorized in the sandbox like any other bitmap,
 and the response carries `X-Icon-Upstream`. The monochrome variant is derived
 from it as usual.
 
+Providers are never asked about a domain that does not resolve. Once a day each
+provider is asked about a random domain that does not exist; an answer
+identical to that placeholder is skipped as if it were a `404`.
+
+### Loops
+
+Every request the fetcher makes carries `X-Favicons-Fetch: 1`. A request with
+that header gets an icon only if one is already cached; anything else is a
+`404` with no fallback image and nothing queued. A site whose `<link rel=icon>`
+points back at this server, or at another favicons instance, therefore can
+neither recurse nor end up with a generated icon as its own.
+
 ### Canonical URLs
 
 Every icon has exactly one URL: `/{style}/{registrable domain}`. Any

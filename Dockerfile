@@ -5,6 +5,7 @@ WORKDIR /src
 COPY Cargo.toml Cargo.lock ./
 COPY src ./src
 COPY site ./site
+COPY config.example.toml ./
 RUN cargo build --release --locked --features "$FEATURES" \
     && cp target/release/favicons /favicons \
     && mkdir -p /rootfs/run/favicons /rootfs/var/cache/favicons

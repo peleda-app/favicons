@@ -23,8 +23,8 @@ ipv4_prefix = 24        # clients are grouped by subnet for limits and fairness
 ipv6_prefix = 56
 
 [rate_limit]
-requests_per_second = 100.0  # per subnet; 0 disables
-burst = 2000.0
+requests_per_second = 1000.0 # per subnet; 0 disables
+burst = 10000.0
 cached_cost = 0.02           # share of a token a cached icon costs; a miss pays the full token
 max_tracked_clients = 100000
 

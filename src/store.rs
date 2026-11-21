@@ -53,6 +53,8 @@ pub struct Meta {
     pub palette: Option<Palette>,
     #[serde(default)]
     pub palette_rev: u32,
+    #[serde(default)]
+    pub mono_rev: u32,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source: Option<String>,
 }
@@ -72,6 +74,7 @@ impl Meta {
             etags: BTreeMap::new(),
             palette: None,
             palette_rev: 0,
+            mono_rev: 0,
             source: None,
         }
     }

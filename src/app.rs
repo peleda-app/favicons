@@ -192,7 +192,7 @@ impl App {
                     let domain = app.queue.pop().await;
                     if let Some(prev) = app.store.meta(&domain).await
                         && !app.is_stale(&prev)
-                        && app.refresh_palette(&prev).await
+                        && app.refresh(&prev).await
                     {
                         app.queue.complete(&domain);
                         continue;
@@ -233,6 +233,7 @@ impl App {
                         meta.palette = app.analyze(svg).await;
                         meta.palette_rev = crate::palette::REVISION;
                     }
+                    meta.mono_rev = crate::render::MONO_REVISION;
                     tracing::info!(domain, status = ?meta.status, ms = started.elapsed().as_millis() as u64, "fetched");
                     app.store.put(meta, images).await;
                     app.queue.complete(&domain);
@@ -241,30 +242,53 @@ impl App {
         }
     }
 
-    async fn refresh_palette(&self, prev: &Meta) -> bool {
-        if prev.status != Status::Ok
-            || prev.color.is_none()
-            || (prev.palette.is_some() && prev.palette_rev >= crate::palette::REVISION)
-        {
+    fn palette_outdated(meta: &Meta) -> bool {
+        meta.palette.is_none() || meta.palette_rev < crate::palette::REVISION
+    }
+
+    fn mono_outdated(meta: &Meta) -> bool {
+        meta.mono.is_none() && meta.mono_rev < crate::render::MONO_REVISION
+    }
+
+    pub fn needs_refresh(meta: &Meta) -> bool {
+        meta.status == Status::Ok
+            && meta.color.is_some()
+            && (Self::palette_outdated(meta) || Self::mono_outdated(meta))
+    }
+
+    async fn refresh(&self, prev: &Meta) -> bool {
+        if !Self::needs_refresh(prev) {
             return false;
         }
         let Some(color) = self.store.image(prev, Slot::Color).await else {
             return false;
         };
-        let Some(palette) = self.analyze(&color.raw()).await else {
-            return false;
-        };
-        let mut images = vec![(Slot::Color, color.raw().to_vec())];
-        if prev.mono.is_some()
-            && let Some(mono) = self.store.image(prev, Slot::Mono).await
-        {
-            images.push((Slot::Mono, mono.raw().to_vec()));
+        let mut meta = prev.clone();
+        if Self::palette_outdated(prev) {
+            let Some(palette) = self.analyze(&color.raw()).await else {
+                return false;
+            };
+            meta.palette = Some(palette);
+            meta.palette_rev = crate::palette::REVISION;
         }
-        let meta = Meta {
-            palette: Some(palette),
-            palette_rev: crate::palette::REVISION,
-            ..prev.clone()
-        };
+        let mut images = vec![(Slot::Color, color.raw().to_vec())];
+        if prev.mono.is_some() {
+            if let Some(mono) = self.store.image(prev, Slot::Mono).await {
+                images.push((Slot::Mono, mono.raw().to_vec()));
+            }
+        } else if Self::mono_outdated(prev)
+            && let Ok(v) = self
+                .mono_job(MonoSource::Derived, color.raw().to_vec())
+                .await
+        {
+            let etag = blake3::hash(v.svg.as_bytes()).to_hex()[..20].to_string();
+            meta.etags
+                .insert(crate::store::object_name(Slot::Mono).into(), etag);
+            meta.mono = Some(v.origin);
+            meta.mono_source = Some(MonoSource::Derived);
+            images.push((Slot::Mono, v.svg.into_bytes()));
+        }
+        meta.mono_rev = crate::render::MONO_REVISION;
         self.store.put(meta, images).await;
         true
     }
@@ -961,6 +985,7 @@ impl App {
             meta.palette = self.analyze(svg).await;
             meta.palette_rev = crate::palette::REVISION;
         }
+        meta.mono_rev = crate::render::MONO_REVISION;
         self.store.put_cold(meta, images).await;
         tokio::time::sleep(Duration::from_millis(2)).await;
         Prerendered::Rendered

@@ -406,6 +406,8 @@ fn knockout_or_silhouette(img: &RgbaImage) -> Vec<u8> {
         .collect()
 }
 
+pub const MONO_REVISION: u32 = 1;
+
 pub fn monochrome(img: &RgbaImage, source: MonoSource) -> anyhow::Result<RgbaImage> {
     Ok(monochrome_on(img, source)?.0)
 }

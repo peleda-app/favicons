@@ -386,10 +386,7 @@ async fn serve_icon(
 async fn serve_key(app: &Arc<App>, req: &Req, client: ClientKey) -> Response {
     let domain = &req.name;
     if let Some(meta) = app.store.meta(domain).await {
-        let stale = app.is_stale(&meta)
-            || (meta.status == Status::Ok
-                && meta.color.is_some()
-                && (meta.palette.is_none() || meta.palette_rev < crate::palette::REVISION));
+        let stale = app.is_stale(&meta) || App::needs_refresh(&meta);
         if stale && !req.nested && app.limiter.escalate(client) {
             let _ = app.queue.push(domain, client);
         }
@@ -1206,6 +1203,20 @@ mod routing_tests {
         req.extensions_mut()
             .insert(ConnectInfo(SocketAddr::from(([198, 51, 100, 7], 4000))));
         router(app.clone()).oneshot(req).await.unwrap()
+    }
+
+    #[test]
+    fn missing_mono_from_an_older_build_is_refreshed_once() {
+        let mut meta = crate::store::Meta::new("example.com", crate::store::Status::Ok);
+        meta.color = Some(crate::vector::VectorOrigin::Original);
+        meta.palette = Some(crate::palette::analyze(&image::RgbaImage::new(4, 4)));
+        meta.palette_rev = crate::palette::REVISION;
+        assert!(App::needs_refresh(&meta));
+        meta.mono_rev = crate::render::MONO_REVISION;
+        assert!(!App::needs_refresh(&meta));
+        meta.mono_rev = 0;
+        meta.mono = Some(crate::vector::VectorOrigin::Traced);
+        assert!(!App::needs_refresh(&meta));
     }
 
     #[tokio::test]

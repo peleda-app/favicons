@@ -223,9 +223,9 @@ pub struct RateLimit {
 impl Default for RateLimit {
     fn default() -> Self {
         Self {
-            requests_per_second: 50.0,
-            burst: 400.0,
-            cached_cost: 0.05,
+            requests_per_second: 100.0,
+            burst: 2000.0,
+            cached_cost: 0.02,
             max_tracked_clients: 100_000,
         }
     }

@@ -1,0 +1,108 @@
+[[catalogs]]
+id = "fluent-emoji"
+name = "Fluent Emoji"
+format = "iconify"
+index_url = "https://cdn.jsdelivr.net/npm/@iconify-json/fluent-emoji-flat/icons.json"
+mono_index_url = "https://cdn.jsdelivr.net/npm/@iconify-json/fluent-emoji-high-contrast/icons.json"
+base_url = "https://cdn.jsdelivr.net/npm/@iconify-json/fluent-emoji-flat/"
+license = "MIT"
+attribution = "https://github.com/microsoft/fluentui-emoji"
+
+[[catalogs]]
+id = "twemoji"
+name = "Twemoji"
+format = "iconify"
+index_url = "https://cdn.jsdelivr.net/npm/@iconify-json/twemoji/icons.json"
+base_url = "https://cdn.jsdelivr.net/npm/@iconify-json/twemoji/"
+license = "CC-BY-4.0"
+attribution = "https://github.com/jdecked/twemoji"
+
+[[catalogs]]
+id = "noto"
+name = "Noto Emoji"
+format = "iconify"
+index_url = "https://cdn.jsdelivr.net/npm/@iconify-json/noto/icons.json"
+base_url = "https://cdn.jsdelivr.net/npm/@iconify-json/noto/"
+license = "Apache-2.0"
+attribution = "https://github.com/googlefonts/noto-emoji"
+
+[[catalogs]]
+id = "emojione"
+name = "EmojiOne"
+format = "iconify"
+index_url = "https://cdn.jsdelivr.net/npm/@iconify-json/emojione/icons.json"
+base_url = "https://cdn.jsdelivr.net/npm/@iconify-json/emojione/"
+license = "CC-BY-4.0"
+attribution = "https://github.com/EmojiTwo/emojitwo"
+
+[[catalogs]]
+id = "fxemoji"
+name = "FxEmoji"
+format = "iconify"
+index_url = "https://cdn.jsdelivr.net/npm/@iconify-json/fxemoji/icons.json"
+base_url = "https://cdn.jsdelivr.net/npm/@iconify-json/fxemoji/"
+license = "Apache-2.0"
+attribution = "https://github.com/mozilla/fxemoji"
+
+[[catalogs]]
+id = "fluent-color"
+name = "Fluent Color"
+format = "iconify"
+index_url = "https://cdn.jsdelivr.net/npm/@iconify-json/fluent-color/icons.json"
+base_url = "https://cdn.jsdelivr.net/npm/@iconify-json/fluent-color/"
+license = "MIT"
+attribution = "https://github.com/microsoft/fluentui-system-icons"
+
+[[catalogs]]
+id = "withicons-soft3d"
+name = "withicons Soft 3D"
+format = "iconify"
+index_url = "https://cdn.jsdelivr.net/npm/@iconify-json/withicons-soft3d/icons.json"
+base_url = "https://cdn.jsdelivr.net/npm/@iconify-json/withicons-soft3d/"
+license = "MIT"
+attribution = "https://github.com/withevergrow/withicons"
+
+[[catalogs]]
+id = "iconito"
+name = "Iconito Food"
+format = "iconify"
+index_url = "https://cdn.jsdelivr.net/npm/@iconify-json/iconito/icons.json"
+base_url = "https://cdn.jsdelivr.net/npm/@iconify-json/iconito/"
+license = "MIT"
+attribution = "https://github.com/iconi-to/free-food"
+
+[[catalogs]]
+id = "vscode-icons"
+name = "VSCode Icons"
+format = "iconify"
+index_url = "https://cdn.jsdelivr.net/npm/@iconify-json/vscode-icons/icons.json"
+base_url = "https://cdn.jsdelivr.net/npm/@iconify-json/vscode-icons/"
+license = "MIT"
+attribution = "https://github.com/vscode-icons/vscode-icons"
+
+[[catalogs]]
+id = "catppuccin"
+name = "Catppuccin Icons"
+format = "iconify"
+index_url = "https://cdn.jsdelivr.net/npm/@iconify-json/catppuccin/icons.json"
+base_url = "https://cdn.jsdelivr.net/npm/@iconify-json/catppuccin/"
+license = "MIT"
+attribution = "https://github.com/catppuccin/vscode-icons"
+
+[[catalogs]]
+id = "cryptocurrency"
+name = "Cryptocurrency Icons"
+format = "iconify"
+index_url = "https://cdn.jsdelivr.net/npm/@iconify-json/cryptocurrency-color/icons.json"
+base_url = "https://cdn.jsdelivr.net/npm/@iconify-json/cryptocurrency-color/"
+license = "CC0-1.0"
+attribution = "https://github.com/atomiclabs/cryptocurrency-icons"
+
+[[catalogs]]
+id = "web3"
+name = "Web3 Icons"
+format = "iconify"
+index_url = "https://cdn.jsdelivr.net/npm/@iconify-json/token-branded/icons.json"
+base_url = "https://cdn.jsdelivr.net/npm/@iconify-json/token-branded/"
+license = "MIT"
+attribution = "https://github.com/0xa3k5/web3icons"

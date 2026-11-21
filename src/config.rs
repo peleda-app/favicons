@@ -163,7 +163,6 @@ pub struct Server {
     pub worker_threads: Option<usize>,
     pub landing: bool,
     pub public_url: Option<String>,
-    pub compare_url: String,
 }
 
 impl Default for Server {
@@ -179,7 +178,6 @@ impl Default for Server {
             worker_threads: None,
             landing: true,
             public_url: None,
-            compare_url: "https://peleda-app.github.io/favicons/compare.json".into(),
         }
     }
 }
@@ -362,6 +360,7 @@ pub struct Cache {
     pub storage_timeout_ms: u64,
     pub max_disk_bytes: u64,
     pub max_disk_entries: u64,
+    pub seed: Option<String>,
 }
 
 impl Cache {
@@ -392,6 +391,7 @@ impl Default for Cache {
             storage_timeout_ms: 2_000,
             max_disk_bytes: 0,
             max_disk_entries: 0,
+            seed: None,
         }
     }
 }
@@ -415,6 +415,7 @@ impl CacheProfile {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct HttpCache {
+    pub compression: Compression,
     pub icon: CacheProfile,
     pub canonical: CacheProfile,
     pub fallback_transient: CacheProfile,
@@ -422,9 +423,18 @@ pub struct HttpCache {
     pub error: CacheProfile,
 }
 
+#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "kebab-case")]
+pub enum Compression {
+    #[default]
+    Gzip,
+    Off,
+}
+
 impl Default for HttpCache {
     fn default() -> Self {
         Self {
+            compression: Compression::Gzip,
             icon: CacheProfile::new(
                 "public, max-age=604800, stale-while-revalidate=86400",
                 "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=604800",
@@ -648,6 +658,12 @@ pub struct SlugCatalog {
     pub reload_secs: u64,
     #[serde(default = "default_catalog_index_bytes")]
     pub max_index_bytes: usize,
+    #[serde(default = "default_true")]
+    pub prerender: bool,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 fn default_catalog_reload() -> u64 {

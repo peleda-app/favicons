@@ -13,7 +13,6 @@ shutdown_grace_ms = 10000
 # worker_threads = 2     # async runtime threads; default is one per CPU. Lower it on a box shared with other services
 landing = true          # serve the demo page at / (only in builds with the "site" feature, e.g. the favicons-site image)
 # public_url = "https://favicons.example.com"  # name and canonical URLs on the page; defaults to tls.domains[0], then the Host header
-compare_url = "https://peleda-app.github.io/favicons/compare.json"   # comparison with similar projects on the page, refreshed hourly; "" disables
 
 [client_ip]
 # peer | x-forwarded-for | x-real-ip | cf-connecting-ip
@@ -101,6 +100,12 @@ max_disk_entries = 0          # domains
 # aws_access_key_id = "…"          # prefer FAVICONS_CACHE__OPTIONS__AWS_ACCESS_KEY_ID
 # aws_secret_access_key = "…"
 
+[http_cache]
+# gzip: stored icons are kept gzipped on disk and in memory and sent as is to
+# clients that accept gzip (every browser and CDN); others get them unpacked.
+# Generated fallbacks are never compressed. off: everything is stored and sent raw.
+compression = "gzip"
+
 # Each profile sets the browser Cache-Control and the CDN-Cache-Control (RFC 9213).
 [http_cache.icon]
 browser = "public, max-age=604800, stale-while-revalidate=86400"
@@ -175,7 +180,12 @@ max_index_bytes = 16777216
 # /catalogs.json and /catalogs/{id}.json list them. Formats: selfhst,
 # simple-icons (tinted with each brand's colour), dashboard-icons, devicon,
 # thesvg (licensed per icon; `licenses` keeps only the ones listed) and iconify
-# (any Iconify JSON set, with an optional `mono_index_url`). `license`
+# (any Iconify JSON set, with an optional `mono_index_url`). Iconify catalogs
+# are prerendered: with a cache storage configured, every icon goes through the
+# usual pipeline into the cache in the background, then the source SVGs leave
+# memory; unchanged icons are skipped on the next reload and prerendered entries
+# are never evicted. `prerender = false` keeps the sources in memory and renders
+# on first request instead. `license`
 # is sent as X-Icon-License unless the index has one per icon.
 # [[catalogs]]
 # id = "selfhst"

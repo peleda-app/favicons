@@ -31,6 +31,10 @@ jobs:
           ./compare/measure.sh compare/tools.json > _site/compare.json
           jq . _site/compare.json
           jq -e '.tools | length > 0' _site/compare.json
+          cp stats/index.html _site/index.html
+          cp stats/index.html _site/404.html
+          curl -fsSL "https://stats.favicons.page/stats.json?v=$(date +%s)" -o _site/stats.json \
+            || echo "::warning::stats.json not carried over"
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site

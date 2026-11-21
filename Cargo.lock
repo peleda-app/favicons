@@ -719,6 +719,7 @@ dependencies = [
  "blake3",
  "bytes",
  "figment",
+ "flate2",
  "hickory-resolver",
  "http",
  "hyper",

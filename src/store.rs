@@ -53,6 +53,8 @@ pub struct Meta {
     pub palette: Option<Palette>,
     #[serde(default)]
     pub palette_rev: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source: Option<String>,
 }
 
 impl Meta {
@@ -70,6 +72,7 @@ impl Meta {
             etags: BTreeMap::new(),
             palette: None,
             palette_rev: 0,
+            source: None,
         }
     }
 }
@@ -87,8 +90,18 @@ pub fn object_name(slot: Slot) -> &'static str {
     }
 }
 
+fn file_name(slot: Slot, gzipped: bool) -> &'static str {
+    match (slot, gzipped) {
+        (Slot::Color, false) => "color.svg",
+        (Slot::Mono, false) => "mono.svg",
+        (Slot::Color, true) => "color.svg.gz",
+        (Slot::Mono, true) => "mono.svg.gz",
+    }
+}
+
 pub struct Icon {
-    pub data: Bytes,
+    body: Bytes,
+    pub gzipped: bool,
     pub etag: Option<HeaderValue>,
     pub domain: Option<HeaderValue>,
     pub palette: crate::palette::Headers,
@@ -101,47 +114,101 @@ impl Icon {
         domain: Option<&str>,
         palette: Option<Palette>,
     ) -> Arc<Self> {
-        Arc::new(Self::build(data, etag, domain, palette))
+        Arc::new(Self::build(data, false, etag, domain, palette))
     }
 
     fn build(
-        data: Bytes,
+        body: Bytes,
+        gzipped: bool,
         etag: Option<&str>,
         domain: Option<&str>,
         palette: Option<Palette>,
     ) -> Self {
         Self {
-            data,
+            body,
+            gzipped,
             etag: etag.and_then(|e| HeaderValue::from_str(&format!("\"{e}\"")).ok()),
             domain: domain.and_then(|d| HeaderValue::from_str(d).ok()),
             palette: palette.map(|p| p.headers()).unwrap_or_default(),
         }
     }
 
-    fn of(meta: &Meta, slot: Slot, data: Bytes) -> Arc<Self> {
+    fn of(meta: &Meta, slot: Slot, body: Bytes, gzipped: bool) -> Arc<Self> {
         Arc::new(Self::build(
-            data,
+            body,
+            gzipped,
             meta.etags.get(object_name(slot)).map(String::as_str),
             Some(&meta.domain),
             meta.palette,
         ))
     }
+
+    pub fn raw(&self) -> Bytes {
+        if self.gzipped {
+            gunzip(&self.body).unwrap_or_default()
+        } else {
+            self.body.clone()
+        }
+    }
+
+    pub fn gzip(&self) -> Option<&Bytes> {
+        self.gzipped.then_some(&self.body)
+    }
+
+    pub fn size(&self) -> usize {
+        self.body.len()
+    }
+
+    pub fn derived(&self, raw: Bytes, etag: Option<HeaderValue>) -> Self {
+        let body = if self.gzipped { gzip(&raw) } else { raw };
+        Self {
+            body,
+            gzipped: self.gzipped,
+            etag,
+            domain: self.domain.clone(),
+            palette: self.palette.clone(),
+        }
+    }
+
+    pub fn gzip_etag(&self) -> Option<HeaderValue> {
+        let e = self.etag.as_ref()?.to_str().ok()?.trim_matches('"');
+        HeaderValue::from_str(&format!("\"{e}-gz\"")).ok()
+    }
 }
 
-type IconCache = Cache<String, Arc<Icon>>;
+pub fn gzip(data: &[u8]) -> Bytes {
+    use std::io::Write;
+    let mut enc = flate2::write::GzEncoder::new(
+        Vec::with_capacity(data.len() / 2 + 32),
+        flate2::Compression::new(6),
+    );
+    let _ = enc.write_all(data);
+    Bytes::from(enc.finish().unwrap_or_default())
+}
+
+pub fn gunzip(data: &[u8]) -> Option<Bytes> {
+    use std::io::Read;
+    let mut out = Vec::with_capacity(data.len() * 3);
+    flate2::read::GzDecoder::new(data)
+        .take(8 << 20)
+        .read_to_end(&mut out)
+        .ok()?;
+    Some(Bytes::from(out))
+}
+
+pub type IconCache = Cache<String, Arc<Icon>>;
 
 fn icon_cache(cfg: &CacheCfg) -> IconCache {
     Cache::builder()
         .max_capacity(cfg.memory_max_bytes / 2)
-        .weigher(|k: &String, v: &Arc<Icon>| {
-            (k.len() + v.data.len()).try_into().unwrap_or(u32::MAX)
-        })
+        .weigher(|k: &String, v: &Arc<Icon>| (k.len() + v.size()).try_into().unwrap_or(u32::MAX))
         .time_to_live(Duration::from_secs(cfg.memory_ttl_secs))
         .build()
 }
 
 pub struct Store {
     backend: Option<Arc<dyn ObjectStore>>,
+    seed: Option<Arc<dyn ObjectStore>>,
     pub disk: Option<Arc<Disk>>,
     attributes: bool,
     prefix: Path,
@@ -151,6 +218,8 @@ pub struct Store {
     absent: Cache<String, ()>,
     img_color: IconCache,
     img_mono: IconCache,
+    compress: bool,
+    pub plated: IconCache,
 }
 
 impl Store {
@@ -164,8 +233,21 @@ impl Store {
             )
             .map(Arc::new)
         });
+        let seed = cfg
+            .seed
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .and_then(|dir| match object_store::local::LocalFileSystem::new_with_prefix(dir) {
+                Ok(fs) => Some(Arc::new(fs) as Arc<dyn ObjectStore>),
+                Err(e) => {
+                    tracing::warn!(dir, error = %e, "cache.seed is not readable; running without it");
+                    None
+                }
+            });
         Ok(Self {
             backend,
+            seed,
             disk,
             attributes,
             prefix,
@@ -181,6 +263,14 @@ impl Store {
                 .build(),
             img_color: icon_cache(cfg),
             img_mono: icon_cache(cfg),
+            compress: http.compression == crate::config::Compression::Gzip,
+            plated: Cache::builder()
+                .max_capacity(cfg.memory_max_bytes / 4)
+                .weigher(|k: &String, v: &Arc<Icon>| {
+                    (k.len() + v.size()).try_into().unwrap_or(u32::MAX)
+                })
+                .time_to_live(Duration::from_secs(cfg.memory_ttl_secs))
+                .build(),
         })
     }
 
@@ -204,15 +294,43 @@ impl Store {
         }
     }
 
+    fn seed_path(domain: &str, name: &str) -> Path {
+        Path::from(format!("{LAYOUT_VERSION}/{domain}/{name}"))
+    }
+
+    async fn read_object(&self, domain: &str, name: &str) -> anyhow::Result<Option<Bytes>> {
+        if let Some(backend) = &self.backend
+            && let Some(b) = self.read(backend, &self.path(domain, name)).await?
+        {
+            return Ok(Some(b));
+        }
+        if let Some(seed) = &self.seed {
+            return self.read(seed, &Self::seed_path(domain, name)).await;
+        }
+        Ok(None)
+    }
+
+    pub async fn peek_meta(&self, domain: &str) -> Option<Meta> {
+        if let Some(m) = self.meta_mem.get(domain) {
+            return Some((*m).clone());
+        }
+        let bytes = self.read_object(domain, "meta.json").await.ok()??;
+        serde_json::from_slice::<Meta>(&bytes)
+            .ok()
+            .filter(|m| m.domain == domain)
+    }
+
     pub async fn meta(&self, domain: &str) -> Option<Arc<Meta>> {
         if let Some(m) = self.meta_mem.get(domain) {
             return Some(m);
         }
-        let backend = self.backend.as_ref()?;
+        if self.backend.is_none() && self.seed.is_none() {
+            return None;
+        }
         if self.absent.contains_key(domain) {
             return None;
         }
-        match self.read(backend, &self.path(domain, "meta.json")).await {
+        match self.read_object(domain, "meta.json").await {
             Ok(Some(bytes)) => match serde_json::from_slice::<Meta>(&bytes) {
                 Ok(meta) if meta.domain == domain => {
                     if let Some(disk) = self.disk.clone() {
@@ -245,34 +363,57 @@ impl Store {
         if let Some(icon) = cache.get(domain) {
             return Some(icon);
         }
-        let backend = self.backend.as_ref()?;
-        match self
-            .read(backend, &self.path(domain, object_name(slot)))
-            .await
-        {
-            Ok(Some(b)) => {
-                let icon = Icon::of(meta, slot, b);
-                cache.insert(domain.to_string(), icon.clone());
-                Some(icon)
-            }
-            Ok(None) => None,
-            Err(e) => {
-                tracing::warn!(domain, error = %e, "storage read failed");
-                None
+        if self.backend.is_none() && self.seed.is_none() {
+            return None;
+        }
+        for gzipped in [self.compress, !self.compress] {
+            match self.read_object(domain, file_name(slot, gzipped)).await {
+                Ok(Some(b)) => {
+                    let body = match (gzipped, self.compress) {
+                        (true, false) => gunzip(&b)?,
+                        (false, true) => gzip(&b),
+                        _ => b,
+                    };
+                    let icon = Icon::of(meta, slot, body, self.compress);
+                    cache.insert(domain.to_string(), icon.clone());
+                    return Some(icon);
+                }
+                Ok(None) => continue,
+                Err(e) => {
+                    tracing::warn!(domain, error = %e, "storage read failed");
+                    return None;
+                }
             }
         }
+        None
     }
 
     pub async fn put(&self, meta: Meta, images: Vec<(Slot, Vec<u8>)>) {
+        self.write(meta, images, true).await;
+    }
+
+    pub async fn put_cold(&self, meta: Meta, images: Vec<(Slot, Vec<u8>)>) {
+        self.write(meta, images, false).await;
+    }
+
+    async fn write(&self, meta: Meta, images: Vec<(Slot, Vec<u8>)>, warm: bool) {
         let domain = meta.domain.clone();
         let new_entry = self.disk.as_ref().is_some_and(|d| !d.exists(&domain));
         let mut sizes = Vec::with_capacity(3);
         for (slot, data) in images {
-            sizes.push(data.len());
-            let name = object_name(slot);
-            let bytes = Bytes::from(data);
+            let name = file_name(slot, self.compress);
+            let bytes = if self.compress {
+                gzip(&data)
+            } else {
+                Bytes::from(data)
+            };
+            sizes.push(bytes.len());
             if let Some(backend) = &self.backend {
-                let opts = self.put_options(SVG_MIME, &self.object_cache_control);
+                let mut opts = self.put_options(SVG_MIME, &self.object_cache_control);
+                if self.compress && self.attributes {
+                    opts.attributes
+                        .insert(Attribute::ContentEncoding, "gzip".to_string().into());
+                }
                 let path = self.path(&domain, name);
                 let res = tokio::time::timeout(
                     self.timeout,
@@ -283,8 +424,12 @@ impl Store {
                     tracing::warn!(domain, name, "storage write failed");
                 }
             }
-            self.icons(slot)
-                .insert(domain.clone(), Icon::of(&meta, slot, bytes));
+            if warm {
+                self.icons(slot)
+                    .insert(domain.clone(), Icon::of(&meta, slot, bytes, self.compress));
+            } else {
+                self.icons(slot).invalidate(&domain);
+            }
         }
         if let Some(backend) = &self.backend {
             match serde_json::to_vec(&meta) {
@@ -311,7 +456,11 @@ impl Store {
             disk.added(sizes, new_entry);
         }
         self.absent.invalidate(&domain);
-        self.meta_mem.insert(domain, Arc::new(meta));
+        if warm {
+            self.meta_mem.insert(domain, Arc::new(meta));
+        } else {
+            self.meta_mem.invalidate(&domain);
+        }
     }
 
     pub fn forget(&self, domains: &[String]) {
@@ -410,11 +559,55 @@ mod tests {
         let meta = fresh.meta("example.com").await.unwrap();
         assert_eq!(meta.color, Some(VectorOrigin::Traced));
         assert_eq!(
-            fresh.image(&meta, Slot::Mono).await.unwrap().data.as_ref(),
+            fresh.image(&meta, Slot::Mono).await.unwrap().raw().as_ref(),
             [4, 5]
         );
-        assert!(dir.join("v3/example.com/color.svg").exists());
-        assert!(dir.join("v3/example.com/mono.svg").exists());
+        assert!(dir.join("v3/example.com/color.svg.gz").exists());
+        assert!(dir.join("v3/example.com/mono.svg.gz").exists());
+        assert!(!dir.join("v3/example.com/color.svg").exists());
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[tokio::test]
+    async fn reads_either_layout_and_keeps_one_on_disk() {
+        let dir = std::env::temp_dir().join(format!("favicons-test-{}", rand::random::<u64>()));
+        std::fs::create_dir_all(dir.join("v3/old.com")).unwrap();
+        let mut meta = Meta::new("old.com", Status::Ok);
+        meta.color = Some(VectorOrigin::Original);
+        std::fs::write(
+            dir.join("v3/old.com/meta.json"),
+            serde_json::to_vec(&meta).unwrap(),
+        )
+        .unwrap();
+        std::fs::write(dir.join("v3/old.com/color.svg"), b"<svg/>").unwrap();
+
+        let gz = store_in(&dir);
+        let icon = gz.image(&meta, Slot::Color).await.unwrap();
+        assert!(icon.gzipped);
+        assert_eq!(icon.raw().as_ref(), b"<svg/>");
+        assert_eq!(gunzip(icon.gzip().unwrap()).unwrap().as_ref(), b"<svg/>");
+
+        let plain = Store::new(
+            &CacheCfg {
+                storage: format!("file://{}", dir.display()),
+                ..CacheCfg::default()
+            },
+            &HttpCache {
+                compression: crate::config::Compression::Off,
+                ..HttpCache::default()
+            },
+        )
+        .unwrap();
+        plain
+            .put(
+                meta.clone(),
+                vec![(Slot::Mono, b"<svg id=\"m\"/>".to_vec())],
+            )
+            .await;
+        assert!(dir.join("v3/old.com/mono.svg").exists());
+        assert!(!dir.join("v3/old.com/mono.svg.gz").exists());
+        let mono = store_in(&dir).image(&meta, Slot::Mono).await.unwrap();
+        assert_eq!(mono.raw().as_ref(), b"<svg id=\"m\"/>");
         let _ = std::fs::remove_dir_all(dir);
     }
 }

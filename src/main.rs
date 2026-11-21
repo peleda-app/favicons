@@ -56,6 +56,7 @@ fn main() -> ExitCode {
 
 fn run_main(mut args: impl Iterator<Item = String>) -> anyhow::Result<()> {
     let mut render_server = false;
+    let mut prerender = false;
     let mut config_path = std::env::var_os("FAVICONS_CONFIG").map(PathBuf::from);
     let mut check_only = false;
     while let Some(arg) = args.next() {
@@ -63,12 +64,13 @@ fn run_main(mut args: impl Iterator<Item = String>) -> anyhow::Result<()> {
             "-c" | "--config" => config_path = args.next().map(PathBuf::from),
             "--check-config" => check_only = true,
             "render-server" => render_server = true,
+            "prerender" => prerender = true,
             "-V" | "--version" => {
                 println!("favicons {}", env!("CARGO_PKG_VERSION"));
                 return Ok(());
             }
             other => anyhow::bail!(
-                "unknown argument {other}; usage: favicons [render-server | render-worker | sandbox-selftest PROBE] [--config PATH] [--check-config]"
+                "unknown argument {other}; usage: favicons [render-server | prerender | render-worker | sandbox-selftest PROBE] [--config PATH] [--check-config]"
             ),
         }
     }
@@ -106,7 +108,40 @@ fn run_main(mut args: impl Iterator<Item = String>) -> anyhow::Result<()> {
         .thread_stack_size(8 * 1024 * 1024)
         .max_blocking_threads(cfg.render.decode_concurrency * 2 + cfg.fetch.workers * 2 + 16)
         .build()?
-        .block_on(run(cfg))
+        .block_on(async move {
+            if prerender {
+                prerender_catalogs(cfg).await
+            } else {
+                run(cfg).await
+            }
+        })
+}
+
+async fn prerender_catalogs(cfg: config::Config) -> anyhow::Result<()> {
+    let app = app::App::new(cfg)?;
+    anyhow::ensure!(
+        app.store.has_backend(),
+        "prerender needs cache.storage to write into"
+    );
+    let jobs: Vec<_> = app
+        .slugs
+        .all()
+        .iter()
+        .cloned()
+        .map(|catalog| {
+            let app = app.clone();
+            tokio::spawn(async move {
+                catalog.reload(&app.list_client_ref()).await;
+                anyhow::ensure!(catalog.is_loaded(), "catalog {} did not load", catalog.id());
+                app.prerender(&catalog).await;
+                Ok(())
+            })
+        })
+        .collect();
+    for job in jobs {
+        job.await??;
+    }
+    Ok(())
 }
 
 async fn run(cfg: config::Config) -> anyhow::Result<()> {
@@ -126,7 +161,6 @@ async fn run(cfg: config::Config) -> anyhow::Result<()> {
         _ => {}
     }
     app.spawn_policy_reloader();
-    app.spawn_compare_reloader();
     app.spawn_catalog_reloader();
     app.spawn_slug_reloaders();
     app.spawn_workers();

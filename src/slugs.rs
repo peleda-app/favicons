@@ -31,6 +31,8 @@ pub struct Item {
     inline: Option<Packed>,
     #[serde(skip)]
     mono_inline: Option<Packed>,
+    #[serde(skip)]
+    source: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -39,6 +41,15 @@ struct Packed(Arc<[u8]>);
 impl Packed {
     fn new(svg: &str) -> Self {
         Self(miniz_oxide::deflate::compress_to_vec(svg.as_bytes(), 6).into())
+    }
+
+    fn hash(&self, mono: Option<&Packed>) -> String {
+        let mut h = blake3::Hasher::new();
+        h.update(&self.0);
+        if let Some(m) = mono {
+            h.update(&m.0);
+        }
+        h.finalize().to_hex()[..20].to_string()
     }
 
     fn unpack(&self) -> Option<Vec<u8>> {
@@ -53,6 +64,7 @@ pub struct Entry {
     pub license: String,
     pub inline: Option<Vec<u8>>,
     pub mono_inline: Option<Vec<u8>>,
+    pub source: Option<String>,
 }
 
 struct Index {
@@ -64,6 +76,7 @@ pub struct Catalog {
     cfg: SlugCatalog,
     base: Url,
     index: RwLock<Arc<Index>>,
+    pub wake: tokio::sync::Notify,
 }
 
 #[derive(Serialize)]
@@ -139,6 +152,7 @@ impl Catalog {
                 items: HashMap::new(),
                 listing: Bytes::new(),
             })),
+            wake: tokio::sync::Notify::new(),
         };
         let listing = c.render_listing(&HashMap::new());
         if let Ok(mut g) = c.index.write() {
@@ -156,6 +170,36 @@ impl Catalog {
 
     pub fn reload_secs(&self) -> u64 {
         self.cfg.reload_secs
+    }
+
+    pub fn prerender(&self) -> bool {
+        self.cfg.prerender
+    }
+
+    pub fn sources(&self) -> Vec<(String, String)> {
+        self.current()
+            .items
+            .values()
+            .filter(|i| i.inline.is_some())
+            .filter_map(|i| Some((i.slug.clone(), i.source.clone()?)))
+            .collect()
+    }
+
+    pub fn drop_sources(&self, done: &std::collections::HashSet<String>) {
+        let index = self.current();
+        let mut items = index.items.clone();
+        for slug in done {
+            if let Some(item) = items.get_mut(slug) {
+                item.inline = None;
+                item.mono_inline = None;
+            }
+        }
+        if let Ok(mut g) = self.index.write() {
+            *g = Arc::new(Index {
+                items,
+                listing: index.listing.clone(),
+            });
+        }
     }
 
     fn current(&self) -> Arc<Index> {
@@ -204,6 +248,7 @@ impl Catalog {
                 .unwrap_or_else(|| self.cfg.license.clone()),
             inline: item.inline.as_ref().and_then(Packed::unpack),
             mono_inline: item.mono_inline.as_ref().and_then(Packed::unpack),
+            source: item.source.clone(),
         })
     }
 
@@ -384,7 +429,9 @@ pub fn merge_iconify_mono(items: &mut HashMap<String, Item>, json: &[u8]) -> any
     let set: IconifySet = serde_json::from_slice(json)?;
     for (slug, icon) in &set.icons {
         if let Some(item) = items.get_mut(slug) {
-            item.mono_inline = Some(Packed::new(&set.svg(icon)));
+            let mono = Packed::new(&set.svg(icon));
+            item.source = item.inline.as_ref().map(|c| c.hash(Some(&mono)));
+            item.mono_inline = Some(mono);
         }
     }
     Ok(())
@@ -509,6 +556,7 @@ pub fn parse_index(
                         license: None,
                         inline: None,
                         mono_inline: None,
+                        source: None,
                         slug,
                     },
                 );
@@ -530,6 +578,7 @@ pub fn parse_index(
                         license: None,
                         inline: None,
                         mono_inline: None,
+                        source: None,
                         slug,
                     },
                 );
@@ -559,6 +608,7 @@ pub fn parse_index(
                         license: None,
                         inline: None,
                         mono_inline: None,
+                        source: None,
                         slug,
                     },
                 );
@@ -590,6 +640,7 @@ pub fn parse_index(
                         license: None,
                         inline: None,
                         mono_inline: None,
+                        source: None,
                         slug,
                     },
                 );
@@ -638,6 +689,7 @@ pub fn parse_index(
                         license: None,
                         inline: Some(Packed::new(&set.svg(icon))),
                         mono_inline: None,
+                        source: None,
                         slug: slug.clone(),
                     },
                 );
@@ -681,10 +733,16 @@ pub fn parse_index(
                         license: Some(clean(&e.license, 40)),
                         inline: None,
                         mono_inline: None,
+                        source: None,
                         slug: e.slug.trim().to_ascii_lowercase(),
                     },
                 );
             }
+        }
+    }
+    for item in items.values_mut() {
+        if item.source.is_none() {
+            item.source = item.inline.as_ref().map(|c| c.hash(None));
         }
     }
     Ok(items)
@@ -707,6 +765,7 @@ pub mod tests {
             attribution: Some("https://selfh.st/icons/".into()),
             reload_secs: 86_400,
             max_index_bytes: 1 << 20,
+            prerender: true,
         }
     }
 

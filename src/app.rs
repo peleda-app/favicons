@@ -50,7 +50,8 @@ pub struct App {
     pub site: crate::site::Site,
     generated_palettes: Cache<[u8; 32], Palette>,
     placeholders: moka::future::Cache<String, Option<String>>,
-    pub compare: std::sync::RwLock<Option<Bytes>>,
+    pub instance: String,
+    pub started_at: u64,
     decode_slots: Arc<Semaphore>,
     pub request_slots: Arc<Semaphore>,
 }
@@ -76,7 +77,8 @@ impl App {
                 .max_capacity(10_000)
                 .time_to_idle(Duration::from_secs(3_600))
                 .build(),
-            compare: std::sync::RwLock::new(None),
+            instance: format!("{:032x}", rand::random::<u128>()),
+            started_at: now(),
             placeholders: moka::future::Cache::builder()
                 .max_capacity(64)
                 .time_to_live(Duration::from_secs(86_400))
@@ -105,7 +107,7 @@ impl App {
             generated: Cache::builder()
                 .max_capacity(16 * 1024 * 1024)
                 .weigher(|_: &([u8; 32], Style), v: &Arc<Icon>| {
-                    (32 + v.data.len()).try_into().unwrap_or(u32::MAX)
+                    (32 + v.size()).try_into().unwrap_or(u32::MAX)
                 })
                 .time_to_idle(Duration::from_secs(3_600))
                 .build(),
@@ -129,6 +131,9 @@ impl App {
     }
 
     pub fn is_stale(&self, meta: &Meta) -> bool {
+        if meta.status == Status::Ok && meta.source.is_some() {
+            return false;
+        }
         now().saturating_sub(meta.fetched_at) >= self.ttl_for(meta.status)
     }
 
@@ -246,14 +251,14 @@ impl App {
         let Some(color) = self.store.image(prev, Slot::Color).await else {
             return false;
         };
-        let Some(palette) = self.analyze(&color.data).await else {
+        let Some(palette) = self.analyze(&color.raw()).await else {
             return false;
         };
-        let mut images = vec![(Slot::Color, color.data.to_vec())];
+        let mut images = vec![(Slot::Color, color.raw().to_vec())];
         if prev.mono.is_some()
             && let Some(mono) = self.store.image(prev, Slot::Mono).await
         {
-            images.push((Slot::Mono, mono.data.to_vec()));
+            images.push((Slot::Mono, mono.raw().to_vec()));
         }
         let meta = Meta {
             palette: Some(palette),
@@ -706,9 +711,17 @@ impl App {
         id: &str,
         slug: &str,
     ) -> (Meta, Vec<(Slot, Vec<u8>)>) {
-        let Some(entry) = self.slugs.get(id).and_then(|c| c.lookup(slug)) else {
+        let Some(catalog) = self.slugs.get(id) else {
             return (Meta::new(key, Status::NotFound), vec![]);
         };
+        let Some(entry) = catalog.lookup(slug) else {
+            return (Meta::new(key, Status::NotFound), vec![]);
+        };
+        if entry.inline.is_none() && entry.source.is_some() {
+            catalog.wake.notify_one();
+            return (Meta::new(key, Status::FetchFailed), vec![]);
+        }
+        let source = entry.source.clone();
         let p = &self.cfg.policy;
         let site = entry
             .color
@@ -753,7 +766,10 @@ impl App {
             )
             .await
         {
-            Some(found) => found,
+            Some((mut meta, images)) => {
+                meta.source = source;
+                (meta, images)
+            }
             None => (Meta::new(key, Status::FetchFailed), vec![]),
         }
     }
@@ -871,6 +887,55 @@ impl App {
         });
     }
 
+    pub fn list_client_ref(&self) -> HttpClient {
+        self.list_client.clone()
+    }
+
+    pub(crate) async fn prerender(&self, catalog: &crate::slugs::Catalog) {
+        let id = catalog.id().to_string();
+        let sources = catalog.sources();
+        if sources.is_empty() {
+            return;
+        }
+        let started = std::time::Instant::now();
+        let (mut rendered, mut kept, mut failed) = (0u32, 0u32, 0u32);
+        let mut done = std::collections::HashSet::new();
+        for (slug, source) in sources {
+            let key = crate::slugs::key(&id, &slug);
+            let current = self.store.peek_meta(&key).await;
+            if current
+                .as_ref()
+                .is_some_and(|m| m.status == Status::Ok && m.source.as_deref() == Some(&source))
+            {
+                kept += 1;
+                done.insert(slug);
+                continue;
+            }
+            let (mut meta, images) = self.fetch_catalog_item(&key, &id, &slug).await;
+            if meta.status != Status::Ok {
+                failed += 1;
+                continue;
+            }
+            if let Some((_, svg)) = images.iter().find(|(s, _)| *s == Slot::Color) {
+                meta.palette = self.analyze(svg).await;
+                meta.palette_rev = crate::palette::REVISION;
+            }
+            self.store.put_cold(meta, images).await;
+            rendered += 1;
+            done.insert(slug);
+            tokio::time::sleep(Duration::from_millis(2)).await;
+        }
+        catalog.drop_sources(&done);
+        tracing::info!(
+            catalog = id,
+            rendered,
+            kept,
+            failed,
+            secs = started.elapsed().as_secs(),
+            "catalog prerendered"
+        );
+    }
+
     pub fn spawn_slug_reloaders(self: &Arc<Self>) {
         let one_at_a_time = Arc::new(Semaphore::new(1));
         for catalog in self.slugs.all() {
@@ -883,53 +948,22 @@ impl App {
                     {
                         let _turn = gate.acquire().await;
                         catalog.reload(&app.list_client).await;
+                        if catalog.prerender() && app.store.has_backend() {
+                            app.prerender(&catalog).await;
+                        }
                     }
                     let retry = if catalog.is_loaded() {
                         every
                     } else {
                         Duration::from_secs(300)
                     };
-                    tokio::time::sleep(retry).await;
+                    tokio::select! {
+                        _ = tokio::time::sleep(retry) => {}
+                        _ = catalog.wake.notified() => {}
+                    }
                 }
             });
         }
-    }
-
-    pub fn spawn_compare_reloader(self: &Arc<Self>) {
-        if !crate::site::ENABLED
-            || !self.cfg.server.landing
-            || self.cfg.server.compare_url.is_empty()
-        {
-            return;
-        }
-        let Ok(url) = Url::parse(&self.cfg.server.compare_url) else {
-            tracing::warn!("server.compare_url is not a valid url");
-            return;
-        };
-        let app = self.clone();
-        tokio::spawn(async move {
-            loop {
-                let fresh = match app.list_client.get(&url, "application/json", 1 << 20).await {
-                    Ok(f) if serde_json::from_slice::<serde_json::Value>(&f.bytes).is_ok() => {
-                        Some(Bytes::from(f.bytes))
-                    }
-                    Ok(_) => {
-                        tracing::warn!("compare.json is not valid json");
-                        None
-                    }
-                    Err(e) => {
-                        tracing::debug!(error = %e, "compare.json fetch failed");
-                        None
-                    }
-                };
-                let loaded = fresh.is_some();
-                if let (Some(body), Ok(mut slot)) = (fresh, app.compare.write()) {
-                    *slot = Some(body);
-                }
-                let wait = if loaded { 3_600 } else { 300 };
-                tokio::time::sleep(Duration::from_secs(wait)).await;
-            }
-        });
     }
 
     pub fn spawn_policy_reloader(self: &Arc<Self>) {

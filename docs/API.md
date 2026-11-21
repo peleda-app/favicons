@@ -273,6 +273,9 @@ always gets the same image on every instance that shares the salt.
   a flood or a cold queue is never cached for long. On `queued` or
   `overloaded`, retry after a short pause with `cache: "reload"`.
 * Honour `ETag` / `If-None-Match`; revalidation is cheap.
+* Stored icons are sent gzipped to clients that send `Accept-Encoding: gzip`,
+  with `Vary: Accept-Encoding` and their own `ETag` (suffix `-gz`). Generated
+  fallbacks are never compressed. `http_cache.compression = "off"` sends raw SVG.
 
 ## `GET /{style}/{domain}/{shape}/{theme}`
 
@@ -341,7 +344,7 @@ header (validated, never cached).
 | `/llms.txt` | How to use the API, for language models and agents ([llmstxt.org](https://llmstxt.org)). |
 | `/openapi.json` | OpenAPI 3.1 description, generated at start from this server's config: its origin, version, configured catalogs (as an enum) and whether the page is built in. Builds without the page also serve it at `/`. |
 
-The page, its images and its fonts (Inter and JetBrains Mono, OFL) are only in
+The page, its images and its fonts (Archivo and Martian Mono, OFL) are only in
 builds with the `site` feature, such as the `favicons-site` image; it loads
 nothing from other hosts.
 

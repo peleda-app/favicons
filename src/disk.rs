@@ -104,7 +104,7 @@ impl Disk {
             };
             total.bytes += used;
             total.entries += 1;
-            if now.duration_since(seen).is_ok_and(|age| age < RECENT) {
+            if name.starts_with('@') || now.duration_since(seen).is_ok_and(|age| age < RECENT) {
                 continue;
             }
             oldest.push((seen, used, name));

@@ -21,8 +21,8 @@ mod page {
     pub const FAVICON: &[u8] = include_bytes!("../site/favicon.svg");
     pub const APPLE_TOUCH_ICON: &[u8] = include_bytes!("../site/apple-touch-icon.png");
     pub const OG_IMAGE: &[u8] = include_bytes!("../site/og.png");
-    pub const FONT_SANS: &[u8] = include_bytes!("../site/fonts/inter.woff2");
-    pub const FONT_MONO: &[u8] = include_bytes!("../site/fonts/jetbrains-mono.woff2");
+    pub const FONT_DISPLAY: &[u8] = include_bytes!("../site/fonts/archivo.woff2");
+    pub const FONT_MONO: &[u8] = include_bytes!("../site/fonts/martian-mono.woff2");
     pub const CONFIG_EXAMPLE: &[u8] = include_bytes!("../config.example.toml");
 }
 
@@ -33,7 +33,7 @@ mod page {
     pub const FAVICON: &[u8] = &[];
     pub const APPLE_TOUCH_ICON: &[u8] = &[];
     pub const OG_IMAGE: &[u8] = &[];
-    pub const FONT_SANS: &[u8] = &[];
+    pub const FONT_DISPLAY: &[u8] = &[];
     pub const FONT_MONO: &[u8] = &[];
     pub const CONFIG_EXAMPLE: &[u8] = &[];
 }
@@ -50,7 +50,7 @@ pub enum Asset {
     Favicon,
     AppleTouchIcon,
     OgImage,
-    FontSans,
+    FontDisplay,
     FontMono,
     ConfigExample,
 }
@@ -82,7 +82,7 @@ impl Asset {
             Asset::OpenApi => "application/json",
             Asset::Favicon => "image/svg+xml",
             Asset::AppleTouchIcon | Asset::OgImage => "image/png",
-            Asset::FontSans | Asset::FontMono => "font/woff2",
+            Asset::FontDisplay | Asset::FontMono => "font/woff2",
         }
     }
 
@@ -97,7 +97,7 @@ impl Asset {
             Asset::Favicon | Asset::AppleTouchIcon | Asset::OgImage => {
                 "public, max-age=86400, stale-while-revalidate=604800"
             }
-            Asset::FontSans | Asset::FontMono => "public, max-age=31536000, immutable",
+            Asset::FontDisplay | Asset::FontMono => "public, max-age=31536000, immutable",
         }
     }
 
@@ -158,8 +158,8 @@ fn binary(asset: Asset) -> Option<&'static Page> {
     });
     static OG: LazyLock<Page> =
         LazyLock::new(|| Page::new(Asset::OgImage, Bytes::from_static(page::OG_IMAGE)));
-    static SANS: LazyLock<Page> =
-        LazyLock::new(|| Page::new(Asset::FontSans, Bytes::from_static(page::FONT_SANS)));
+    static DISPLAY: LazyLock<Page> =
+        LazyLock::new(|| Page::new(Asset::FontDisplay, Bytes::from_static(page::FONT_DISPLAY)));
     static MONO: LazyLock<Page> =
         LazyLock::new(|| Page::new(Asset::FontMono, Bytes::from_static(page::FONT_MONO)));
     static CONFIG: LazyLock<Page> = LazyLock::new(|| {
@@ -173,7 +173,7 @@ fn binary(asset: Asset) -> Option<&'static Page> {
         Asset::Favicon => Some(&FAVICON),
         Asset::AppleTouchIcon => Some(&APPLE),
         Asset::OgImage => Some(&OG),
-        Asset::FontSans => Some(&SANS),
+        Asset::FontDisplay => Some(&DISPLAY),
         Asset::FontMono => Some(&MONO),
         _ => None,
     }
@@ -271,7 +271,7 @@ fn index_csp(html: &str) -> HeaderValue {
     let hash = base64::engine::general_purpose::STANDARD.encode(digest.as_ref());
     HeaderValue::from_str(&format!(
         "default-src 'none'; script-src 'sha256-{hash}'; style-src 'unsafe-inline'; \
-         font-src 'self'; img-src 'self' blob:; connect-src 'self'; base-uri 'none'; \
+         font-src 'self'; img-src 'self' blob:; connect-src 'self' https://stats.favicons.page; base-uri 'none'; \
          form-action 'none'; frame-ancestors 'none'"
     ))
     .expect("ascii csp")
@@ -348,7 +348,8 @@ mod tests {
         let csp = csp.to_str().unwrap();
         assert!(csp.contains("script-src 'sha256-"));
         assert!(csp.contains("font-src 'self'"));
-        assert!(!csp.contains("https:"));
+        assert!(csp.contains("connect-src 'self' https://stats.favicons.page;"));
+        assert_eq!(csp.matches("https:").count(), 1);
         assert_eq!(page::INDEX.matches("<script>").count(), 1);
     }
 
@@ -364,8 +365,8 @@ mod tests {
         ] {
             assert!(!page::INDEX.contains(needle), "{needle}");
         }
-        assert!(page::INDEX.contains("url(\"/fonts/inter.woff2\")"));
-        assert!(!page::FONT_SANS.is_empty() && !page::FONT_MONO.is_empty());
+        assert!(page::INDEX.contains("url(\"/fonts/archivo.woff2\")"));
+        assert!(!page::FONT_DISPLAY.is_empty() && !page::FONT_MONO.is_empty());
     }
 
     #[cfg(feature = "site")]

@@ -76,7 +76,7 @@ jobs:
           if [ "$VARIANT" = site ]; then
             [ "$page" = 200 ]
             curl -fsS http://127.0.0.1:8080/ | grep -q 'Try any domain'
-            curl -fsS -o /dev/null http://127.0.0.1:8080/fonts/inter.woff2
+            curl -fsS -o /dev/null http://127.0.0.1:8080/fonts/archivo.woff2
           else
             [ "$page" = 200 ]
             curl -fsS http://127.0.0.1:8080/ | grep -q '"openapi": "3.1.0"'

@@ -1,0 +1,106 @@
+name: catalogs
+
+on:
+  workflow_run:
+    workflows: [docker]
+    types: [completed]
+    branches: [main]
+  schedule:
+    - cron: "41 4 * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - catalogs/**
+      - .github/workflows/catalogs.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: catalogs
+  cancel-in-progress: true
+
+jobs:
+  image:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    env:
+      IMAGE: ghcr.io/${{ github.repository_owner }}/favicons-catalogs
+      SITE: ghcr.io/${{ github.repository_owner }}/favicons-site
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: base
+        name: pick the site image
+        env:
+          RUN_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          sha="${RUN_SHA:-$GITHUB_SHA}"
+          ref="$SITE:sha-${sha::7}"
+          docker buildx imagetools inspect "$ref" >/dev/null 2>&1 || ref="$SITE:latest"
+          digest=$(docker buildx imagetools inspect "$ref" --format '{{json .Manifest}}' | jq -r .digest)
+          echo "ref=$SITE@$digest" >> "$GITHUB_OUTPUT"
+          echo "sha=${sha::7}" >> "$GITHUB_OUTPUT"
+          echo "base: $ref ($digest)"
+      - name: prerender
+        env:
+          BASE: ${{ steps.base.outputs.ref }}
+        run: |
+          mkdir -p catalogs/bundle
+          chmod 0777 catalogs/bundle
+          {
+            printf '[render]\ndecode_concurrency = 4\n\n[cache]\nstorage = "file:///out"\n\n'
+            cat catalogs/catalogs.toml
+          } > /tmp/prerender.toml
+          docker run --rm -v /tmp/prerender.toml:/etc/prerender.toml:ro -v "$PWD/catalogs/bundle:/out" \
+            "$BASE" prerender --config /etc/prerender.toml
+          licenses=$(python3 catalogs/notice.py catalogs/catalogs.toml catalogs/bundle/NOTICE)
+          cp catalogs/catalogs.toml catalogs/bundle/catalogs.toml
+          echo "LICENSES=$licenses" >> "$GITHUB_ENV"
+          echo "entries: $(find catalogs/bundle/v3 -mindepth 1 -maxdepth 1 | wc -l)"
+          du -sh --apparent-size catalogs/bundle
+      - id: push
+        name: build and push
+        env:
+          BASE: ${{ steps.base.outputs.ref }}
+          SHA: ${{ steps.base.outputs.sha }}
+        run: |
+          docker buildx build catalogs \
+            --platform linux/amd64,linux/arm64 \
+            --build-arg "BASE=$BASE" \
+            --build-arg "LICENSES=$LICENSES" \
+            --label "org.opencontainers.image.revision=$GITHUB_SHA" \
+            -t "$IMAGE:latest" -t "$IMAGE:sha-$SHA" \
+            --metadata-file /tmp/meta.json \
+            --push
+          echo "digest=$(jq -r '."containerimage.digest"' /tmp/meta.json)" >> "$GITHUB_OUTPUT"
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ${{ env.IMAGE }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
+      - name: smoke test
+        run: |
+          { printf '[cache]\nseed = "/catalogs"\n\n'; cat catalogs/catalogs.toml; } > /tmp/serve.toml
+          docker run -d --name smoke -p 8080:8080 -v /tmp/serve.toml:/etc/serve.toml:ro \
+            "$IMAGE:latest" --config /etc/serve.toml
+          for _ in $(seq 1 60); do
+            curl -fs http://127.0.0.1:8080/catalogs.json | jq -e 'map(select(.id == "iconito" and .count > 0)) | length == 1' >/dev/null && break
+            sleep 1
+          done
+          headers=$(curl -fsS -D - -o /dev/null -H 'accept-encoding: gzip' http://127.0.0.1:8080/color/iconito/apple)
+          echo "$headers"
+          echo "$headers" | grep -qi '^x-icon-source: cache'
+          echo "$headers" | grep -qi '^content-encoding: gzip'
+          docker rm -f smoke

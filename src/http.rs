@@ -9,10 +9,10 @@ use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use http::header::{
-    ACCESS_CONTROL_ALLOW_HEADERS, ACCESS_CONTROL_ALLOW_METHODS, ACCESS_CONTROL_ALLOW_ORIGIN,
-    ACCESS_CONTROL_EXPOSE_HEADERS, ACCESS_CONTROL_MAX_AGE, CACHE_CONTROL, CONTENT_SECURITY_POLICY,
-    CONTENT_TYPE, ETAG, IF_NONE_MATCH, LOCATION, REFERRER_POLICY, RETRY_AFTER,
-    X_CONTENT_TYPE_OPTIONS, X_FRAME_OPTIONS,
+    ACCEPT_ENCODING, ACCESS_CONTROL_ALLOW_HEADERS, ACCESS_CONTROL_ALLOW_METHODS,
+    ACCESS_CONTROL_ALLOW_ORIGIN, ACCESS_CONTROL_EXPOSE_HEADERS, ACCESS_CONTROL_MAX_AGE,
+    CACHE_CONTROL, CONTENT_ENCODING, CONTENT_SECURITY_POLICY, CONTENT_TYPE, ETAG, IF_NONE_MATCH,
+    LOCATION, REFERRER_POLICY, RETRY_AFTER, VARY, X_CONTENT_TYPE_OPTIONS, X_FRAME_OPTIONS,
 };
 use http::{HeaderMap, HeaderName, HeaderValue, StatusCode, Uri};
 
@@ -40,12 +40,11 @@ pub fn router(app: Arc<App>) -> Router {
             .route("/", page(Asset::Index))
             .route("/sitemap.xml", page(Asset::Sitemap))
             .route("/config.example.toml", page(Asset::ConfigExample))
-            .route("/compare.json", get(compare))
             .route("/favicon.svg", page(Asset::Favicon))
             .route("/apple-touch-icon.png", page(Asset::AppleTouchIcon))
             .route("/og.png", page(Asset::OgImage))
-            .route("/fonts/inter.woff2", page(Asset::FontSans))
-            .route("/fonts/jetbrains-mono.woff2", page(Asset::FontMono));
+            .route("/fonts/archivo.woff2", page(Asset::FontDisplay))
+            .route("/fonts/martian-mono.woff2", page(Asset::FontMono));
     } else {
         r = r.route("/", page(Asset::OpenApi));
     }
@@ -58,6 +57,7 @@ pub fn router(app: Arc<App>) -> Router {
             get(plated_catalog_icon),
         )
         .route("/catalogs.json", get(catalogs_index))
+        .route("/stats", get(stats))
         .route("/catalogs/{file}", get(catalog_listing))
         .route("/.well-known/acme-challenge/{token}", get(acme_challenge))
         .route("/healthz", get(|| async { "ok" }))
@@ -259,6 +259,7 @@ struct Req {
     plate: Option<Plate>,
     if_none_match: Option<HeaderValue>,
     nested: bool,
+    gzip: bool,
 }
 
 async fn icon(
@@ -352,6 +353,7 @@ async fn serve_icon(
             plate,
             if_none_match,
             nested: headers.contains_key(H_FETCH),
+            gzip: accepts_gzip(&headers),
         };
         return fallback(&app, &req, FallbackReason::InvalidDomain);
     };
@@ -365,6 +367,7 @@ async fn serve_icon(
         plate,
         if_none_match,
         nested: headers.contains_key(H_FETCH),
+        gzip: accepts_gzip(&headers),
     };
     let domain = &req.name;
     if app.policy.is_blocked(&n.host, domain) {
@@ -477,6 +480,7 @@ async fn serve_catalog(
         plate,
         if_none_match: headers.get(IF_NONE_MATCH).cloned(),
         nested: headers.contains_key(H_FETCH),
+        gzip: accepts_gzip(&headers),
     };
     serve_key(&app, &req, client).await
 }
@@ -490,17 +494,18 @@ fn json(body: bytes::Bytes, cache: &'static str) -> Response {
     r
 }
 
-async fn compare(State(app): State<Arc<App>>) -> Response {
-    let body = app.compare.read().ok().and_then(|b| b.clone());
-    match body {
-        Some(b) => json(b, "public, max-age=3600, stale-while-revalidate=86400"),
-        None => {
-            let mut r = plain(StatusCode::SERVICE_UNAVAILABLE, "comparison is loading");
-            r.headers_mut()
-                .insert(RETRY_AFTER, HeaderValue::from_static("60"));
-            r
-        }
-    }
+async fn stats(State(app): State<Arc<App>>) -> Response {
+    let body = serde_json::json!({
+        "instance": app.instance,
+        "started_at": app.started_at,
+        "icons": app.stats.requests.load(std::sync::atomic::Ordering::Relaxed),
+    });
+    let mut r = json(bytes::Bytes::from(body.to_string()), "no-store");
+    r.headers_mut().insert(
+        HeaderName::from_static(H_CDN_CACHE_CONTROL),
+        HeaderValue::from_static("no-store"),
+    );
+    r
 }
 
 async fn catalogs_index(State(app): State<Arc<App>>) -> Response {
@@ -575,7 +580,13 @@ async fn serve_meta(app: &App, req: &Req, meta: &Meta, source: Source, stale: bo
                 palette: &icon.palette,
                 ..out
             };
-            image(&icon, req, &app.profiles.icon, &out)
+            image(
+                &icon,
+                req,
+                &app.profiles.icon,
+                &out,
+                Some(&app.store.plated),
+            )
         }
         None => {
             tracing::warn!(
@@ -697,7 +708,7 @@ fn fallback(app: &App, req: &Req, reason: FallbackReason) -> Response {
         reason: Some(reason),
         stale: false,
     };
-    image(&icon, req, profile, &out)
+    image(&icon, req, profile, &out, None)
 }
 
 struct Out<'a> {
@@ -713,9 +724,33 @@ struct Out<'a> {
     stale: bool,
 }
 
-fn image(icon: &Icon, req: &Req, profile: &CacheHeaders, out: &Out<'_>) -> Response {
+fn accepts_gzip(headers: &HeaderMap) -> bool {
+    headers
+        .get_all(ACCEPT_ENCODING)
+        .iter()
+        .filter_map(|v| v.to_str().ok())
+        .flat_map(|v| v.split(','))
+        .any(|token| {
+            let mut parts = token.split(';');
+            let name = parts.next().unwrap_or_default().trim();
+            let refused = parts.any(|p| {
+                p.trim()
+                    .strip_prefix("q=")
+                    .and_then(|q| q.trim().parse::<f32>().ok())
+                    .is_some_and(|q| q == 0.0)
+            });
+            (name.eq_ignore_ascii_case("gzip") || name == "*") && !refused
+        })
+}
+
+fn image(
+    icon: &Icon,
+    req: &Req,
+    profile: &CacheHeaders,
+    out: &Out<'_>,
+    plates: Option<&crate::store::IconCache>,
+) -> Response {
     if let Some(plate) = req.plate {
-        let composed = crate::plate::compose(&icon.data, plate, req.style, &icon.palette);
         let etag = icon
             .etag
             .as_ref()
@@ -725,13 +760,21 @@ fn image(icon: &Icon, req: &Req, profile: &CacheHeaders, out: &Out<'_>) -> Respo
                 HeaderValue::from_str(&format!("\"{base}{}\"", plate.suffix().replace('/', "-")))
                     .ok()
             });
-        if let Some(data) = composed {
-            let plated = Icon {
-                data: data.into(),
-                etag,
-                domain: icon.domain.clone(),
-                palette: icon.palette.clone(),
-            };
+        let compose = || {
+            crate::plate::compose(&icon.raw(), plate, req.style, &icon.palette)
+                .map(|data| Arc::new(icon.derived(data.into(), etag.clone())))
+        };
+        let plated = match (plates, &etag) {
+            (Some(cache), Some(e)) => {
+                let key = format!("{}{}", req.style.as_str(), e.to_str().unwrap_or_default());
+                match cache.get(&key) {
+                    Some(hit) => Some(hit),
+                    None => compose().inspect(|p| cache.insert(key, p.clone())),
+                }
+            }
+            _ => compose(),
+        };
+        if let Some(plated) = plated {
             return image(
                 &plated,
                 &Req {
@@ -740,10 +783,15 @@ fn image(icon: &Icon, req: &Req, profile: &CacheHeaders, out: &Out<'_>) -> Respo
                 },
                 profile,
                 out,
+                None,
             );
         }
     }
-    let not_modified = match (&icon.etag, &req.if_none_match) {
+    let (body, etag, encoded) = match (icon.gzip(), req.gzip) {
+        (Some(gz), true) => (gz.clone(), icon.gzip_etag(), true),
+        _ => (icon.raw(), icon.etag.clone(), false),
+    };
+    let not_modified = match (&etag, &req.if_none_match) {
         (Some(e), Some(inm)) => match (inm.to_str(), e.to_str()) {
             (Ok(inm), Ok(e)) => etag_matches(inm, e),
             _ => false,
@@ -755,13 +803,21 @@ fn image(icon: &Icon, req: &Req, profile: &CacheHeaders, out: &Out<'_>) -> Respo
         *r.status_mut() = StatusCode::NOT_MODIFIED;
         r
     } else {
-        let mut r = Response::new(Body::from(icon.data.clone()));
+        let mut r = Response::new(Body::from(body));
         r.headers_mut()
             .insert(CONTENT_TYPE, HeaderValue::from_static(SVG_MIME));
+        if encoded {
+            r.headers_mut()
+                .insert(CONTENT_ENCODING, HeaderValue::from_static("gzip"));
+        }
         r
     };
-    if let Some(e) = &icon.etag {
-        r.headers_mut().insert(ETAG, e.clone());
+    if icon.gzipped {
+        r.headers_mut()
+            .insert(VARY, HeaderValue::from_static("accept-encoding"));
+    }
+    if let Some(e) = etag {
+        r.headers_mut().insert(ETAG, e);
     }
     decorate(&mut r, profile, out);
     r
@@ -1106,6 +1162,138 @@ mod routing_tests {
             get(&app, "/catalogs/nope.json").await.status(),
             StatusCode::NOT_FOUND
         );
+    }
+
+    async fn get_with(app: &Arc<App>, path: &str, headers: &[(&str, &str)]) -> Response {
+        let mut b = http::Request::builder().uri(path);
+        for (k, v) in headers {
+            b = b.header(*k, *v);
+        }
+        let mut req = b.body(Body::empty()).unwrap();
+        req.extensions_mut()
+            .insert(ConnectInfo(SocketAddr::from(([198, 51, 100, 7], 4000))));
+        router(app.clone()).oneshot(req).await.unwrap()
+    }
+
+    #[tokio::test]
+    async fn stored_icons_go_out_gzipped_and_fallbacks_raw() {
+        let app = app();
+        let svg = r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128"><path fill="#000000" d="M0 0h128v128H0z"/></svg>"##;
+        let mut meta = crate::store::Meta::new("example.com", crate::store::Status::Ok);
+        meta.color = Some(crate::vector::VectorOrigin::Original);
+        meta.etags.insert("color.svg".into(), "abc".into());
+        app.store
+            .put(
+                meta,
+                vec![(crate::contract::Slot::Color, svg.as_bytes().to_vec())],
+            )
+            .await;
+
+        let r = get_with(
+            &app,
+            "/color/example.com",
+            &[("accept-encoding", "br, gzip")],
+        )
+        .await;
+        assert_eq!(r.headers().get(CONTENT_ENCODING).unwrap(), "gzip");
+        assert_eq!(r.headers().get(VARY).unwrap(), "accept-encoding");
+        assert_eq!(r.headers().get(ETAG).unwrap(), "\"abc-gz\"");
+        let body = axum::body::to_bytes(r.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        assert_eq!(
+            crate::store::gunzip(&body).unwrap().as_ref(),
+            svg.as_bytes()
+        );
+
+        let r = get_with(
+            &app,
+            "/color/example.com",
+            &[("accept-encoding", "gzip;q=0")],
+        )
+        .await;
+        assert!(r.headers().get(CONTENT_ENCODING).is_none());
+        assert_eq!(r.headers().get(ETAG).unwrap(), "\"abc\"");
+        let body = axum::body::to_bytes(r.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        assert_eq!(body.as_ref(), svg.as_bytes());
+
+        let r = get_with(
+            &app,
+            "/color/example.com",
+            &[("accept-encoding", "gzip"), ("if-none-match", "\"abc-gz\"")],
+        )
+        .await;
+        assert_eq!(r.status(), StatusCode::NOT_MODIFIED);
+
+        let r = get_with(
+            &app,
+            "/color/example.com/rounded/dark",
+            &[("accept-encoding", "gzip")],
+        )
+        .await;
+        assert_eq!(r.headers().get(CONTENT_ENCODING).unwrap(), "gzip");
+        assert_eq!(r.headers().get(ETAG).unwrap(), "\"abc-rounded-dark-gz\"");
+        let body = axum::body::to_bytes(r.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let plated = String::from_utf8(crate::store::gunzip(&body).unwrap().to_vec()).unwrap();
+        assert!(plated.contains("clip-path=\"url(#plate)\""));
+        assert!(app.store.plated.contains_key("color\"abc-rounded-dark\""));
+
+        let r = get_with(
+            &app,
+            "/color/not-cached.com",
+            &[("accept-encoding", "gzip")],
+        )
+        .await;
+        assert!(r.headers().get(CONTENT_ENCODING).is_none());
+        assert!(r.headers().get(VARY).is_none());
+    }
+
+    #[tokio::test]
+    async fn prerenders_inline_catalogs_to_disk_and_frees_the_sources() {
+        let dir = std::env::temp_dir().join(format!("favicons-pre-{}", rand::random::<u64>()));
+        let mut cfg = Config::default();
+        cfg.fetch.wait_ms = 0;
+        cfg.render.sandbox = SandboxMode::Off;
+        cfg.rate_limit.requests_per_second = 0.0;
+        cfg.cache.storage = format!("file://{}", dir.display());
+        cfg.catalogs = vec![crate::config::SlugCatalog {
+            id: "emoji".into(),
+            format: crate::config::IndexFormat::Iconify,
+            ..crate::slugs::tests::cfg()
+        }];
+        let app = App::new(cfg).unwrap();
+        let catalog = app.slugs.get("emoji").unwrap().clone();
+        catalog.load(
+            br##"{"width":32,"height":32,"icons":{"red-square":{"body":"<path fill=\"#e5484d\" d=\"M4 4h24v24H4z\"/>"}}}"##,
+        );
+        assert_eq!(catalog.sources().len(), 1);
+        app.prerender(&catalog).await;
+        assert!(catalog.sources().is_empty());
+        let meta = app.store.meta("@emoji.red-square").await.unwrap();
+        assert!(meta.source.is_some() && meta.palette.is_some() && !app.is_stale(&meta));
+        assert!(dir.join("v3/@emoji.red-square/color.svg.gz").exists());
+
+        let r = get_with(
+            &app,
+            "/color/emoji/red-square",
+            &[("accept-encoding", "gzip")],
+        )
+        .await;
+        assert_eq!(r.status(), StatusCode::OK);
+        assert_eq!(r.headers().get(CONTENT_ENCODING).unwrap(), "gzip");
+        assert_eq!(r.headers().get("x-icon-provenance").unwrap(), "catalog");
+
+        app.prerender(&catalog).await;
+        catalog.load(
+            br##"{"width":32,"height":32,"icons":{"red-square":{"body":"<path fill=\"#e5484d\" d=\"M4 4h24v24H4z\"/>"}}}"##,
+        );
+        app.prerender(&catalog).await;
+        assert!(catalog.sources().is_empty());
+        let _ = std::fs::remove_dir_all(dir);
     }
 
     #[tokio::test]

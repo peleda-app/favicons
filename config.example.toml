@@ -227,6 +227,8 @@ max_index_bytes = 16777216
 # domain. Each URL must be https and passes the same checks as any foreign host
 # (SSRF rules, blocklists, domain age, DNS filter, every redirect hop). The image
 # is traced into our own SVG in the sandbox; responses are never passed through.
+# Once a day each provider is asked about a domain that does not exist; an
+# answer identical to that placeholder is skipped.
 #
 # Privacy: the domain is sent to that service. Disabled by default.
 #

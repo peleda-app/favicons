@@ -49,6 +49,7 @@ pub struct App {
     pub challenges: Arc<crate::tls::Challenges>,
     pub site: crate::site::Site,
     generated_palettes: Cache<[u8; 32], Palette>,
+    placeholders: moka::future::Cache<String, Option<String>>,
     decode_slots: Arc<Semaphore>,
     pub request_slots: Arc<Semaphore>,
 }
@@ -73,6 +74,10 @@ impl App {
             generated_palettes: Cache::builder()
                 .max_capacity(10_000)
                 .time_to_idle(Duration::from_secs(3_600))
+                .build(),
+            placeholders: moka::future::Cache::builder()
+                .max_capacity(64)
+                .time_to_live(Duration::from_secs(86_400))
                 .build(),
             policy: Policy::new(cfg.policy.clone()),
             catalog: crate::catalog::Catalog::new(&cfg.catalog.thesvg),
@@ -393,8 +398,16 @@ impl App {
                 };
                 let (vector, _) = self.try_candidate(domain, cand).await;
                 let Some(vector) = vector else { continue };
-                tracing::debug!(domain, upstream = host, "icon taken from upstream provider");
                 let etag = blake3::hash(vector.svg.as_bytes()).to_hex()[..20].to_string();
+                if self.placeholder(template).await.as_deref() == Some(etag.as_str()) {
+                    tracing::debug!(
+                        domain,
+                        upstream = host,
+                        "upstream answered with its placeholder"
+                    );
+                    continue;
+                }
+                tracing::debug!(domain, upstream = host, "icon taken from upstream provider");
                 meta.etags
                     .insert(crate::store::object_name(Slot::Color).into(), etag);
                 meta.color = Some(vector.origin);
@@ -420,6 +433,31 @@ impl App {
             Status::FetchFailed
         };
         (meta, images)
+    }
+
+    async fn placeholder(&self, template: &str) -> Option<String> {
+        self.placeholders
+            .try_get_with(template.to_string(), async {
+                let probe = format!("zq{:010x}-absent.com", rand::random::<u64>() >> 24);
+                let url = crate::config::Upstream::url(template, &probe).ok_or(())?;
+                let cand = Candidate {
+                    location: Location::Remote(url),
+                    declared: 0,
+                    svg: false,
+                    theme: None,
+                    mono: false,
+                };
+                match self.try_candidate(&probe, cand).await {
+                    (Some(v), _) => Ok(Some(
+                        blake3::hash(v.svg.as_bytes()).to_hex()[..20].to_string(),
+                    )),
+                    (None, true) => Ok(None),
+                    (None, false) => Err(()),
+                }
+            })
+            .await
+            .ok()
+            .flatten()
     }
 
     fn scope(&self) -> Scope {

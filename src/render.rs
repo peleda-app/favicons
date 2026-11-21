@@ -417,7 +417,7 @@ fn monochrome_on(img: &RgbaImage, source: MonoSource) -> anyhow::Result<(RgbaIma
         MonoSource::MaskIcon => (img.pixels().map(|p| p[3]).collect(), Ground::Open),
         MonoSource::Derived => {
             let inset = w.min(h) / 24;
-            match tile_ink(img, 0) {
+            match tile_ink(img, 0).filter(|ink| coverage(ink, w, h) >= 0.01) {
                 Some(ink) if coverage(&ink, w, h) <= 0.9 => (ink, Ground::of(ring_colour(img, 0))),
                 Some(ink) => match tile_ink(img, inset)
                     .filter(|inner| (0.01..=0.9).contains(&coverage(inner, w, h)))
@@ -947,6 +947,23 @@ mod tests {
         let m = monochrome(&logo, MonoSource::Derived).unwrap();
         assert_eq!(alpha_at(&m, 32, 32), 255);
         assert_eq!(alpha_at(&m, 1, 1), 0);
+    }
+
+    #[test]
+    fn a_mark_touching_two_edges_is_not_a_tile() {
+        let img = RgbaImage::from_fn(128, 128, |x, y| {
+            let bar = y < 40 || x > 88;
+            let stem = (x as i32 - (127 - y as i32)).abs() < 20;
+            if bar || stem {
+                image::Rgba([0, 57, 197, 255])
+            } else {
+                image::Rgba([0, 0, 0, 0])
+            }
+        });
+        let m = monochrome(&img, MonoSource::Derived).unwrap();
+        assert_eq!(alpha_at(&m, 64, 10), 255);
+        assert_eq!(alpha_at(&m, 120, 100), 255);
+        assert_eq!(alpha_at(&m, 20, 80), 0);
     }
 
     #[test]

@@ -290,7 +290,7 @@ from a specific commit of this repository:
 
 ```bash
 gh attestation verify oci://ghcr.io/peleda-app/favicons:latest --repo peleda-app/favicons
-gh attestation verify favicons-1.2.0-x86_64-linux-musl --repo peleda-app/favicons
+gh attestation verify favicons-1.2.1-x86_64-linux-musl --repo peleda-app/favicons
 ```
 
 The output names the commit and workflow run. Images can be pinned by the

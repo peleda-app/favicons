@@ -73,7 +73,7 @@ response naming its license:
 
 ```html
 <img src="https://favicons.page/color/simple-icons/github" width="32" height="32" alt="">
-<img src="https://favicons.page/color/selfhst/jellyfin/superellipse/dark" width="40" height="40" alt="">
+<img src="https://favicons.page/color/selfhst/jellyfin/superellipse" width="40" height="40" alt="">
 ```
 
 ## Self-host in one command

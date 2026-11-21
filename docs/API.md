@@ -293,6 +293,16 @@ same way: `/color/selfhst/jellyfin/superellipse/dark`.
 The response carries the usual headers; the `ETag` gets a `-{shape}-{theme}`
 suffix. Unknown shapes or themes are `404`.
 
+Leave out the theme to follow the viewer's system scheme:
+`/color/github.com/superellipse`, `/mono/selfhst/jellyfin/rounded`. The SVG then
+carries both themes' plate and mask colours and switches them with a
+`prefers-color-scheme` media query, so one URL works on light and dark pages and
+flips with the operating system. Its `ETag` gets a `-{shape}` suffix.
+
+```html
+<img src="https://favicons.page/color/github.com/superellipse" width="40" height="40" alt="">
+```
+
 ## `GET /{style}/{catalog}/{slug}`
 
 Optional catalogs (`[[catalogs]]` in the config) serve icons by name rather

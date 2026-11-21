@@ -290,6 +290,11 @@ async fn plated_icon(
     uri: Uri,
     Path((style, raw, shape, theme)): Path<(String, String, String, String)>,
 ) -> Response {
+    if app.slugs.get(&raw).is_some()
+        && let Some(plate) = Plate::auto(&theme)
+    {
+        return serve_catalog(app, peer, headers, uri, style, raw, shape, Some(plate)).await;
+    }
     let Some(plate) = Plate::parse(&shape, &theme) else {
         return plain(
             StatusCode::NOT_FOUND,
@@ -422,6 +427,11 @@ async fn catalog_icon(
     uri: Uri,
     Path((style, id, slug)): Path<(String, String, String)>,
 ) -> Response {
+    if app.slugs.get(&id).is_none()
+        && let Some(plate) = Plate::auto(&slug)
+    {
+        return serve_icon(app, peer, headers, uri, style, id, false, Some(plate)).await;
+    }
     serve_catalog(app, peer, headers, uri, style, id, slug, None).await
 }
 
@@ -1063,8 +1073,10 @@ mod routing_tests {
             "/openapi.json",
             "/robots.txt",
             "/{style}/{catalog}/{slug}",
+            "/{style}/{catalog}/{slug}/{shape}",
             "/{style}/{catalog}/{slug}/{shape}/{theme}",
             "/{style}/{domain}",
+            "/{style}/{domain}/{shape}",
             "/{style}/{domain}/{shape}/{theme}",
         ];
         if crate::site::ENABLED {
@@ -1130,6 +1142,17 @@ mod routing_tests {
         let r = get(&app, "/mono/selfhst/Jellyfin.svg").await;
         assert_eq!(r.status(), StatusCode::MOVED_PERMANENTLY);
         assert_eq!(location(&r), "/mono/selfhst/jellyfin");
+
+        let r = get(&app, "/color/selfhst/jellyfin/superellipse").await;
+        assert_eq!(r.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(r.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        assert!(String::from_utf8_lossy(&body).contains("prefers-color-scheme:dark"));
+
+        let r = get(&app, "/mono/selfhst/Jellyfin/rounded").await;
+        assert_eq!(r.status(), StatusCode::MOVED_PERMANENTLY);
+        assert_eq!(location(&r), "/mono/selfhst/jellyfin/rounded");
 
         for path in [
             "/color/selfhst/missing",
@@ -1319,10 +1342,24 @@ mod routing_tests {
         assert_eq!(r.status(), StatusCode::MOVED_PERMANENTLY);
         assert_eq!(location(&r), "/color/example.com/superellipse/dark");
 
+        let r = get(&app, "/color/example.com/rounded").await;
+        assert_eq!(r.status(), StatusCode::OK);
+        let etag = r.headers().get(ETAG).unwrap().to_str().unwrap().to_string();
+        assert!(etag.ends_with("-rounded\""), "{etag}");
+        let body = axum::body::to_bytes(r.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let svg = String::from_utf8(body.to_vec()).unwrap();
+        assert!(svg.contains("@media (prefers-color-scheme:dark)"), "{svg}");
+
+        let r = get(&app, "/mono/WWW.Example.com/superellipse").await;
+        assert_eq!(r.status(), StatusCode::MOVED_PERMANENTLY);
+        assert_eq!(location(&r), "/mono/example.com/superellipse");
+
         for path in [
             "/color/example.com/circle/dark",
             "/color/example.com/rounded/blue",
-            "/color/example.com/rounded",
+            "/color/example.com/circle",
         ] {
             assert_eq!(
                 get(&app, path).await.status(),

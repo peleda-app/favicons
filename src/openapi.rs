@@ -85,6 +85,20 @@ impl Spec<'_> {
                 }
             }}),
         );
+        paths.insert(
+            "/{style}/{domain}/{shape}".into(),
+            json!({ "get": {
+                "operationId": "getAutoPlatedIcon",
+                "summary": "Icon on its plate, following the system light or dark scheme",
+                "description": "Both themes' plate and mask colours are in the SVG; a prefers-color-scheme media query picks one.",
+                "parameters": [style, domain, shape],
+                "responses": {
+                    "200": icon,
+                    "301": { "description": "Non-canonical domain." },
+                    "404": { "description": "Unknown style or shape." }
+                }
+            }}),
+        );
         if !self.catalogs.is_empty() {
             let catalog = enum_param(
                 "catalog",
@@ -119,6 +133,15 @@ impl Spec<'_> {
                     "operationId": "getPlatedCatalogIcon",
                     "summary": "Catalog icon drawn on its themed plate",
                     "parameters": [style, catalog, slug, shape, theme],
+                    "responses": responses.clone()
+                }}),
+            );
+            paths.insert(
+                "/{style}/{catalog}/{slug}/{shape}".into(),
+                json!({ "get": {
+                    "operationId": "getAutoPlatedCatalogIcon",
+                    "summary": "Catalog icon on its plate, following the system light or dark scheme",
+                    "parameters": [style, catalog, slug, shape],
                     "responses": responses
                 }}),
             );

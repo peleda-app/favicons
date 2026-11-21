@@ -17,6 +17,7 @@ pub enum Shape {
 pub enum Theme {
     Light,
     Dark,
+    Auto,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -29,12 +30,20 @@ impl Plate {
     pub const SHAPES: [&'static str; 2] = ["rounded", "superellipse"];
     pub const THEMES: [&'static str; 2] = ["light", "dark"];
 
-    pub fn parse(shape: &str, theme: &str) -> Option<Self> {
+    pub fn auto(shape: &str) -> Option<Self> {
         let shape = match shape {
             "rounded" => Shape::Rounded,
             "superellipse" => Shape::Superellipse,
             _ => return None,
         };
+        Some(Self {
+            shape,
+            theme: Theme::Auto,
+        })
+    }
+
+    pub fn parse(shape: &str, theme: &str) -> Option<Self> {
+        let shape = Self::auto(shape)?.shape;
         let theme = match theme {
             "light" => Theme::Light,
             "dark" => Theme::Dark,
@@ -49,6 +58,8 @@ impl Plate {
             (Shape::Rounded, Theme::Dark) => "/rounded/dark",
             (Shape::Superellipse, Theme::Light) => "/superellipse/light",
             (Shape::Superellipse, Theme::Dark) => "/superellipse/dark",
+            (Shape::Rounded, Theme::Auto) => "/rounded",
+            (Shape::Superellipse, Theme::Auto) => "/superellipse",
         }
     }
 
@@ -89,6 +100,34 @@ fn split_svg(svg: &str) -> Option<(&str, &str)> {
     Some((view_box, inner))
 }
 
+struct Paint<'a> {
+    plate: &'a str,
+    mono: &'a str,
+}
+
+fn paint<'a>(palette: &'a [(HeaderName, HeaderValue)], theme: Theme, style: Style) -> Paint<'a> {
+    let (name, default_plate, default_mono, default_mono_plate) = match theme {
+        Theme::Dark => ("dark", "#2c2c2e", "#d4d4d8", "#2c2c2e"),
+        _ => ("light", "#f2f2f4", "#3a3a3c", "#ececf0"),
+    };
+    let mono = colour(palette, &format!("x-icon-{name}-mono"), default_mono);
+    let plate = match style {
+        Style::Color => colour(palette, &format!("x-icon-{name}-plate"), default_plate),
+        Style::Mono => colour(
+            palette,
+            &format!("x-icon-{name}-mono-plate"),
+            default_mono_plate,
+        ),
+    };
+    Paint { plate, mono }
+}
+
+fn tint(inner: &str, with: &str) -> String {
+    inner
+        .replace("fill=\"#000000\"", with)
+        .replace("fill=\"#000\"", with)
+}
+
 pub fn compose(
     svg: &[u8],
     plate: Plate,
@@ -97,33 +136,33 @@ pub fn compose(
 ) -> Option<Vec<u8>> {
     let svg = std::str::from_utf8(svg).ok()?;
     let (view_box, inner) = split_svg(svg)?;
-    let theme = match plate.theme {
-        Theme::Light => "light",
-        Theme::Dark => "dark",
-    };
-    let (default_plate, default_mono, default_mono_plate) = match plate.theme {
-        Theme::Light => ("#f2f2f4", "#3a3a3c", "#ececf0"),
-        Theme::Dark => ("#2c2c2e", "#d4d4d8", "#2c2c2e"),
-    };
     let bleed = header(palette, "x-icon-fill") == Some("bleed");
-    let (fill, body) = match style {
-        Style::Color => (
-            colour(palette, &format!("x-icon-{theme}-plate"), default_plate),
-            inner.to_string(),
-        ),
-        Style::Mono => {
-            let mono = colour(palette, &format!("x-icon-{theme}-mono"), default_mono);
-            (
-                colour(
-                    palette,
-                    &format!("x-icon-{theme}-mono-plate"),
-                    default_mono_plate,
-                ),
-                inner
-                    .replace("fill=\"#000000\"", &format!("fill=\"{mono}\""))
-                    .replace("fill=\"#000\"", &format!("fill=\"{mono}\"")),
-            )
-        }
+    let (style_el, fill, body) = if plate.theme == Theme::Auto {
+        let light = paint(palette, Theme::Light, style);
+        let dark = paint(palette, Theme::Dark, style);
+        let mono = |p: &Paint<'_>| match style {
+            Style::Mono => format!(".m{{fill:{}}}", p.mono),
+            Style::Color => String::new(),
+        };
+        let css = format!(
+            "<style>.p{{fill:{}}}{}@media (prefers-color-scheme:dark){{.p{{fill:{}}}{}}}</style>",
+            light.plate,
+            mono(&light),
+            dark.plate,
+            mono(&dark)
+        );
+        let body = match style {
+            Style::Mono => tint(inner, "class=\"m\""),
+            Style::Color => inner.to_string(),
+        };
+        (css, "class=\"p\"".to_string(), body)
+    } else {
+        let p = paint(palette, plate.theme, style);
+        let body = match style {
+            Style::Mono => tint(inner, &format!("fill=\"{}\"", p.mono)),
+            Style::Color => inner.to_string(),
+        };
+        (String::new(), format!("fill=\"{}\"", p.plate), body)
     };
     let (offset, size) = if bleed && style == Style::Color {
         (0.0, SIDE)
@@ -132,9 +171,9 @@ pub fn compose(
     };
     let path = plate.path();
     let out = format!(
-        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"128\" height=\"128\" viewBox=\"0 0 128 128\">\
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"128\" height=\"128\" viewBox=\"0 0 128 128\">{style_el}\
          <defs><clipPath id=\"plate\"><path d=\"{path}\"/></clipPath></defs>\
-         <path d=\"{path}\" fill=\"{fill}\"/>\
+         <path d=\"{path}\" {fill}/>\
          <g clip-path=\"url(#plate)\"><svg x=\"{offset:.2}\" y=\"{offset:.2}\" width=\"{size:.2}\" height=\"{size:.2}\" viewBox=\"{view_box}\">{body}</svg></g></svg>"
     );
     Some(out.into_bytes())
@@ -160,6 +199,39 @@ mod tests {
     }
 
     const ICON: &str = r##"<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128"><path fill="#000000" d="M0 0h128v128H0Z"/></svg>"##;
+
+    #[test]
+    fn auto_theme_switches_plate_and_mask_with_the_system_scheme() {
+        let colour = String::from_utf8(
+            compose(
+                ICON.as_bytes(),
+                Plate::auto("rounded").unwrap(),
+                Style::Color,
+                &palette(),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert!(colour.contains(
+            "<style>.p{fill:#ebecfa}@media (prefers-color-scheme:dark){.p{fill:#181b3f}}</style>"
+        ));
+        assert!(colour.contains("class=\"p\""));
+        let mono = String::from_utf8(
+            compose(
+                ICON.as_bytes(),
+                Plate::auto("superellipse").unwrap(),
+                Style::Mono,
+                &palette(),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert!(mono.contains(".p{fill:#e7e9f8}.m{fill:#5a67f2}@media (prefers-color-scheme:dark){.p{fill:#1d2044}.m{fill:#6b77f3}}"));
+        assert!(mono.contains("<path class=\"m\" d=\"M0 0h128"));
+        assert!(!mono.contains("#000000"));
+        assert_eq!(Plate::auto("square"), None);
+        assert_eq!(Plate::auto("rounded").unwrap().suffix(), "/rounded");
+    }
 
     #[test]
     fn puts_the_icon_on_a_themed_plate() {

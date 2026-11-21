@@ -38,6 +38,9 @@
   colour for the monochrome mask (`X-Icon-Shape`, `X-Icon-Light-Plate`, …).
   `X-Icon-Fill: bleed` marks icons with their own full background that should
   be drawn edge to edge rather than padded.
+* **Ready-made badges.** `/{style}/{domain}/{shape}/{theme}` returns the icon
+  already drawn on its plate. Without the theme the badge follows the viewer's
+  system light or dark scheme on its own.
 * **Deterministic fallback icons.** When there is no real icon, a symmetric
   identicon is generated from the domain. Headers say why
   (`X-Icon-Fallback-Reason: queued | not-found | blocklisted | domain-too-new | …`).

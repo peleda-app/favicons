@@ -698,7 +698,7 @@ footer a { color: var(--muted); }
   <h2>Two containers, no network for the renderer.</h2>
   <p class="sub">One <code>docker compose up -d</code>. The API fetches and caches; the renderer decodes untrusted images in seccomp-confined workers with no network, a read-only root and no capabilities. The image is about 9 MB.</p>
   <div class="selfhost">
-    <div class="code compose"><span class="file">docker-compose.yml</span><button class="copy" data-copy="x-hardening: &amp;hardening&#10;  read_only: true&#10;  cap_drop: [ALL]&#10;  security_opt: [&quot;no-new-privileges:true&quot;]&#10;  user: &quot;65534:65534&quot;&#10;  restart: unless-stopped&#10;&#10;services:&#10;  api:&#10;    &lt;&lt;: *hardening&#10;    build: .&#10;    image: ghcr.io/peleda-app/favicons:latest&#10;    ports: [&quot;8080:8080&quot;]&#10;    environment:&#10;      FAVICONS_RENDER__SANDBOX: socket&#10;      FAVICONS_RENDER__SOCKET_PATH: /run/favicons/render.sock&#10;      FAVICONS_CACHE__STORAGE: /var/cache/favicons&#10;    volumes:&#10;      - render-socket:/run/favicons&#10;      - cache:/var/cache/favicons&#10;    pids_limit: 256&#10;    mem_limit: 512m&#10;    depends_on: [renderer]&#10;&#10;  renderer:&#10;    &lt;&lt;: *hardening&#10;    image: ghcr.io/peleda-app/favicons:latest&#10;    command: [&quot;render-server&quot;]&#10;    network_mode: none&#10;    environment:&#10;      FAVICONS_RENDER__SOCKET_PATH: /run/favicons/render.sock&#10;    volumes:&#10;      - render-socket:/run/favicons&#10;    pids_limit: 32&#10;    mem_limit: 512m&#10;    cpus: 1&#10;&#10;volumes:&#10;  render-socket:&#10;  cache:">copy</button><pre><span class="k">x-hardening:</span> &amp;hardening
+    <div class="code compose"><span class="file">docker-compose.yml</span><button class="copy" data-copy="x-hardening: &amp;hardening&#10;  read_only: true&#10;  cap_drop: [ALL]&#10;  security_opt: [&quot;no-new-privileges:true&quot;]&#10;  user: &quot;65534:65534&quot;&#10;  restart: unless-stopped&#10;&#10;services:&#10;  api:&#10;    &lt;&lt;: *hardening&#10;    build: .&#10;    image: favicons/favicons:latest   # or ghcr.io/peleda-app/favicons:latest&#10;    ports: [&quot;8080:8080&quot;]&#10;    environment:&#10;      FAVICONS_RENDER__SANDBOX: socket&#10;      FAVICONS_RENDER__SOCKET_PATH: /run/favicons/render.sock&#10;      FAVICONS_CACHE__STORAGE: /var/cache/favicons&#10;    volumes:&#10;      - render-socket:/run/favicons&#10;      - cache:/var/cache/favicons&#10;    pids_limit: 256&#10;    mem_limit: 512m&#10;    depends_on: [renderer]&#10;&#10;  renderer:&#10;    &lt;&lt;: *hardening&#10;    image: favicons/favicons:latest   # or ghcr.io/peleda-app/favicons:latest&#10;    command: [&quot;render-server&quot;]&#10;    network_mode: none&#10;    environment:&#10;      FAVICONS_RENDER__SOCKET_PATH: /run/favicons/render.sock&#10;    volumes:&#10;      - render-socket:/run/favicons&#10;    pids_limit: 32&#10;    mem_limit: 512m&#10;    cpus: 1&#10;&#10;volumes:&#10;  render-socket:&#10;  cache:">copy</button><pre><span class="k">x-hardening:</span> &amp;hardening
   <span class="k">read_only:</span> true
   <span class="k">cap_drop:</span> [ALL]
   <span class="k">security_opt:</span> ["no-new-privileges:true"]
@@ -709,7 +709,7 @@ footer a { color: var(--muted); }
   <span class="k">api:</span>
     <span class="k">&lt;&lt;:</span> *hardening
     <span class="k">build:</span> .
-    <span class="k">image:</span> ghcr.io/peleda-app/favicons:latest
+    <span class="k">image:</span> favicons/favicons:latest   <span class="c"># or ghcr.io/peleda-app/favicons:latest</span>
     <span class="k">ports:</span> ["8080:8080"]
     <span class="k">environment:</span>
       <span class="k">FAVICONS_RENDER__SANDBOX:</span> socket
@@ -724,7 +724,7 @@ footer a { color: var(--muted); }
 
   <span class="k">renderer:</span>
     <span class="k">&lt;&lt;:</span> *hardening
-    <span class="k">image:</span> ghcr.io/peleda-app/favicons:latest
+    <span class="k">image:</span> favicons/favicons:latest   <span class="c"># or ghcr.io/peleda-app/favicons:latest</span>
     <span class="k">command:</span> ["render-server"]
     <span class="k">network_mode:</span> none
     <span class="k">environment:</span>
@@ -740,9 +740,9 @@ footer a { color: var(--muted); }
   <span class="k">cache:</span></pre></div>
     <div class="steps">
       <div><b>1</b><p>Save the file and run <code>docker compose up -d</code>.</p></div>
-      <div><b>2</b><p>Ask it for an icon: <code>http://localhost:8080/color/github.com</code>. Want this page too? Use the <code>favicons-site</code> image instead.</p></div>
+      <div><b>2</b><p>Ask it for an icon: <code>http://localhost:8080/color/github.com</code>. Want this page too? Use the <code>favicons/favicons-site</code> image instead.</p></div>
       <div><b>3</b><p>Point a CDN at it. Icons are cacheable for 30 days, so the server sees about one request per icon per month.</p></div>
-      <div><b>4</b><p>Check the sandbox on your kernel: <code>docker run --rm ghcr.io/peleda-app/favicons sandbox-selftest net</code> must exit with 159.</p></div>
+      <div><b>4</b><p>Check the sandbox on your kernel: <code>docker run --rm favicons/favicons sandbox-selftest net</code> must exit with 159.</p></div>
       <p class="more">TLS with Let's Encrypt, S3, GCS or Azure caches, blocklists and every option: <a href="https://github.com/peleda-app/favicons/blob/main/config.example.toml" target="_blank" rel="noopener">config.example.toml</a>.</p>
       <div class="code compose cfg"><span class="file">config.example.toml</span><button class="copy" id="cfgCopy">copy</button><pre id="cfgText"><span class="c">loading…</span></pre></div>
       <p class="more">Mount it with <code>./favicons.toml:/etc/favicons.toml:ro</code> and set <code>FAVICONS_CONFIG=/etc/favicons.toml</code>. Any key also works as an environment variable, e.g. <code>FAVICONS_POLICY__MIN_DOMAIN_AGE_DAYS=7</code>.</p>

@@ -76,17 +76,6 @@ response naming its license:
 <img src="https://favicons.page/color/selfhst/jellyfin/superellipse/dark" width="40" height="40" alt="">
 ```
 
-## Compared with the usual options
-
-|                                   | favicons | Google S2 | DuckDuckGo icons |
-|-----------------------------------|:--------:|:---------:|:----------------:|
-| SVG output                        | ✓        | PNG       | ICO              |
-| Monochrome mask                   | ✓        |           |                  |
-| Theme colours in the response     | ✓        |           |                  |
-| Malicious domains flagged         | ✓        |           |                  |
-| Sandboxed decoding of site images | ✓        | n/a       | n/a              |
-| Self-hostable, open source        | ✓        |           |                  |
-
 ## Self-host in one command
 
 ```bash
@@ -95,7 +84,7 @@ docker compose up -d
 ```
 
 Two containers from a 9 MB image (on GHCR and as `favicons/favicons` on Docker Hub): the API, and a renderer with no network, a
-read-only root and no capabilities. `ghcr.io/peleda-app/favicons-site` adds this
+read-only root and no capabilities. `favicons/favicons-site` adds this
 page with its fonts; release binaries are on [GitHub Releases](https://github.com/peleda-app/favicons/releases),
 and `cargo install favicons` builds the API. Built-in Let's Encrypt, local
 disk or S3, GCS and Azure caches, blocklists and every other option are in

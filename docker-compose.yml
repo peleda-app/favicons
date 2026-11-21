@@ -9,7 +9,7 @@ services:
   api:
     <<: *hardening
     build: .
-    image: ghcr.io/peleda-app/favicons:latest
+    image: favicons/favicons:latest   # or ghcr.io/peleda-app/favicons:latest
     ports: ["8080:8080"]
     environment:
       FAVICONS_RENDER__SANDBOX: socket
@@ -24,7 +24,7 @@ services:
 
   renderer:
     <<: *hardening
-    image: ghcr.io/peleda-app/favicons:latest
+    image: favicons/favicons:latest   # or ghcr.io/peleda-app/favicons:latest
     command: ["render-server"]
     network_mode: none
     environment:

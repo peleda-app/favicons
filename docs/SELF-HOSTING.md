@@ -22,9 +22,9 @@ x-icon-style: color
 x-icon-vector: original
 ```
 
-Docker: `ghcr.io/peleda-app/favicons` is the API alone, a `scratch` image for
+Docker: `favicons/favicons` (also `ghcr.io/peleda-app/favicons`) is the API alone, a `scratch` image for
 amd64 and arm64 with one static binary, running as uid 65534 (7.3 MB to
-download). `ghcr.io/peleda-app/favicons-site` is the same plus the page at `/`
+download). `favicons/favicons-site` is the same plus the page at `/`
 and its fonts. Tags: `latest` and `main` follow the main branch, `sha-<commit>`
 pins a build, and `1.2.3` / `1.2` appear for release tags.
 
@@ -44,7 +44,7 @@ root, no capabilities and a seccomp-confined worker process per image. See
 images are still decoded in seccomp-confined child processes.
 
 ```bash
-docker run --rm -p 8080:8080 --read-only --cap-drop ALL --security-opt no-new-privileges -e FAVICONS_CACHE__STORAGE=s3://my-bucket/icons ghcr.io/peleda-app/favicons
+docker run --rm -p 8080:8080 --read-only --cap-drop ALL --security-opt no-new-privileges -e FAVICONS_CACHE__STORAGE=s3://my-bucket/icons favicons/favicons
 ```
 
 ## Configuration

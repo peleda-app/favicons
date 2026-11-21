@@ -178,6 +178,16 @@ h2 { font-size: clamp(28px, 3.4vw, 38px); letter-spacing: -.025em; line-height: 
 .go { border: 0; background: var(--accent); color: #2a160b; font: 600 15px var(--sans); padding: 11px 20px; border-radius: 11px; cursor: pointer; transition: transform .12s, filter .2s; }
 .go:hover { filter: brightness(1.06); }
 .go:active { transform: scale(.97); }
+.plate-path { color: var(--accent); white-space: nowrap; }
+.plate-path:empty { display: none; }
+.plate-opts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; font-size: 13px; color: var(--dim); }
+.opts { display: inline-flex; gap: 2px; padding: 3px; border-radius: 11px; background: var(--surface); border: 1px solid var(--line); }
+.opts button { border: 0; background: transparent; color: var(--muted); font: 13px var(--mono); padding: 4px 10px; border-radius: 8px; cursor: pointer; transition: background .2s, color .2s; }
+.opts button:hover { color: var(--text); }
+.opts button[aria-pressed="true"] { background: #2c2c33; color: var(--text); }
+.opts.off { opacity: .4; pointer-events: none; }
+.checker.light { background: conic-gradient(#f4f4f6 25%, #e9e9ee 0 50%, #f4f4f6 0 75%, #e9e9ee 0) 0 0 / 16px 16px; }
+.checker.busy img { opacity: .35; }
 .examples { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; font-size: 13px; color: var(--dim); }
 .examples button { border: 1px solid var(--line); background: transparent; color: var(--muted); font: 13px var(--mono); padding: 4px 10px; border-radius: 999px; cursor: pointer; transition: color .2s, border-color .2s; }
 .examples button:hover { color: var(--text); border-color: var(--dim); }
@@ -343,6 +353,7 @@ footer a { color: var(--muted); }
   .result { grid-template-columns: 1fr; grid-template-rows: 240px 300px 400px; }
   .field { flex-wrap: wrap; padding: 10px 12px; }
   .field input { flex-basis: 100%; order: 5; padding: 10px 2px 4px; }
+  .plate-path { order: 6; }
   .go { order: 6; flex: 1; }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -424,7 +435,13 @@ footer a { color: var(--muted); }
       </span>
       <span class="path">/</span>
       <input id="domain" name="domain" value="discord.com" maxlength="253" spellcheck="false" autocapitalize="off" aria-label="Domain">
+      <span class="path plate-path" id="platePath"></span>
       <button class="go" type="submit">Fetch</button>
+    </div>
+    <div class="plate-opts" id="plateOpts">
+      <span>Plate</span>
+      <span class="opts" data-k="shape" role="group" aria-label="Plate shape"><button type="button" data-v="" aria-pressed="true">none</button><button type="button" data-v="rounded" aria-pressed="false">rounded</button><button type="button" data-v="superellipse" aria-pressed="false">superellipse</button></span>
+      <span class="opts off" data-k="theme" role="group" aria-label="Plate theme"><button type="button" data-v="light" aria-pressed="true">light</button><button type="button" data-v="dark" aria-pressed="false">dark</button></span>
     </div>
     <div class="examples" id="examples">
       <span>Try</span>
@@ -989,6 +1006,8 @@ footer a { color: var(--muted); }
     const bytes = (n) => (n < 1024 ? `${n} B` : `${(n / 1024).toFixed(1)} KB`);
     const serverMs = (h) => { const m = /app;dur=([\d.]+)/.exec(h.get("server-timing") || ""); return m ? Number(m[1]) : null; };
     let style = "color";
+    let shape = "";
+    let theme = "light";
     let tab = "html";
     let state = null;
     let run = 0;
@@ -996,7 +1015,7 @@ footer a { color: var(--muted); }
     async function get(path, onQueued) {
       for (let attempt = 0; ; attempt++) {
         const started = performance.now();
-        const r = await fetch(path, { cache: "no-store" });
+        const r = await fetch(path, { cache: attempt ? "reload" : "default" });
         const blob = await r.blob();
         const total = performance.now() - started;
         if (!pending.has(r.headers.get("x-icon-fallback-reason")) || attempt >= 20) return { r, blob, total };
@@ -1005,10 +1024,12 @@ footer a { color: var(--muted); }
       }
     }
 
+    const suffix = () => (shape ? `/${shape}/${theme}` : "");
     function snippet() {
       if (!state) return "";
       const o = location.origin;
       const d = state.domain;
+      const px = shape ? 40 : 32;
       const l = state.palette.light;
       switch (tab) {
         case "css":
@@ -1018,19 +1039,39 @@ footer a { color: var(--muted); }
         case "plate":
           return `<img src="${o}/${style}/${d}/superellipse/light" width="40" height="40" alt="${title(d)}">\n<img src="${o}/${style}/${d}/rounded/dark" width="40" height="40" alt="${title(d)}">`;
         case "curl":
-          return `curl -sD - -o ${d}.svg ${o}/${style}/${d}`;
+          return `curl -sD - -o ${d}.svg ${o}/${style}/${d}${suffix()}`;
         default:
-          return `<img src="${o}/${style}/${d}" width="32" height="32" alt="${title(d)}">`;
+          return `<img src="${o}/${style}/${d}${suffix()}" width="${px}" height="${px}" alt="${title(d)}">`;
       }
     }
 
-    function paintRaw() {
+    async function paintRaw() {
+      $("#platePath").textContent = suffix();
+      document.querySelector('.opts[data-k="theme"]').classList.toggle("off", !shape);
       if (!state) return;
-      const shown = style === "mono" ? state.mono : state.color;
-      $("#rawImg").src = style === "mono" ? state.monoUrl : state.colorUrl;
-      const vector = shown.r.headers.get("x-icon-vector") || "";
-      $("#rawMeta").textContent = `${style} · ${bytes(shown.blob.size)}${vector ? ` · ${vector}` : ""}`;
       $("#snippet").textContent = snippet();
+      const key = style + suffix();
+      const checker = document.querySelector(".checker");
+      checker.classList.toggle("light", shape !== "" && theme === "light");
+      let shown = state.variants.get(key);
+      if (!shown) {
+        const s = state;
+        checker.classList.add("busy");
+        try {
+          shown = await get(`/${style}/${encodeURIComponent(s.domain)}${suffix()}`);
+        } catch {
+          checker.classList.remove("busy");
+          return;
+        }
+        shown.url = URL.createObjectURL(shown.blob);
+        s.variants.set(key, shown);
+        if (s !== state || key !== style + suffix()) return;
+      }
+      checker.classList.remove("busy");
+      $("#rawImg").src = shown.url;
+      const vector = shown.r.headers.get("x-icon-vector") || "";
+      const plate = shape ? ` · ${shape} · ${theme}` : "";
+      $("#rawMeta").textContent = `${style}${plate} · ${bytes(shown.blob.size)}${vector ? ` · ${vector}` : ""}`;
     }
 
     function render() {
@@ -1100,14 +1141,17 @@ footer a { color: var(--muted); }
         });
         const mono = await get(`/mono/${encodeURIComponent(domain)}`);
         if (id !== run) return;
-        if (state) [state.colorUrl, state.monoUrl].forEach((u) => URL.revokeObjectURL(u));
+        if (state) state.variants.forEach((v) => URL.revokeObjectURL(v.url));
+        color.url = URL.createObjectURL(color.blob);
+        mono.url = URL.createObjectURL(mono.blob);
         state = {
           domain: color.r.headers.get("x-icon-domain") || domain,
           color,
           mono,
-          colorUrl: URL.createObjectURL(color.blob),
-          monoUrl: URL.createObjectURL(mono.blob),
+          colorUrl: color.url,
+          monoUrl: mono.url,
           palette: palette(color.r.headers),
+          variants: new Map([["color", color], ["mono", mono]]),
         };
         render();
       } catch {
@@ -1130,6 +1174,15 @@ footer a { color: var(--muted); }
       if (!b) return;
       style = b.dataset.style;
       document.querySelectorAll(".styles button").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+      paintRaw();
+    });
+    $("#plateOpts").addEventListener("click", (e) => {
+      const b = e.target.closest("button");
+      if (!b) return;
+      const group = b.parentElement;
+      if (group.dataset.k === "shape") shape = b.dataset.v;
+      else theme = b.dataset.v;
+      group.querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
       paintRaw();
     });
     $("#tabs").addEventListener("click", (e) => {

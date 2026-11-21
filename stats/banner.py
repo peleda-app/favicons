@@ -1,8 +1,39 @@
 import json
+import os
+import subprocess
 import sys
 
 STAR = "M234.29,114.85l-45,38.83L203,211.75a16.4,16.4,0,0,1-24.5,17.82L128,198.49,77.47,229.57A16.4,16.4,0,0,1,53,211.75l13.76-58.07-45-38.83A16.46,16.46,0,0,1,31.08,86l59-4.76,22.76-55.08a16.36,16.36,0,0,1,30.27,0l22.75,55.08,59,4.76a16.46,16.46,0,0,1,9.37,28.86Z"
+DOWNLOAD = "M224,144v64a8,8,0,0,1-8,8H40a8,8,0,0,1-8-8V144a8,8,0,0,1,16,0v56H208V144a8,8,0,0,1,16,0Zm-101.66,5.66a8,8,0,0,0,11.32,0l40-40A8,8,0,0,0,168,96H136V32a8,8,0,0,0-16,0V96H88a8,8,0,0,0-5.66,13.66Z"
 FONT = "Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif"
+SIZE = 24
+ICON = 26
+
+
+def font_file():
+    path = os.environ.get("BANNER_FONT")
+    if path:
+        return path
+    try:
+        out = subprocess.run(["fc-match", "-f", "%{family}|%{file}", "Inter"], capture_output=True, text=True).stdout
+        family, file = out.split("|", 1)
+        return file if "Inter" in family else None
+    except Exception:
+        return None
+
+
+def measurer():
+    path = font_file()
+    if path:
+        try:
+            from PIL import ImageFont
+
+            font = ImageFont.truetype(path, SIZE)
+            return lambda text: font.getlength(text)
+        except Exception:
+            pass
+    return lambda text: len(text) * SIZE * 0.56
+
 
 template, stats_path, stars, out = sys.argv[1:5]
 stats = json.load(open(stats_path))
@@ -22,16 +53,24 @@ def short(n):
     return str(n)
 
 
-parts = [f'<tspan fill="#fbf0df">{short(stars)}</tspan> on GitHub']
+width = measurer()
+items = [(STAR, short(stars), " on GitHub")]
 if icons > 0:
-    parts.append(f'<tspan fill="#fbf0df">{icons:,}</tspan> icons served')
-sep = '<tspan fill="#55555d">   /   </tspan>'
-line = (
-    f'<svg x="97" y="565" width="26" height="26" viewBox="0 0 256 256" fill="#fbf0df"><path d="{STAR}"/></svg>'
-    f'<text x="131" y="586" xml:space="preserve" font-family="{FONT}" font-size="24" fill="#9a9aa3">'
-    + sep.join(parts)
-    + "</text>"
-)
+    items.append((DOWNLOAD, f"{icons:,}", " icons served"))
+
+x, baseline, parts = 97.0, 586, []
+for i, (path, number, label) in enumerate(items):
+    if i:
+        parts.append(f'<text x="{x + 18:.1f}" y="{baseline}" font-family="{FONT}" font-size="{SIZE}" fill="#55555d">/</text>')
+        x += 18 + width("/") + 22
+    parts.append(f'<svg x="{x:.1f}" y="{baseline - 21}" width="{ICON}" height="{ICON}" viewBox="0 0 256 256" fill="#fbf0df"><path d="{path}"/></svg>')
+    x += ICON + 8
+    parts.append(
+        f'<text x="{x:.1f}" y="{baseline}" xml:space="preserve" font-family="{FONT}" font-size="{SIZE}" fill="#9a9aa3">'
+        f'<tspan fill="#fbf0df">{number}</tspan>{label}</text>'
+    )
+    x += width(number + label)
+
 head, tail = open(template).read().rsplit("</svg>", 1)
-open(out, "w").write(f"{head}  {line}\n</svg>{tail}")
+open(out, "w").write(f"{head}  {''.join(parts)}\n</svg>{tail}")
 print(f"stars={stars} icons={icons}")

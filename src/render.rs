@@ -311,6 +311,17 @@ fn color_distance(p: &image::Rgba<u8>, c: [f32; 3]) -> f32 {
         / 441.67
 }
 
+fn blend_distance(p: &image::Rgba<u8>, a: [f32; 3], b: [f32; 3]) -> f32 {
+    let d: [f32; 3] = std::array::from_fn(|i| b[i] - a[i]);
+    let len = d.iter().map(|v| v * v).sum::<f32>();
+    let t = if len > 0.0 {
+        ((0..3).map(|i| (f32::from(p[i]) - a[i]) * d[i]).sum::<f32>() / len).clamp(0.0, 1.0)
+    } else {
+        0.0
+    };
+    color_distance(p, std::array::from_fn(|i| a[i] + d[i] * t))
+}
+
 fn smoothstep(lo: f32, hi: f32, x: f32) -> f32 {
     let t = ((x - lo) / (hi - lo)).clamp(0.0, 1.0);
     t * t * (3.0 - 2.0 * t)
@@ -398,7 +409,7 @@ fn coverage(ink: &[u8], w: u32, h: u32) -> f64 {
     ink.iter().map(|a| u64::from(*a)).sum::<u64>() as f64 / (255.0 * f64::from(w) * f64::from(h))
 }
 
-fn tile_ink(img: &RgbaImage, inset: u32) -> Option<Vec<u8>> {
+fn ring_colour(img: &RgbaImage, inset: u32) -> Option<[f32; 3]> {
     let (w, h) = img.dimensions();
     if inset * 2 + 2 > w.min(h) {
         return None;
@@ -424,16 +435,21 @@ fn tile_ink(img: &RgbaImage, inset: u32) -> Option<Vec<u8>> {
         .iter()
         .filter(|p| color_distance(p, bg) < 0.12)
         .count();
-    if near * 10 < opaque.len() * 8 {
-        return None;
-    }
+    (near * 10 >= opaque.len() * 8).then_some(bg)
+}
+
+fn tile_ink(img: &RgbaImage, inset: u32) -> Option<Vec<u8>> {
+    let (w, h) = img.dimensions();
+    let bg = ring_colour(img, inset)?;
+    let frame = if inset > 0 { ring_colour(img, 0) } else { None };
+    let inside = |x: u32, y: u32| x >= inset && y >= inset && x < w - inset && y < h - inset;
     Some(
         img.enumerate_pixels()
             .map(|(x, y, p)| {
-                if x < x0 || x > x1 || y < y0 || y > y1 {
-                    return 0;
-                }
-                let soft = smoothstep(0.10, 0.30, color_distance(p, bg));
+                let soft = match frame.filter(|_| !inside(x, y)) {
+                    Some(f) => smoothstep(0.10, 0.30, blend_distance(p, bg, f)),
+                    None => smoothstep(0.10, 0.30, color_distance(p, bg)),
+                };
                 (soft * f32::from(p[3])).round() as u8
             })
             .collect(),
@@ -729,6 +745,35 @@ mod tests {
         assert_eq!(alpha_at(&m, 64, 64), 0, "the lettering is cut out");
         assert_eq!(alpha_at(&m, 8, 8), 0, "the tile is not ink");
         assert_eq!(alpha_at(&m, 0, 64), 0, "the frame is dropped");
+
+        let ringed = RgbaImage::from_fn(256, 256, |x, y| {
+            let d = (x as i32 - 128).pow(2) + (y as i32 - 124).pow(2);
+            if x < 3 || y < 3 || x > 252 || y > 252 {
+                image::Rgba([255, 255, 255, 255])
+            } else if d < 118 * 118 {
+                image::Rgba([230, 10, 20, 255])
+            } else {
+                image::Rgba([0, 80, 170, 255])
+            }
+        });
+        let m = monochrome(&ringed, MonoSource::Derived).unwrap();
+        assert_eq!(
+            alpha_at(&m, 128, 8),
+            255,
+            "a mark reaching into the margin stays whole"
+        );
+        assert_eq!(alpha_at(&m, 5, 5), 0);
+        assert_eq!(alpha_at(&m, 1, 128), 0);
+        let mut soft = ringed.clone();
+        for y in 0..256 {
+            soft.put_pixel(3, y, image::Rgba([128, 168, 212, 255]));
+        }
+        let m = monochrome(&soft, MonoSource::Derived).unwrap();
+        assert_eq!(
+            alpha_at(&m, 3, 200),
+            0,
+            "the frame's anti-aliased edge is dropped"
+        );
     }
 
     #[test]

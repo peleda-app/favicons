@@ -172,6 +172,13 @@ impl Spec<'_> {
                     "responses": { "200": text("XML", "application/xml") }
                 }}),
             );
+            paths.insert(
+                "/config.example.toml".into(),
+                json!({ "get": {
+                    "operationId": "configExample", "summary": "Every server option, commented",
+                    "responses": { "200": text("TOML", "text/plain") }
+                }}),
+            );
         }
         paths.insert(
             "/healthz".into(),

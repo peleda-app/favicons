@@ -23,6 +23,7 @@ mod page {
     pub const OG_IMAGE: &[u8] = include_bytes!("../site/og.png");
     pub const FONT_SANS: &[u8] = include_bytes!("../site/fonts/inter.woff2");
     pub const FONT_MONO: &[u8] = include_bytes!("../site/fonts/jetbrains-mono.woff2");
+    pub const CONFIG_EXAMPLE: &[u8] = include_bytes!("../config.example.toml");
 }
 
 #[cfg(not(feature = "site"))]
@@ -34,6 +35,7 @@ mod page {
     pub const OG_IMAGE: &[u8] = &[];
     pub const FONT_SANS: &[u8] = &[];
     pub const FONT_MONO: &[u8] = &[];
+    pub const CONFIG_EXAMPLE: &[u8] = &[];
 }
 
 pub const ENABLED: bool = cfg!(feature = "site");
@@ -50,6 +52,7 @@ pub enum Asset {
     OgImage,
     FontSans,
     FontMono,
+    ConfigExample,
 }
 
 impl Asset {
@@ -74,7 +77,7 @@ impl Asset {
     fn content_type(self) -> &'static str {
         match self {
             Asset::Index => "text/html; charset=utf-8",
-            Asset::Robots | Asset::Llms => "text/plain; charset=utf-8",
+            Asset::Robots | Asset::Llms | Asset::ConfigExample => "text/plain; charset=utf-8",
             Asset::Sitemap => "application/xml; charset=utf-8",
             Asset::OpenApi => "application/json",
             Asset::Favicon => "image/svg+xml",
@@ -86,9 +89,11 @@ impl Asset {
     fn cache_control(self) -> &'static str {
         match self {
             Asset::Index => "public, max-age=300, stale-while-revalidate=86400",
-            Asset::Robots | Asset::Sitemap | Asset::Llms | Asset::OpenApi => {
-                "public, max-age=3600, stale-while-revalidate=86400"
-            }
+            Asset::Robots
+            | Asset::Sitemap
+            | Asset::Llms
+            | Asset::OpenApi
+            | Asset::ConfigExample => "public, max-age=3600, stale-while-revalidate=86400",
             Asset::Favicon | Asset::AppleTouchIcon | Asset::OgImage => {
                 "public, max-age=86400, stale-while-revalidate=604800"
             }
@@ -157,7 +162,14 @@ fn binary(asset: Asset) -> Option<&'static Page> {
         LazyLock::new(|| Page::new(Asset::FontSans, Bytes::from_static(page::FONT_SANS)));
     static MONO: LazyLock<Page> =
         LazyLock::new(|| Page::new(Asset::FontMono, Bytes::from_static(page::FONT_MONO)));
+    static CONFIG: LazyLock<Page> = LazyLock::new(|| {
+        Page::new(
+            Asset::ConfigExample,
+            Bytes::from_static(page::CONFIG_EXAMPLE),
+        )
+    });
     match asset {
+        Asset::ConfigExample => Some(&CONFIG),
         Asset::Favicon => Some(&FAVICON),
         Asset::AppleTouchIcon => Some(&APPLE),
         Asset::OgImage => Some(&OG),

@@ -39,6 +39,7 @@ pub fn router(app: Arc<App>) -> Router {
         r = r
             .route("/", page(Asset::Index))
             .route("/sitemap.xml", page(Asset::Sitemap))
+            .route("/config.example.toml", page(Asset::ConfigExample))
             .route("/favicon.svg", page(Asset::Favicon))
             .route("/apple-touch-icon.png", page(Asset::AppleTouchIcon))
             .route("/og.png", page(Asset::OgImage))
@@ -967,6 +968,7 @@ mod routing_tests {
         ];
         if crate::site::ENABLED {
             expected.push("/sitemap.xml");
+            expected.push("/config.example.toml");
         }
         expected.sort();
         assert_eq!(paths, expected);

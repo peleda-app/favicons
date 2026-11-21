@@ -296,10 +296,12 @@ h2 { font-size: clamp(28px, 3.4vw, 38px); letter-spacing: -.025em; line-height: 
 .code .c { color: var(--dim); }
 .copy { position: absolute; top: 12px; right: 12px; border: 0; background: transparent; color: var(--dim); font: 13px var(--sans); cursor: pointer; padding: 4px 6px; border-radius: 6px; }
 .copy:hover { color: var(--text); }
-.selfhost { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+.selfhost { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 20px; }
 .code.compose { padding-top: 44px; }
-.code.cfg { margin-top: 6px; }
-.code.cfg pre { font-size: 12.5px; white-space: pre-wrap; word-break: break-all; }
+.selfhost { align-items: stretch; }
+.steps { min-height: 0; }
+.code.cfg { flex: 1 1 0; min-height: 260px; display: flex; flex-direction: column; padding-bottom: 6px; }
+.code.cfg pre { flex: 1; min-height: 0; overflow: auto; font-size: 12.5px; padding-bottom: 14px; scrollbar-width: thin; }
 .code .file { position: absolute; top: 14px; left: 22px; font: 12px var(--mono); color: var(--dim); }
 .code .k { color: var(--accent); }
 .steps { display: flex; flex-direction: column; gap: 16px; }
@@ -640,29 +642,7 @@ footer a { color: var(--muted); }
       <div><b>3</b><p>Point a CDN at it. Icons are cacheable for 30 days, so the server sees about one request per icon per month.</p></div>
       <div><b>4</b><p>Check the sandbox on your kernel: <code>docker run --rm ghcr.io/peleda-app/favicons sandbox-selftest net</code> must exit with 159.</p></div>
       <p class="more">TLS with Let's Encrypt, S3, GCS or Azure caches, blocklists and every option: <a href="https://github.com/peleda-app/favicons/blob/main/config.example.toml" target="_blank" rel="noopener">config.example.toml</a>.</p>
-      <div class="code compose cfg"><span class="file">favicons.toml</span><button class="copy" data-copy="# favicons.toml, mounted at /etc/favicons.toml&#10;[server]&#10;public_url = &quot;https://icons.example.com&quot;&#10;&#10;[client_ip]&#10;source = &quot;cf-connecting-ip&quot;   # behind Cloudflare&#10;&#10;[cache]&#10;max_disk_bytes = 5_000_000_000&#10;&#10;[policy]&#10;min_domain_age_days = 7&#10;&#10;[identicon]&#10;salt = &quot;change-me&quot;&#10;&#10;[[catalogs]]&#10;id = &quot;simple-icons&quot;&#10;name = &quot;Simple Icons&quot;&#10;format = &quot;simple-icons&quot;&#10;index_url = &quot;https://cdn.jsdelivr.net/npm/simple-icons@16/data/simple-icons.json&quot;&#10;base_url = &quot;https://cdn.jsdelivr.net/npm/simple-icons@16/&quot;&#10;license = &quot;CC0-1.0&quot;">copy</button><pre><span class="c"># favicons.toml, mounted at /etc/favicons.toml</span>
-<span class="k">[server]</span>
-<span class="k">public_url</span> = "https://icons.example.com"
-
-<span class="k">[client_ip]</span>
-<span class="k">source</span> = "cf-connecting-ip"   <span class="c"># behind Cloudflare</span>
-
-<span class="k">[cache]</span>
-<span class="k">max_disk_bytes</span> = 5_000_000_000
-
-<span class="k">[policy]</span>
-<span class="k">min_domain_age_days</span> = 7
-
-<span class="k">[identicon]</span>
-<span class="k">salt</span> = "change-me"
-
-<span class="k">[[catalogs]]</span>
-<span class="k">id</span> = "simple-icons"
-<span class="k">name</span> = "Simple Icons"
-<span class="k">format</span> = "simple-icons"
-<span class="k">index_url</span> = "https://cdn.jsdelivr.net/npm/simple-icons@16/data/simple-icons.json"
-<span class="k">base_url</span> = "https://cdn.jsdelivr.net/npm/simple-icons@16/"
-<span class="k">license</span> = "CC0-1.0"</pre></div>
+      <div class="code compose cfg"><span class="file">config.example.toml</span><button class="copy" id="cfgCopy">copy</button><pre id="cfgText"><span class="c">loading…</span></pre></div>
       <p class="more">Mount it with <code>./favicons.toml:/etc/favicons.toml:ro</code> and set <code>FAVICONS_CONFIG=/etc/favicons.toml</code>. Any key also works as an environment variable, e.g. <code>FAVICONS_POLICY__MIN_DOMAIN_AGE_DAYS=7</code>.</p>
     </div>
   </div>
@@ -1229,6 +1209,33 @@ footer a { color: var(--muted); }
       }, () => {});
     });
     inspect(input.value);
+  })();
+
+  (async () => {
+    const pre = $("#cfgText");
+    let text = "";
+    $("#cfgCopy").addEventListener("click", () => {
+      if (!navigator.clipboard || !text) return;
+      navigator.clipboard.writeText(text).then(() => {
+        $("#cfgCopy").textContent = "copied";
+        setTimeout(() => ($("#cfgCopy").textContent = "copy"), 1200);
+      }, () => {});
+    });
+    const line = (l) => {
+      if (/^\s*#/.test(l)) return `<span class="c">${esc(l)}</span>`;
+      if (/^\s*\[/.test(l)) return `<span class="k">${esc(l)}</span>`;
+      const m = /^(\s*[\w.-]+)(\s*=\s*)(.*?)(\s+#.*)?$/.exec(l);
+      if (!m) return esc(l);
+      return `<span class="k">${esc(m[1])}</span>${esc(m[2])}${esc(m[3])}${m[4] ? `<span class="c">${esc(m[4])}</span>` : ""}`;
+    };
+    try {
+      const r = await fetch("/config.example.toml");
+      if (!r.ok) throw new Error(String(r.status));
+      text = await r.text();
+      pre.innerHTML = text.split("\n").map(line).join("\n");
+    } catch {
+      pre.innerHTML = `<span class="c">could not load config.example.toml</span>`;
+    }
   })();
 
   (() => {

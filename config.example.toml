@@ -108,9 +108,9 @@ cdn = "public, max-age=2592000, stale-while-revalidate=604800, stale-if-error=60
 browser = "public, max-age=2592000, immutable"
 cdn = "public, max-age=31536000, immutable"
 
-[http_cache.fallback_transient]   # queued, overloaded, fetch-failed
-browser = "public, max-age=300"
-cdn = "public, max-age=60"
+[http_cache.fallback_transient]   # queued, overloaded, fetch-failed; keep short so a flood is not cached
+browser = "public, max-age=10"
+cdn = "public, max-age=10"
 
 [http_cache.fallback_stable]      # not-found, blocklisted, domain-too-new, invalid-domain
 browser = "public, max-age=86400"

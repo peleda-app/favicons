@@ -257,8 +257,9 @@ always gets the same image on every instance that shares the salt.
 ### Caching guidance for clients
 
 * Use the query string as part of the cache key; there is no `Vary`.
-* `fallback_transient` responses are short-lived by design. A client that shows
-  a `queued` icon gets the real one on its next refresh.
+* `fallback_transient` responses live for 10 seconds in browsers and CDNs, so
+  a flood or a cold queue is never cached for long. On `queued` or
+  `overloaded`, retry after a short pause with `cache: "reload"`.
 * Honour `ETag` / `If-None-Match`; revalidation is cheap.
 
 ## `GET /{style}/{domain}/{shape}/{theme}`

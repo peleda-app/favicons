@@ -429,7 +429,7 @@ impl Default for HttpCache {
                 "public, max-age=2592000, immutable",
                 "public, max-age=31536000, immutable",
             ),
-            fallback_transient: CacheProfile::new("public, max-age=300", "public, max-age=60"),
+            fallback_transient: CacheProfile::new("public, max-age=10", "public, max-age=10"),
             fallback_stable: CacheProfile::new(
                 "public, max-age=86400",
                 "public, max-age=86400, stale-if-error=86400",

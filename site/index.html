@@ -221,33 +221,48 @@ h2 { font-size: clamp(28px, 3.4vw, 38px); letter-spacing: -.025em; line-height: 
 .pick { background: var(--surface); border-radius: 18px; padding: 14px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .field.small { font-size: 14px; padding: 6px 6px 6px 14px; background: var(--bg); }
 .field.small .path b { color: var(--cream); font-weight: 400; }
-.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(82px, 1fr)); gap: 6px; height: 392px; overflow-y: auto; align-content: start; padding-right: 2px; scrollbar-width: thin; }
-.grid button { display: flex; flex-direction: column; align-items: center; gap: 7px; padding: 12px 4px 9px; border: 0; border-radius: 12px; background: transparent; color: var(--muted); font: 11.5px var(--sans); cursor: pointer; transition: background .15s, color .15s; min-width: 0; }
+.grid-scroll { height: 392px; overflow-y: auto; padding-right: 2px; scrollbar-width: thin; }
+.grid-space { position: relative; }
+.grid { position: absolute; left: 0; right: 0; top: 0; display: grid; grid-template-columns: repeat(var(--cols, 6), minmax(0, 1fr)); grid-auto-rows: 84px; gap: 6px; }
+.grid button { height: 84px; display: flex; flex-direction: column; align-items: center; gap: 7px; padding: 12px 4px 9px; border: 0; border-radius: 12px; background: transparent; color: var(--muted); font: 11.5px var(--sans); cursor: pointer; transition: background .15s, color .15s; min-width: 0; }
 .grid button:hover { background: #222227; color: var(--text); }
 .grid button[aria-selected="true"] { background: #26262c; color: var(--text); box-shadow: inset 0 0 0 1px #3a3a42; }
 .grid img { width: 36px; height: 36px; }
 .grid span { max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .grid-note { font: 12px var(--mono); color: var(--dim); }
-.cat-tabs { display: flex; flex-wrap: wrap; gap: 4px; }
-.cat-tabs button { border: 0; background: transparent; color: var(--muted); font: 13px var(--sans); padding: 6px 11px; border-radius: 9px; cursor: pointer; transition: background .15s, color .15s; }
+.cat-tabs { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; }
+.cat-tabs::-webkit-scrollbar { display: none; }
+.cat-tabs button { flex: none; white-space: nowrap; border: 0; background: transparent; color: var(--muted); font: 13px var(--sans); padding: 6px 10px; border-radius: 9px; cursor: pointer; transition: background .15s, color .15s; }
 .cat-tabs button:hover { color: var(--text); }
 .cat-tabs button[aria-selected="true"] { background: #26262c; color: var(--text); box-shadow: inset 0 0 0 1px #3a3a42; }
-.cat-tabs small { color: var(--dim); margin-left: 5px; font: 11px var(--mono); }
 .preview { background: var(--surface); border-radius: 18px; padding: 20px; display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 .hero-tile { display: grid; place-items: center; height: 150px; border-radius: 14px; background: conic-gradient(#232328 25%, #1b1b1f 0 50%, #232328 0 75%, #1b1b1f 0) 0 0 / 16px 16px; }
-.hero-tile .badge { width: 96px; height: 96px; border-radius: 26px; }
+.hero-tile img { width: 96px; height: 96px; transition: opacity .2s; }
+.hero-tile.plain img { width: 80px; height: 80px; }
+.hero-tile.light { background: conic-gradient(#f4f4f6 25%, #e9e9ee 0 50%, #f4f4f6 0 75%, #e9e9ee 0) 0 0 / 16px 16px; }
+.mono-plain img { filter: invert(.84); }
+.preview.loading .hero-tile img, .preview.loading .vt img { opacity: .3; }
+.variants { display: flex; flex-direction: column; gap: 6px; }
+.vt-head, .vt-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+.vt-head { font: 11px var(--mono); color: var(--dim); }
+.vt-head span:nth-child(1) { grid-column: 1; }
+.vt-head span:nth-child(2) { grid-column: 2 / 4; }
+.vt-head span:nth-child(3) { grid-column: 4 / 6; }
+.vt { height: 54px; border: 0; border-radius: 12px; display: grid; place-items: center; cursor: pointer; padding: 0; box-shadow: inset 0 0 0 1px #2c2c30; background: #141416; transition: box-shadow .15s, transform .12s; }
+.vt.light { background: #fff; box-shadow: inset 0 0 0 1px #e4e4e8; }
+.vt.plain { background: conic-gradient(#232328 25%, #1b1b1f 0 50%, #232328 0 75%, #1b1b1f 0) 0 0 / 10px 10px; }
+.vt img { width: 34px; height: 34px; transition: opacity .2s; }
+.vt.plain img { width: 28px; height: 28px; }
+.vt:hover { transform: translateY(-1px); }
+.vt[aria-checked="true"] { box-shadow: 0 0 0 2px var(--accent); }
+.vt-name { font: 12px var(--mono); color: var(--muted); }
+.pv-code pre .p { color: #9ec5ff; }
+.pv-code pre b { color: var(--cream); font-weight: 500; }
 .pv-name { display: flex; flex-direction: column; }
 .pv-name b { font-size: 17px; font-weight: 600; color: var(--name, var(--text)); }
 .pv-name small { font: 12px var(--mono); color: var(--dim); }
-.pv-scenes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-.pv { height: 72px; border-radius: 14px; display: grid; place-items: center; }
-.pv.light { background: #fff; }
-.pv.dark, .pv.mono { background: #1c1c1e; box-shadow: inset 0 0 0 1px #2c2c30; }
-.pv .badge { width: 44px; height: 44px; border-radius: 12px; }
-.pv.mono .badge, .scene.mono .badge { background: var(--mono-plate); }
-.pv.mono .badge img { opacity: 0; }
-.pv.mono .badge .mask { opacity: 1; }
-.pv-code { padding: 14px 16px; }
+.scene.mono .badge { background: var(--mono-plate); }
+.pv-code { padding: 14px 64px 14px 16px; background: var(--bg); }
 .pv-code pre { font-size: 12.5px; white-space: pre-wrap; word-break: break-all; }
 .credit { margin: 0; font-size: 12.5px; color: var(--dim); }
 .snippets .tabs { display: flex; gap: 4px; margin-bottom: 8px; }
@@ -349,7 +364,7 @@ footer a { color: var(--muted); }
     <a href="#safety">Safety</a>
     <a href="#performance">Performance</a>
     <a href="#self-host">Self-host</a>
-    <a href="https://github.com/peleda-app/favicons">GitHub</a>
+    <a href="https://github.com/peleda-app/favicons" target="_blank" rel="noopener">GitHub</a>
   </div>
 </nav>
 
@@ -467,7 +482,7 @@ footer a { color: var(--muted); }
         <li>Sources in order: the owner's BIMI logo, the theSVG catalog, the site itself.</li>
         <li>Subdomains, query strings, a trailing slash or <code>.svg</code> get a cacheable <code>301</code> to the registrable domain.</li>
         <li>No real icon? You still get <code>200</code> with a generated one, and the headers say why.</li>
-        <li>Machine-readable docs: <a href="/openapi.json">openapi.json</a> and <a href="/llms.txt">llms.txt</a>. The full contract is in <a href="https://github.com/peleda-app/favicons/blob/main/docs/API.md">docs/API.md</a>.</li>
+        <li>Machine-readable docs: <a href="/openapi.json">openapi.json</a> and <a href="/llms.txt">llms.txt</a>. The full contract is in <a href="https://github.com/peleda-app/favicons/blob/main/docs/API.md" target="_blank" rel="noopener">docs/API.md</a>.</li>
       </ul>
     </div>
     <div>
@@ -490,18 +505,19 @@ footer a { color: var(--muted); }
     <div class="pick">
       <div class="cat-tabs" id="catTabs" role="tablist" aria-label="Catalogs"></div>
       <div class="field small"><span class="verb">GET</span><span class="path">/color/<b id="catalogId">selfhst</b>/</span><input id="slugSearch" placeholder="search apps" spellcheck="false" autocapitalize="off" aria-label="Search icons"></div>
-      <div class="grid" id="slugGrid" role="listbox" aria-label="Icons"></div>
+      <div class="grid-scroll" id="slugScroll"><div class="grid-space" id="slugSpace"><div class="grid" id="slugGrid" role="listbox" aria-label="Icons"></div></div></div>
       <div class="grid-note" id="slugNote">&nbsp;</div>
     </div>
     <div class="preview" id="slugPreview" aria-live="polite">
-      <div class="hero-tile"><div class="badge" id="pvBadge"></div></div>
+      <div class="hero-tile" id="pvHero"><img id="pvHeroImg" alt=""></div>
       <div class="pv-name"><b id="pvName">&nbsp;</b><small id="pvSlug">&nbsp;</small></div>
-      <div class="pv-scenes">
-        <div class="pv light"><div class="badge" data-pv="light"></div></div>
-        <div class="pv dark"><div class="badge" data-pv="dark"></div></div>
-        <div class="pv mono"><div class="badge" data-pv="mono"></div></div>
+      <div class="variants">
+        <div class="vt-head"><span>icon</span><span>rounded</span><span>superellipse</span></div>
+        <div class="vt-grid" id="pvVariants" role="radiogroup" aria-label="Variants"></div>
+        <div class="vt-name" id="pvVariant">&nbsp;</div>
       </div>
-      <div class="code pv-code"><button class="copy" id="pvCopy">copy</button><pre id="pvUrl">&nbsp;</pre></div>
+      <div class="code pv-code"><button class="copy" data-copy="url">copy</button><pre id="pvUrl">&nbsp;</pre></div>
+      <div class="code pv-code"><button class="copy" data-copy="html">copy</button><pre id="pvHtml">&nbsp;</pre></div>
       <p class="credit" id="pvCredit">&nbsp;</p>
     </div>
   </div>
@@ -601,7 +617,7 @@ footer a { color: var(--muted); }
       <div><b>2</b><p>Ask it for an icon: <code>http://localhost:8080/color/github.com</code>. Want this page too? Use the <code>favicons-site</code> image instead.</p></div>
       <div><b>3</b><p>Point a CDN at it. Icons are cacheable for 30 days, so the server sees about one request per icon per month.</p></div>
       <div><b>4</b><p>Check the sandbox on your kernel: <code>docker run --rm ghcr.io/peleda-app/favicons sandbox-selftest net</code> must exit with 159.</p></div>
-      <p class="more">TLS with Let's Encrypt, S3, GCS or Azure caches, blocklists and every option: <a href="https://github.com/peleda-app/favicons/blob/main/config.example.toml">config.example.toml</a>.</p>
+      <p class="more">TLS with Let's Encrypt, S3, GCS or Azure caches, blocklists and every option: <a href="https://github.com/peleda-app/favicons/blob/main/config.example.toml" target="_blank" rel="noopener">config.example.toml</a>.</p>
     </div>
   </div>
 </section>
@@ -609,7 +625,7 @@ footer a { color: var(--muted); }
 
 <footer>
   <span>{{host}} · open source, MIT</span>
-  <span><a href="https://github.com/peleda-app/favicons">GitHub</a> · <a href="https://github.com/peleda-app/favicons/blob/main/docs/API.md">API</a> · <a href="/openapi.json">OpenAPI</a> · <a href="/llms.txt">llms.txt</a> · <a href="https://github.com/peleda-app/favicons/blob/main/docs/SECURITY.md">Security</a></span>
+  <span><a href="https://github.com/peleda-app/favicons" target="_blank" rel="noopener">GitHub</a> · <a href="https://github.com/peleda-app/favicons/blob/main/docs/API.md" target="_blank" rel="noopener">API</a> · <a href="/openapi.json">OpenAPI</a> · <a href="/llms.txt">llms.txt</a> · <a href="https://github.com/peleda-app/favicons/blob/main/docs/SECURITY.md" target="_blank" rel="noopener">Security</a></span>
 </footer>
 
 </div>
@@ -1147,11 +1163,20 @@ footer a { color: var(--muted); }
       devicon: ["rust", "python", "javascript", "typescript", "go", "java", "kotlin", "swift", "c", "cplusplus", "csharp", "php", "ruby", "react", "vuejs", "svelte", "nodejs", "deno", "docker", "kubernetes", "postgresql", "mysql", "redis", "mongodb", "git", "linux", "nginx", "terraform"],
     };
     const listings = new Map();
+    const thumbs = new Map();
+    const want = [];
+    const scroller = $("#slugScroll");
+    const space = $("#slugSpace");
+    const ROW = 90;
+    const VARIANTS = ["color", "mono"].flatMap((style) => ["", "/rounded/light", "/rounded/dark", "/superellipse/light", "/superellipse/dark"].map((plate) => ({ style, plate })));
     let catalogs = [];
-    const LIMIT = 96;
     let catalog = null;
     let items = [];
+    let shown = [];
     let current = null;
+    let vi = 0;
+    let view = "";
+    let active = 0;
     let urls = [];
     let run = 0;
     let creditHtml = "";
@@ -1159,33 +1184,98 @@ footer a { color: var(--muted); }
     const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
     async function get(path) {
       for (let attempt = 0; ; attempt++) {
-        const r = await fetch(path, { cache: "no-store" });
-        if (r.status === 503 && attempt < 10) { await sleep(1500); continue; }
-        if (!pending.has(r.headers.get("x-icon-fallback-reason")) || attempt >= 20) return { r, blob: await r.blob() };
-        await sleep(600 + attempt * 200);
+        const r = await fetch(path, { cache: attempt ? "reload" : "default" });
+        if (r.status === 429 || r.status === 503) {
+          if (attempt >= 10) throw new Error(String(r.status));
+          await sleep(1000 * (Number(r.headers.get("retry-after")) || 1) + attempt * 400);
+          continue;
+        }
+        if (!r.ok) throw new Error(String(r.status));
+        if (!pending.has(r.headers.get("x-icon-fallback-reason")) || attempt >= 15) return { r, blob: await r.blob() };
+        await sleep(700 + attempt * 300);
       }
     }
-    const iconUrl = (style, slug) => `/${style}/${catalog.id}/${slug}`;
+    const iconPath = (slug, v = VARIANTS[0]) => `/${v.style}/${catalog.id}/${slug}${v.plate}`;
 
-    function render(list, note) {
-      grid.innerHTML = list
-        .slice(0, LIMIT)
-        .map((it) => `<button type="button" role="option" data-slug="${esc(it.slug)}" aria-selected="${current && current.slug === it.slug}"><img loading="lazy" src="${esc(iconUrl("color", it.slug))}" alt=""><span>${esc(it.name)}</span></button>`)
-        .join("");
-      $("#slugNote").textContent = note;
+    function pump() {
+      while (active < 6 && want.length) {
+        const job = want.shift();
+        if (!grid.querySelector(`img[data-key="${CSS.escape(job.key)}"]`)) { thumbs.delete(job.key); continue; }
+        active++;
+        get(job.path)
+          .then(({ blob }) => {
+            const url = URL.createObjectURL(blob);
+            thumbs.set(job.key, url);
+            grid.querySelectorAll(`img[data-key="${CSS.escape(job.key)}"]`).forEach((img) => (img.src = url));
+          }, () => thumbs.delete(job.key))
+          .finally(() => { active--; pump(); });
+      }
     }
+
+    function paint(force) {
+      const cols = Math.max(3, Math.floor((scroller.clientWidth + 6) / 88));
+      const rows = Math.ceil(shown.length / cols);
+      const first = Math.max(0, Math.floor(scroller.scrollTop / ROW) - 2);
+      const last = Math.min(rows, Math.ceil((scroller.scrollTop + scroller.clientHeight) / ROW) + 2);
+      const key = `${cols}:${first}:${last}`;
+      if (!force && key === view) return;
+      view = key;
+      space.style.height = `${rows * ROW}px`;
+      grid.style.setProperty("--cols", cols);
+      grid.style.top = `${first * ROW}px`;
+      want.length = 0;
+      grid.innerHTML = shown
+        .slice(first * cols, last * cols)
+        .map((it) => {
+          const k = `${catalog.id}/${it.slug}`;
+          const src = thumbs.get(k);
+          if (src === undefined) { thumbs.set(k, null); want.push({ key: k, path: iconPath(it.slug) }); }
+          return `<button type="button" role="option" data-slug="${esc(it.slug)}" aria-selected="${current && current.slug === it.slug}"><img data-key="${esc(k)}" ${src ? `src="${esc(src)}"` : ""} alt=""><span>${esc(it.name)}</span></button>`;
+        })
+        .join("");
+      for (const [k, v] of thumbs) if (v === null && !want.some((j) => j.key === k)) thumbs.delete(k);
+      pump();
+    }
+    let frame = 0;
+    scroller.addEventListener("scroll", () => { cancelAnimationFrame(frame); frame = requestAnimationFrame(() => paint(false)); }, { passive: true });
+    new ResizeObserver(() => paint(false)).observe(scroller);
 
     function filter() {
       const q = search.value.trim().toLowerCase();
       if (!q) {
+        const popular = new Set(POPULAR[catalog.id] || []);
         const bySlug = new Map(items.map((it) => [it.slug, it]));
-        const popular = (POPULAR[catalog.id] || []).map((s) => bySlug.get(s)).filter(Boolean);
-        render(popular.length >= 8 ? popular : items, `popular · ${items.length.toLocaleString("en")} icons in ${catalog.name}`);
-        return;
+        shown = [...[...popular].map((s) => bySlug.get(s)).filter(Boolean), ...items.filter((it) => !popular.has(it.slug))];
+        $("#slugNote").textContent = `${items.length.toLocaleString("en")} icons in ${catalog.name}`;
+      } else {
+        shown = items.filter((it) => it.name.toLowerCase().includes(q) || it.slug.includes(q) || (it.tags || []).some((t) => t.toLowerCase().includes(q)));
+        shown.sort((a, b) => Number(!a.slug.startsWith(q) && !a.name.toLowerCase().startsWith(q)) - Number(!b.slug.startsWith(q) && !b.name.toLowerCase().startsWith(q)));
+        $("#slugNote").textContent = `${shown.length.toLocaleString("en")} match${shown.length === 1 ? "" : "es"} in ${catalog.name}`;
       }
-      const hits = items.filter((it) => it.name.toLowerCase().includes(q) || it.slug.includes(q) || (it.tags || []).some((t) => t.toLowerCase().includes(q)));
-      hits.sort((a, b) => Number(!a.slug.startsWith(q) && !a.name.toLowerCase().startsWith(q)) - Number(!b.slug.startsWith(q) && !b.name.toLowerCase().startsWith(q)));
-      render(hits, hits.length > LIMIT ? `${hits.length} matches, showing ${LIMIT}` : `${hits.length} match${hits.length === 1 ? "" : "es"}`);
+      scroller.scrollTop = 0;
+      paint(true);
+    }
+
+    const variantLabel = (v) => [v.style, v.plate ? v.plate.slice(1).replace("/", " · ") : "transparent"].join(" · ");
+    function variantTiles() {
+      $("#pvVariants").innerHTML = VARIANTS.map((v, i) => {
+        const theme = v.plate ? v.plate.split("/")[2] : "plain";
+        return `<button type="button" role="radio" class="vt ${theme}${!v.plate && v.style === "mono" ? " mono-plain" : ""}" data-i="${i}" aria-checked="${i === vi}" title="${esc(variantLabel(v))}" aria-label="${esc(variantLabel(v))}"><img alt=""></button>`;
+      }).join("");
+    }
+
+    function showVariant() {
+      if (!current) return;
+      const v = VARIANTS[vi];
+      const path = iconPath(current.slug, v);
+      document.querySelectorAll(".vt").forEach((b) => b.setAttribute("aria-checked", String(Number(b.dataset.i) === vi)));
+      $("#pvVariant").textContent = variantLabel(v);
+      const hero = $("#pvHero");
+      hero.className = `hero-tile ${v.plate ? "" : "plain"} ${v.plate.endsWith("/light") ? "light" : ""} ${!v.plate && v.style === "mono" ? "mono-plain" : ""}`;
+      $("#pvHeroImg").src = urls[vi] || "";
+      $("#pvUrl").innerHTML = `<span class="c">${esc(location.origin)}</span>/<span class="k">${v.style}</span>/${esc(catalog.id)}/<b>${esc(current.slug)}</b>${v.plate ? `<span class="p">${esc(v.plate)}</span>` : ""}`;
+      const size = v.plate ? 40 : 32;
+      $("#pvHtml").innerHTML = `<span class="c">&lt;</span>img src=<span class="k">"${esc(location.origin + path)}"</span> width="${size}" height="${size}" alt=""<span class="c">&gt;</span>`;
     }
 
     async function pick(it) {
@@ -1193,33 +1283,28 @@ footer a { color: var(--muted); }
       const id = ++run;
       grid.querySelectorAll("button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.slug === it.slug)));
       $("#pvName").textContent = it.name;
+      $("#pvName").style.removeProperty("--name");
       $("#pvSlug").textContent = `${catalog.id}/${it.slug}`;
-      $("#pvUrl").textContent = `${location.origin}${iconUrl("color", it.slug)}\n${location.origin}${iconUrl("mono", it.slug)}`;
+      $("#slugPreview").classList.add("loading");
+      urls.forEach((u) => u && URL.revokeObjectURL(u));
+      urls = [];
+      showVariant();
+      const tiles = [...document.querySelectorAll(".vt img")];
       try {
-        const [color, mono] = await Promise.all([get(iconUrl("color", it.slug)), get(iconUrl("mono", it.slug))]);
+        const results = await Promise.all(VARIANTS.map((v, i) => get(iconPath(it.slug, v)).then((res) => {
+          if (id !== run) return res;
+          urls[i] = URL.createObjectURL(res.blob);
+          tiles[i].src = urls[i];
+          if (i === vi) $("#pvHeroImg").src = urls[i];
+          return res;
+        })));
         if (id !== run) return;
-        urls.forEach((u) => URL.revokeObjectURL(u));
-        const cu = URL.createObjectURL(color.blob);
-        const mu = URL.createObjectURL(mono.blob);
-        urls = [cu, mu];
-        const p = palette(color.r.headers);
-        const license = color.r.headers.get("x-icon-license") || it.license || catalog.license;
-        $("#pvCredit").innerHTML = `${creditHtml} · ${esc(license)}`;
-        const fill = p.fill === "bleed" ? "badge bleed" : "badge";
-        const inner = `<img src="${esc(cu)}" alt=""><div class="mask" style="--src:url('${esc(mu)}')"></div>`;
-        const hero = $("#pvBadge");
-        hero.className = fill;
-        hero.innerHTML = inner;
-        hero.style.setProperty("--plate", p.dark.plate || "#2a2a30");
+        const headers = results[0].r.headers;
+        const p = palette(headers);
         $("#pvName").style.setProperty("--name", p.dark.text || "");
-        document.querySelectorAll("[data-pv]").forEach((b) => {
-          const s = b.dataset.pv === "light" ? p.light : p.dark;
-          b.className = fill;
-          b.innerHTML = inner;
-          b.style.setProperty("--plate", s.plate || "#8e8e96");
-          b.style.setProperty("--mono", s.mono || "#8e8e96");
-          b.style.setProperty("--mono-plate", s.monoPlate || "#2a2a30");
-        });
+        const license = headers.get("x-icon-license") || it.license || catalog.license;
+        $("#pvCredit").innerHTML = `${creditHtml} · ${esc(license)}`;
+        $("#slugPreview").classList.remove("loading");
       } catch {
         if (id === run) $("#pvCredit").textContent = "Could not load this icon.";
       }
@@ -1230,17 +1315,25 @@ footer a { color: var(--muted); }
       const it = b && items.find((x) => x.slug === b.dataset.slug);
       if (it) pick(it);
     });
-    search.addEventListener("input", filter);
-    $("#pvCopy").addEventListener("click", () => {
-      if (navigator.clipboard && current) navigator.clipboard.writeText(`${location.origin}${iconUrl("color", current.slug)}`).then(() => {
-        $("#pvCopy").textContent = "copied";
-        setTimeout(() => ($("#pvCopy").textContent = "copy"), 1200);
-      }, () => {});
+    $("#pvVariants").addEventListener("click", (e) => {
+      const b = e.target.closest(".vt");
+      if (!b) return;
+      vi = Number(b.dataset.i);
+      showVariant();
     });
+    search.addEventListener("input", filter);
+    document.querySelectorAll(".pv-code .copy").forEach((btn) => btn.addEventListener("click", () => {
+      if (!navigator.clipboard || !current) return;
+      const pre = btn.dataset.copy === "url" ? $("#pvUrl") : $("#pvHtml");
+      navigator.clipboard.writeText(pre.textContent).then(() => {
+        btn.textContent = "copied";
+        setTimeout(() => (btn.textContent = "copy"), 1200);
+      }, () => {});
+    }));
 
     function tabs() {
       $("#catTabs").innerHTML = catalogs
-        .map((c) => `<button type="button" role="tab" data-id="${esc(c.id)}" aria-selected="${c.id === catalog.id}">${esc(c.name)}<small>${c.count.toLocaleString("en")}</small></button>`)
+        .map((c) => `<button type="button" role="tab" data-id="${esc(c.id)}" aria-selected="${c.id === catalog.id}" title="${c.count.toLocaleString("en")} icons">${esc(c.name)}</button>`)
         .join("");
     }
 
@@ -1248,10 +1341,12 @@ footer a { color: var(--muted); }
       catalog = c;
       tabs();
       $("#catalogId").textContent = c.id;
-      creditHtml = `Icon from ${c.attribution ? `<a href="${esc(c.attribution)}">${esc(c.name)}</a>` : esc(c.name)}`;
+      creditHtml = `Icon from ${c.attribution ? `<a href="${esc(c.attribution)}" target="_blank" rel="noopener">${esc(c.name)}</a>` : esc(c.name)}`;
       $("#pvCredit").innerHTML = creditHtml;
       if (!listings.has(c.id)) {
+        shown = [];
         grid.innerHTML = "";
+        space.style.height = "0";
         $("#slugNote").textContent = `loading ${c.name}…`;
         let loaded = [];
         for (let attempt = 0; attempt < 10; attempt++) {
@@ -1264,7 +1359,7 @@ footer a { color: var(--muted); }
       if (catalog !== c) return;
       items = listings.get(c.id);
       filter();
-      const first = items.find((it) => it.slug === (POPULAR[c.id] || [])[0]) || items[0];
+      const first = shown[0];
       if (first) pick(first);
     }
 
@@ -1284,6 +1379,7 @@ footer a { color: var(--muted); }
         const total = catalogs.reduce((n, c) => n + c.count, 0);
         $("#catalogSub").innerHTML = `Optional icon catalogs are served by slug, with the same palettes and masks as domains. This server carries ${total.toLocaleString("en")} icons from ${catalogs.length} catalog${catalogs.length === 1 ? "" : "s"}; each response names its license.`;
         tabs();
+        variantTiles();
         const seen = new IntersectionObserver((entries) => {
           if (!entries.some((e) => e.isIntersecting)) return;
           seen.disconnect();

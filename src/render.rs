@@ -265,6 +265,12 @@ fn trace_color(img: &RgbaImage, cfg: &RenderCfg) -> anyhow::Result<String> {
     let work = quantize(&resized, MAX_PALETTE);
     let mut best: Option<(f32, String)> = None;
     for p in [trace::BALANCED, trace::FINE] {
+        if best
+            .as_ref()
+            .is_some_and(|(d, _)| *d <= cfg.svg_fidelity * 2.0)
+        {
+            break;
+        }
         let Ok(svg) = traced(&trace::color(&work, &p), false, false, cfg) else {
             continue;
         };

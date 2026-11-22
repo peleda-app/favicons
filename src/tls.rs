@@ -119,6 +119,35 @@ fn not_after(chain_pem: &str) -> Option<SystemTime> {
     Some(UNIX_EPOCH + Duration::from_secs(secs))
 }
 
+fn covers(chain_pem: &str, domains: &[String]) -> bool {
+    let Some(Ok(der)) = CertificateDer::pem_slice_iter(chain_pem.as_bytes()).next() else {
+        return false;
+    };
+    let Ok((_, cert)) = x509_parser::parse_x509_certificate(&der) else {
+        return false;
+    };
+    let names: Vec<String> = cert
+        .subject_alternative_name()
+        .ok()
+        .flatten()
+        .map(|san| {
+            san.value
+                .general_names
+                .iter()
+                .filter_map(|n| match n {
+                    x509_parser::extensions::GeneralName::DNSName(d) => {
+                        Some(d.to_ascii_lowercase())
+                    }
+                    _ => None,
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    domains
+        .iter()
+        .all(|d| names.iter().any(|n| n.eq_ignore_ascii_case(d)))
+}
+
 fn self_signed(domains: &[String]) -> anyhow::Result<CertifiedKey> {
     let names = if domains.is_empty() {
         vec!["localhost".to_string()]
@@ -209,7 +238,13 @@ impl Tls {
             .zip(std::fs::read_to_string(paths.key()).ok())
             .and_then(|(chain, key)| {
                 let ck = certified_key(&chain, &key).ok()?;
-                Some((ck, not_after(&chain)))
+                let expiry = if covers(&chain, &cfg.domains) {
+                    not_after(&chain)
+                } else {
+                    tracing::info!(domains = ?cfg.domains, "stored certificate misses a configured domain; reissuing");
+                    None
+                };
+                Some((ck, expiry))
             });
         let certs = match stored {
             Some((ck, expiry)) => {
@@ -398,6 +433,21 @@ mod tests {
         let expiry = not_after(&chain).unwrap();
         assert!(expiry > SystemTime::now());
         assert!(self_signed(&names).is_ok());
+    }
+
+    #[test]
+    fn a_stored_certificate_must_cover_every_configured_domain() {
+        let cert =
+            rcgen::generate_simple_self_signed(vec!["favicons.example.com".to_string()]).unwrap();
+        let pem = cert.cert.pem();
+        assert!(covers(&pem, &["favicons.example.com".into()]));
+        assert!(!covers(
+            &pem,
+            &[
+                "favicons.example.com".into(),
+                "private.favicons.example.com".into()
+            ]
+        ));
     }
 
     #[test]

@@ -131,7 +131,7 @@ impl App {
     }
 
     pub fn is_stale(&self, meta: &Meta) -> bool {
-        if meta.status == Status::Ok && meta.source.is_some() {
+        if meta.pinned || (meta.status == Status::Ok && meta.source.is_some()) {
             return false;
         }
         now().saturating_sub(meta.fetched_at) >= self.ttl_for(meta.status)
@@ -251,7 +251,8 @@ impl App {
     }
 
     pub fn needs_refresh(meta: &Meta) -> bool {
-        meta.status == Status::Ok
+        !meta.pinned
+            && meta.status == Status::Ok
             && meta.color.is_some()
             && (Self::palette_outdated(meta) || Self::mono_outdated(meta))
     }
@@ -966,6 +967,81 @@ impl App {
             secs = started.elapsed().as_secs(),
             "catalog prerendered"
         );
+    }
+
+    pub(crate) fn normalize_list(&self, text: &str) -> Vec<String> {
+        let p = &self.cfg.policy;
+        let mut seen = std::collections::HashSet::new();
+        text.lines()
+            .map(str::trim)
+            .filter(|l| !l.is_empty() && !l.starts_with('#'))
+            .filter_map(|l| normalize(l, p.collapse_private_suffixes, &p.deny_suffixes))
+            .map(|n| n.registrable)
+            .filter(|d| seen.insert(d.clone()))
+            .collect()
+    }
+
+    pub(crate) async fn prerender_domains(self: &Arc<Self>, domains: Vec<String>, parallel: usize) {
+        let started = std::time::Instant::now();
+        let total = domains.len();
+        let mut tally = std::collections::BTreeMap::<String, u32>::new();
+        let mut count = |r: Result<Option<Status>, tokio::task::JoinError>| {
+            let key = match r {
+                Ok(Some(status)) => format!("{status:?}"),
+                Ok(None) => "Skipped".into(),
+                Err(_) => "Panicked".into(),
+            };
+            *tally.entry(key).or_default() += 1;
+        };
+        let mut set = tokio::task::JoinSet::new();
+        for (i, domain) in domains.into_iter().enumerate() {
+            while set.len() >= parallel.max(1) {
+                if let Some(r) = set.join_next().await {
+                    count(r);
+                }
+            }
+            if i > 0 && i % 500 == 0 {
+                tracing::info!(
+                    done = i,
+                    total,
+                    secs = started.elapsed().as_secs(),
+                    "prerendering domains"
+                );
+            }
+            let app = self.clone();
+            set.spawn(async move { app.prerender_domain(&domain).await });
+        }
+        while let Some(r) = set.join_next().await {
+            count(r);
+        }
+        tracing::info!(
+            total,
+            ?tally,
+            secs = started.elapsed().as_secs(),
+            "domains prerendered"
+        );
+    }
+
+    async fn prerender_domain(&self, domain: &str) -> Option<Status> {
+        let (mut meta, images) =
+            tokio::time::timeout(self.cfg.fetch.job_timeout(), self.fetch_domain(domain))
+                .await
+                .unwrap_or_else(|_| (Meta::new(domain, Status::FetchFailed), vec![]));
+        if meta.status == Status::FetchFailed {
+            return None;
+        }
+        if meta.status == Status::Ok
+            && meta.palette.is_none()
+            && let Some((_, svg)) = images.iter().find(|(s, _)| *s == Slot::Color)
+        {
+            meta.palette = self.analyze(svg).await;
+            meta.palette_rev = crate::palette::REVISION;
+        }
+        meta.mono_rev = crate::render::MONO_REVISION;
+        meta.pinned = true;
+        let status = meta.status;
+        self.store.put_cold(meta, images).await;
+        Some(status)
     }
 
     async fn prerender_one(&self, id: &str, slug: &str, source: &str) -> Prerendered {

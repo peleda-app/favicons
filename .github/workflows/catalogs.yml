@@ -69,14 +69,33 @@ jobs:
           echo "LICENSES=$licenses" >> "$GITHUB_ENV"
           echo "entries: $(find catalogs/bundle/v4 -mindepth 1 -maxdepth 1 | wc -l)"
           du -sh --apparent-size catalogs/bundle
+      - id: sites
+        name: pick the top sites layer
+        env:
+          SITES: ghcr.io/${{ github.repository_owner }}/favicons-sites
+        run: |
+          digest=$(docker buildx imagetools inspect "$SITES:latest" --format '{{json .Manifest}}' 2>/dev/null | jq -r '.digest // empty' || true)
+          if [ -n "$digest" ]; then
+            echo "context=docker-image://$SITES@$digest" >> "$GITHUB_OUTPUT"
+            echo "present=true" >> "$GITHUB_OUTPUT"
+            echo "LICENSES=$LICENSES AND CC-BY-SA-4.0 AND CC-BY-3.0" >> "$GITHUB_ENV"
+            echo "sites: $SITES@$digest"
+          else
+            mkdir -p /tmp/no-sites/sites
+            echo "context=/tmp/no-sites" >> "$GITHUB_OUTPUT"
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "sites: none yet"
+          fi
       - id: push
         name: build and push
         env:
           BASE: ${{ steps.base.outputs.ref }}
           SHA: ${{ steps.base.outputs.sha }}
+          SITES_CONTEXT: ${{ steps.sites.outputs.context }}
         run: |
           docker buildx build catalogs \
             --platform linux/amd64 \
+            --build-context "sites=$SITES_CONTEXT" \
             --build-arg "BASE=$BASE" \
             --build-arg "LICENSES=$LICENSES" \
             --label "org.opencontainers.image.revision=$GITHUB_SHA" \
@@ -90,6 +109,8 @@ jobs:
           subject-digest: ${{ steps.push.outputs.digest }}
           push-to-registry: true
       - name: smoke test
+        env:
+          SITES: ${{ steps.sites.outputs.present }}
         run: |
           { printf '[cache]\nseed = "/catalogs"\n\n'; cat catalogs/catalogs.toml; } > /tmp/serve.toml
           docker run -d --name smoke -p 8080:8080 -v /tmp/serve.toml:/etc/serve.toml:ro \
@@ -102,4 +123,13 @@ jobs:
           echo "$headers"
           echo "$headers" | grep -qi '^x-icon-source: cache'
           echo "$headers" | grep -qi '^content-encoding: gzip'
+          if [ "$SITES" = true ]; then
+            for site in github.com wikipedia.org mozilla.org; do
+              headers=$(curl -fsS -D - -o /dev/null "http://127.0.0.1:8080/color/$site")
+              if echo "$headers" | grep -qi '^x-icon-fallback-reason: queued'; then
+                echo "$site was not prerendered"; echo "$headers"; exit 1
+              fi
+            done
+            echo "$headers" | grep -qi '^x-icon-source: \(cache\|generated\)'
+          fi
           docker rm -f smoke

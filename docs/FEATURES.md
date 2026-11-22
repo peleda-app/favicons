@@ -23,6 +23,15 @@
 * **Pluggable cache.** `none` (memory only), local directory, S3 and S3-compatible
   stores, GCS, Azure. TTLs are separate for real icons, missing icons, failures
   and too-new domains.
+* **Prerendered top sites.** The `favicons.page` image ships the icons of the
+  100,000 most popular sites, rendered in CI from a list combined out of
+  Majestic Million, the Cisco Umbrella list and the Chrome UX Report
+  (`catalogs/sites.py`, sources and licenses in `/catalogs/SOURCES.md`). They
+  sit in the read-only `cache.seed` directory and are pinned: the server never
+  refreshes, re-renders or evicts them, so a site asked for once a month still
+  answers from disk after any restart. A weekly workflow renders the list again
+  in 20 parallel jobs. Sites that could not be reached during that run are left
+  out and fetched on demand like any other domain.
 * **Browser and CDN caching.** Independent `Cache-Control` and `CDN-Cache-Control`
   profiles for icons, redirects and each kind of fallback, plus `ETag` / `304`.
 * **Curated sources first.** The domain's BIMI logo, the one its owner
@@ -76,7 +85,7 @@
 ```
 request ─► conn limit ─► load shed ─► subnet rate limit ─► normalize to eTLD+1
         ─► not canonical? 301 to /{style}/{eTLD+1} ─► blocklist
-        ─► memory cache ─► storage ─► hit:  SVG
+        ─► memory cache ─► pinned seed ─► storage ─► hit:  SVG
                                     └► miss: fair queue ─► wait ≤ wait_ms
                                                           ├► done: SVG
                                                           └► generated icon, reason=queued

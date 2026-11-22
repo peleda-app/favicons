@@ -57,6 +57,10 @@ pub struct Meta {
     pub mono_rev: u32,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source: Option<String>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub pinned: bool,
+    #[serde(skip)]
+    pub seeded: bool,
 }
 
 impl Meta {
@@ -76,6 +80,8 @@ impl Meta {
             palette_rev: 0,
             mono_rev: 0,
             source: None,
+            pinned: false,
+            seeded: false,
         }
     }
 }
@@ -326,6 +332,23 @@ impl Store {
         Path::from(format!("{LAYOUT_VERSION}/{domain}/{name}"))
     }
 
+    async fn read_seed(&self, domain: &str, name: &str) -> anyhow::Result<Option<Bytes>> {
+        match &self.seed {
+            Some(seed) => self.read(seed, &Self::seed_path(domain, name)).await,
+            None => Ok(None),
+        }
+    }
+
+    async fn pinned_seed_meta(&self, domain: &str) -> Option<Meta> {
+        let bytes = self.read_seed(domain, "meta.json").await.ok()??;
+        let mut meta = serde_json::from_slice::<Meta>(&bytes).ok()?;
+        if !meta.pinned || meta.domain != domain {
+            return None;
+        }
+        meta.seeded = true;
+        Some(meta)
+    }
+
     async fn read_object(&self, domain: &str, name: &str) -> anyhow::Result<Option<Bytes>> {
         if let Some(backend) = &self.backend
             && let Some(b) = self.read(backend, &self.path(domain, name)).await?
@@ -357,6 +380,11 @@ impl Store {
         }
         if self.absent.contains_key(domain) {
             return None;
+        }
+        if let Some(meta) = self.pinned_seed_meta(domain).await {
+            let meta = Arc::new(meta);
+            self.meta_mem.insert(domain.to_string(), meta.clone());
+            return Some(meta);
         }
         match self.read_object(domain, "meta.json").await {
             Ok(Some(bytes)) => match serde_json::from_slice::<Meta>(&bytes) {
@@ -395,7 +423,13 @@ impl Store {
             return None;
         }
         for gzipped in [self.compress, !self.compress] {
-            match self.read_object(domain, file_name(slot, gzipped)).await {
+            let name = file_name(slot, gzipped);
+            let read = if meta.seeded {
+                self.read_seed(domain, name).await
+            } else {
+                self.read_object(domain, name).await
+            };
+            match read {
                 Ok(Some(b)) => {
                     let body = match (gzipped, self.compress) {
                         (true, false) => gunzip(&b)?,
@@ -580,6 +614,54 @@ mod tests {
             ..CacheCfg::default()
         };
         Store::new(&cfg, &HttpCache::default()).unwrap()
+    }
+
+    #[tokio::test]
+    async fn a_pinned_seed_entry_wins_over_the_working_cache() {
+        let root = std::env::temp_dir().join(format!("favicons-seed-{}", rand::random::<u64>()));
+        let (seed_dir, cache_dir) = (root.join("seed"), root.join("cache"));
+
+        let seeder = store_in(&seed_dir);
+        let mut pinned = Meta::new("example.com", Status::Ok);
+        pinned.color = Some(VectorOrigin::Original);
+        pinned.pinned = true;
+        seeder
+            .put_cold(pinned, vec![(Slot::Color, b"seed".to_vec())])
+            .await;
+        let mut loose = Meta::new("example.org", Status::Ok);
+        loose.color = Some(VectorOrigin::Original);
+        seeder
+            .put_cold(loose, vec![(Slot::Color, b"seed".to_vec())])
+            .await;
+
+        let working = store_in(&cache_dir);
+        for domain in ["example.com", "example.org"] {
+            let mut meta = Meta::new(domain, Status::Ok);
+            meta.color = Some(VectorOrigin::Traced);
+            working
+                .put_cold(meta, vec![(Slot::Color, b"working".to_vec())])
+                .await;
+        }
+
+        let cfg = CacheCfg {
+            storage: format!("file://{}", cache_dir.display()),
+            seed: Some(seed_dir.display().to_string()),
+            ..CacheCfg::default()
+        };
+        let store = Store::new(&cfg, &HttpCache::default()).unwrap();
+
+        let meta = store.meta("example.com").await.unwrap();
+        assert!(meta.pinned && meta.seeded);
+        assert_eq!(meta.color, Some(VectorOrigin::Original));
+        let icon = store.image(&meta, Slot::Color).await.unwrap();
+        assert_eq!(icon.raw().as_ref(), b"seed");
+
+        let meta = store.meta("example.org").await.unwrap();
+        assert!(!meta.pinned && !meta.seeded);
+        let icon = store.image(&meta, Slot::Color).await.unwrap();
+        assert_eq!(icon.raw().as_ref(), b"working");
+
+        std::fs::remove_dir_all(&root).unwrap();
     }
 
     #[tokio::test]

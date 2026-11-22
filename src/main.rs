@@ -57,6 +57,7 @@ fn main() -> ExitCode {
 fn run_main(mut args: impl Iterator<Item = String>) -> anyhow::Result<()> {
     let mut render_server = false;
     let mut prerender = false;
+    let mut domain_list: Option<PathBuf> = None;
     let mut config_path = std::env::var_os("FAVICONS_CONFIG").map(PathBuf::from);
     let mut check_only = false;
     while let Some(arg) = args.next() {
@@ -65,12 +66,17 @@ fn run_main(mut args: impl Iterator<Item = String>) -> anyhow::Result<()> {
             "--check-config" => check_only = true,
             "render-server" => render_server = true,
             "prerender" => prerender = true,
+            "prerender-domains" => {
+                domain_list = Some(args.next().map(PathBuf::from).ok_or_else(|| {
+                    anyhow::anyhow!("prerender-domains needs a file with one domain per line")
+                })?)
+            }
             "-V" | "--version" => {
                 println!("favicons {}", env!("CARGO_PKG_VERSION"));
                 return Ok(());
             }
             other => anyhow::bail!(
-                "unknown argument {other}; usage: favicons [render-server | prerender | render-worker | sandbox-selftest PROBE] [--config PATH] [--check-config]"
+                "unknown argument {other}; usage: favicons [render-server | prerender | prerender-domains FILE | render-worker | sandbox-selftest PROBE] [--config PATH] [--check-config]"
             ),
         }
     }
@@ -109,12 +115,33 @@ fn run_main(mut args: impl Iterator<Item = String>) -> anyhow::Result<()> {
         .max_blocking_threads(cfg.render.decode_concurrency * 2 + cfg.fetch.workers * 2 + 16)
         .build()?
         .block_on(async move {
-            if prerender {
+            if let Some(list) = domain_list {
+                prerender_domains(cfg, &list).await
+            } else if prerender {
                 prerender_catalogs(cfg).await
             } else {
                 run(cfg).await
             }
         })
+}
+
+async fn prerender_domains(cfg: config::Config, list: &std::path::Path) -> anyhow::Result<()> {
+    let app = app::App::new(cfg)?;
+    anyhow::ensure!(
+        app.store.has_backend(),
+        "prerender-domains needs cache.storage to write into"
+    );
+    let text = std::fs::read_to_string(list)
+        .map_err(|e| anyhow::anyhow!("reading {}: {e}", list.display()))?;
+    let domains = app.normalize_list(&text);
+    anyhow::ensure!(!domains.is_empty(), "{} lists no domains", list.display());
+    let parallel = app
+        .cfg
+        .fetch
+        .workers
+        .max(app.cfg.render.decode_concurrency * 4);
+    app.prerender_domains(domains, parallel).await;
+    Ok(())
 }
 
 async fn prerender_catalogs(cfg: config::Config) -> anyhow::Result<()> {

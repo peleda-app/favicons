@@ -1221,6 +1221,33 @@ mod routing_tests {
         assert!(!App::needs_refresh(&meta));
     }
 
+    #[test]
+    fn domain_lists_collapse_to_unique_registrable_domains() {
+        let app = app();
+        let list = "# top sites\ngithub.com\nwww.GitHub.com\nhttps://gist.github.com/x\n\n127.0.0.1\nexample.co.uk\nnot a domain\n";
+        assert_eq!(app.normalize_list(list), ["github.com", "example.co.uk"]);
+    }
+
+    #[tokio::test]
+    async fn pinned_entries_are_never_refreshed_at_runtime() {
+        let app = app();
+        let mut meta = crate::store::Meta::new("example.com", crate::store::Status::Ok);
+        meta.color = Some(crate::vector::VectorOrigin::Original);
+        meta.pinned = true;
+        meta.fetched_at = 1;
+        assert!(!app.is_stale(&meta));
+        assert!(!App::needs_refresh(&meta));
+
+        let mut gone = crate::store::Meta::new("example.org", crate::store::Status::NotFound);
+        gone.pinned = true;
+        gone.fetched_at = 1;
+        assert!(!app.is_stale(&gone));
+        app.store.put(gone, vec![]).await;
+        let r = get(&app, "/color/example.org").await;
+        assert_eq!(r.headers().get(H_REASON).unwrap(), "not-found");
+        assert_eq!(app.queue.len(), 0);
+    }
+
     #[tokio::test]
     async fn missing_mono_waiting_for_a_refresh_is_cached_briefly() {
         let app = app();

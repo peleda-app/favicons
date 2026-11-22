@@ -59,7 +59,7 @@ jobs:
           mkdir -p catalogs/bundle
           chmod 0777 catalogs/bundle
           {
-            printf '[render]\ndecode_concurrency = %s\n\n[cache]\nstorage = "file:///out"\n\n' "$(nproc)"
+            printf '[render]\ndecode_concurrency = %s\n\n[policy]\nmin_domain_age_days = 0\n\n[cache]\nstorage = "file:///out"\n\n' "$(nproc)"
             cat catalogs/catalogs.toml
           } > /tmp/prerender.toml
           docker run --rm -v /tmp/prerender.toml:/etc/prerender.toml:ro -v "$PWD/catalogs/bundle:/out" \

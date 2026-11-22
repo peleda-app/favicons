@@ -1027,11 +1027,10 @@ impl App {
             tokio::time::timeout(self.cfg.fetch.job_timeout(), self.fetch_domain(domain))
                 .await
                 .unwrap_or_else(|_| (Meta::new(domain, Status::FetchFailed), vec![]));
-        if meta.status == Status::FetchFailed {
-            return None;
+        if meta.status != Status::Ok {
+            return Some(meta.status);
         }
-        if meta.status == Status::Ok
-            && meta.palette.is_none()
+        if meta.palette.is_none()
             && let Some((_, svg)) = images.iter().find(|(s, _)| *s == Slot::Color)
         {
             meta.palette = self.analyze(svg).await;

@@ -29,11 +29,13 @@
   (`catalogs/sites.py`, sources and licenses in `/catalogs/SOURCES.md`). They
   sit in the read-only `cache.seed` directory as a few `.pack` files, one sorted
   index plus the data each, so 100,000 sites take a few hundred megabytes and a
-  handful of inodes instead of 400,000 small files. They are pinned: the server never
+  handful of inodes instead of hundreds of thousands of small files. They are pinned: the server never
   refreshes, re-renders or evicts them, so a site asked for once a month still
   answers from disk after any restart. A weekly workflow renders the list again
-  in 20 parallel jobs. Sites that could not be reached during that run are left
-  out and fetched on demand like any other domain.
+  in 20 parallel jobs, without the domain-age check. Only sites with an icon
+  are kept: those with none, blocked ones and those that could not be reached
+  during that run are left to the server, which handles them like any other
+  domain.
 * **Browser and CDN caching.** Independent `Cache-Control` and `CDN-Cache-Control`
   profiles for icons, redirects and each kind of fallback, plus `ETag` / `304`.
 * **Curated sources first.** The domain's BIMI logo, the one its owner

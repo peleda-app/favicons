@@ -1,6 +1,6 @@
 {
   "name": "favicons.page",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Any website's icon as a clean SVG with light and dark theme colours. A zero-dependency client for favicons.page or your own instance, with React and Vue components, a Svelte action and a web component.",
   "keywords": [
     "favicon",

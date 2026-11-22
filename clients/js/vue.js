@@ -1,16 +1,17 @@
 import { computed, defineComponent, h, inject, onScopeDispose, ref, toValue, watch } from "vue";
 import { clientFor, cssText, iconView } from "./shared.js";
 
-const BASE_URL = Symbol("favicons.baseUrl");
+const SETTINGS = Symbol("favicons.settings");
 
 export const FaviconsPlugin = {
   install(app, options = {}) {
-    app.provide(BASE_URL, options.baseUrl);
+    app.provide(SETTINGS, { baseUrl: options.baseUrl, private: options.private });
   },
 };
 
-function useClient(baseUrl) {
-  return clientFor(baseUrl ?? inject(BASE_URL, undefined));
+function useClient(baseUrl, isPrivate) {
+  const inherited = inject(SETTINGS, {});
+  return clientFor(baseUrl ?? inherited.baseUrl, isPrivate ?? inherited.private ?? false);
 }
 
 export const Favicon = defineComponent({
@@ -27,11 +28,16 @@ export const Favicon = defineComponent({
     alt: { type: String, default: "" },
     loading: String,
     baseUrl: String,
+    private: { type: Boolean, default: undefined },
   },
   setup(props) {
-    const inherited = inject(BASE_URL, undefined);
+    const inherited = inject(SETTINGS, {});
     return () => {
-      const view = iconView(props, clientFor(props.baseUrl ?? inherited));
+      const client = clientFor(
+        props.baseUrl ?? inherited.baseUrl,
+        props.private ?? inherited.private ?? false,
+      );
+      const view = iconView(props, client);
       const { referrerPolicy, ...attrs } = view.attrs;
       if (referrerPolicy) attrs.referrerpolicy = referrerPolicy;
       return h(view.tag, { ...attrs, style: cssText(view.style) || undefined });
@@ -40,7 +46,7 @@ export const Favicon = defineComponent({
 });
 
 export function useFavicon(target, options = {}) {
-  const client = useClient(toValue(options).baseUrl);
+  const client = useClient(toValue(options).baseUrl, toValue(options).private);
   const icon = ref();
   const error = ref();
   const loading = ref(true);
@@ -77,6 +83,6 @@ export function useFavicon(target, options = {}) {
 }
 
 export function useFaviconUrl(target, options = {}) {
-  const client = useClient(toValue(options).baseUrl);
+  const client = useClient(toValue(options).baseUrl, toValue(options).private);
   return computed(() => client.url(toValue(target), toValue(options)));
 }

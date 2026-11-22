@@ -7,6 +7,7 @@ import favicons, {
   iconUrl,
   maskCss,
   normalizeDomain,
+  PRIVATE_BASE_URL,
 } from "../index.js";
 
 const SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128"/>';
@@ -52,6 +53,36 @@ test("a custom base url replaces favicons.page", () => {
   const own = createFavicons({ baseUrl: "https://icons.example.com/favicons/" });
   assert.equal(own.baseUrl, "https://icons.example.com/favicons");
   assert.equal(own.url("example.org"), "https://icons.example.com/favicons/color/example.org");
+});
+
+test("private mode uses the private host of favicons.page and never asks to fetch", async () => {
+  const { fetch, calls } = scripted(reply(200, { "x-icon-fallback": "true", "x-icon-fallback-reason": "not-cached" }));
+  const hidden = createFavicons({ private: true, fetch });
+  assert.equal(hidden.private, true);
+  assert.equal(hidden.baseUrl, PRIVATE_BASE_URL);
+  assert.equal(hidden.url("github.com"), "https://private.favicons.page/color/github.com");
+  const icon = await hidden.get("example.org");
+  assert.equal(icon.fallback.reason, "not-cached");
+  assert.equal(calls.length, 1, "not-cached is final, no retries");
+  assert.equal(calls[0].init.headers, undefined, "the host is enough, no preflighted header");
+});
+
+test("private mode on an own instance sends the header or uses its private host", async () => {
+  const { fetch, calls } = scripted(reply(200), reply(200));
+  const own = createFavicons({ baseUrl: "https://icons.example.com", private: true, fetch });
+  assert.equal(own.url("github.com"), "https://icons.example.com/color/github.com");
+  await own.head("github.com");
+  assert.equal(calls[0].init.headers["x-icon-private"], "1");
+  const hosted = createFavicons({
+    baseUrl: "https://icons.example.com",
+    privateBaseUrl: "https://private.icons.example.com/",
+    private: true,
+    fetch,
+  });
+  assert.equal(hosted.url("github.com"), "https://private.icons.example.com/color/github.com");
+  await hosted.head("github.com");
+  assert.equal(calls[1].init.headers, undefined);
+  assert.equal(createFavicons({ privateBaseUrl: "https://p.example" }).baseUrl, DEFAULT_BASE_URL);
 });
 
 test("domains are normalized and international names become punycode", () => {

@@ -163,6 +163,7 @@ pub struct Server {
     pub worker_threads: Option<usize>,
     pub landing: bool,
     pub public_url: Option<String>,
+    pub private_hosts: Vec<String>,
 }
 
 impl Default for Server {
@@ -178,6 +179,7 @@ impl Default for Server {
             worker_threads: None,
             landing: true,
             public_url: None,
+            private_hosts: Vec::new(),
         }
     }
 }

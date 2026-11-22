@@ -397,6 +397,34 @@ icon. `createFavicons` accepts a few more options:
 | `fetch` | A `fetch` implementation for runtimes without a global one | `globalThis.fetch` |
 | `retries` | Extra attempts while an icon is `queued` or the server is busy | `2` |
 | `retryDelay` | Milliseconds between attempts, unless `Retry-After` says otherwise | `1500` |
+| `private` | Read the cache only, never make the server fetch the site | `false` |
+| `privateBaseUrl` | The private host of your own instance | `https://private.favicons.page` with the default `baseUrl` |
+
+## Private mode
+
+`private: true` reads the cache only. The service then makes no outbound
+request for the icon, so the site never learns that someone looked it up. A
+domain that is not cached yet gets the generated icon with the fallback reason
+`not-cached` instead of being fetched.
+
+```js
+import { createFavicons } from "favicons.page";
+
+const favicons = createFavicons({ private: true });
+favicons.url("github.com"); // https://private.favicons.page/color/github.com
+```
+
+| Entry point | How |
+|-------------|-----|
+| `favicons.page/react` | `<FaviconsProvider private>` or `<Favicon domain="…" private />` |
+| `favicons.page/vue` | `app.use(FaviconsPlugin, { private: true })` or `<Favicon domain="…" private />` |
+| `favicons.page/svelte` | `use:favicon={{ domain: "…", private: true }}` |
+| `favicons.page/element` | `<favicon-icon domain="…" private>` |
+
+On favicons.page the client switches to `private.favicons.page`, so even a plain
+`<img>` stays private. On your own instance set `privateBaseUrl` to a host from
+its `server.private_hosts`; without one, `get` and `head` send the
+`X-Icon-Private: 1` header instead and component URLs stay as they are.
 
 ## Reference
 
@@ -405,7 +433,7 @@ icon. `createFavicons` accepts a few more options:
 | `iconUrl(target, { style, shape, theme })` | The canonical URL, without a request |
 | `getIcon(target, options)` | `{ svg, palette, source, fallback, … }`, retrying `queued` |
 | `headIcon(target, options)` | The same fields without the SVG |
-| `createFavicons({ baseUrl, fetch, retries, retryDelay })` | A client with `url`, `get`, `head`, `mask`, `catalogs`, `catalog` |
+| `createFavicons({ baseUrl, private, privateBaseUrl, fetch, retries, retryDelay })` | A client with `url`, `get`, `head`, `mask`, `catalogs`, `catalog` |
 | `normalizeDomain(input)` | The host as the server expects it |
 | `maskCss(url, { size, position })` | `mask` and `-webkit-mask` declarations |
 

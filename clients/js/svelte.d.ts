@@ -11,6 +11,7 @@ export interface FaviconParams {
   alt?: string;
   loading?: "lazy" | "eager";
   baseUrl?: string;
+  private?: boolean;
 }
 
 export declare function favicon(

@@ -1,8 +1,8 @@
 import { clientFor, cssText, iconView } from "./shared.js";
 
-const ATTRIBUTES = ["domain", "catalog", "slug", "mono", "shape", "theme", "size", "alt", "base-url"];
+const ATTRIBUTES = ["domain", "catalog", "slug", "mono", "shape", "theme", "size", "alt", "base-url", "private"];
 
-function propsOf(el, baseUrl) {
+function propsOf(el, config) {
   const get = (name) => el.getAttribute(name) ?? undefined;
   const size = get("size");
   return {
@@ -14,7 +14,8 @@ function propsOf(el, baseUrl) {
     theme: get("theme"),
     size: size === undefined ? undefined : /^\d+$/.test(size) ? Number(size) : size,
     alt: get("alt"),
-    baseUrl: get("base-url") ?? baseUrl,
+    baseUrl: get("base-url") ?? config.baseUrl,
+    private: el.hasAttribute("private") || Boolean(config.private),
   };
 }
 
@@ -38,7 +39,7 @@ export function defineFaviconElement(name = "favicon-icon", config = {}) {
     }
 
     render() {
-      const props = propsOf(this, config.baseUrl);
+      const props = propsOf(this, config);
       const root = this.shadowRoot ?? this.attachShadow({ mode: "open" });
       if (!props.domain && !props.slug) {
         root.replaceChildren();
@@ -46,7 +47,7 @@ export function defineFaviconElement(name = "favicon-icon", config = {}) {
       }
       let view;
       try {
-        view = iconView(props, clientFor(props.baseUrl));
+        view = iconView(props, clientFor(props.baseUrl, props.private));
       } catch {
         root.replaceChildren();
         return;

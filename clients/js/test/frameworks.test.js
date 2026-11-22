@@ -30,6 +30,23 @@ test("a colour icon is an img and a bare mono icon is a tintable mask", () => {
   assert.equal(badge.url, "https://favicons.page/mono/selfhst/jellyfin/rounded/dark");
 });
 
+test("private mode reaches every framework entry", async () => {
+  assert.equal(iconView({ domain: "github.com", private: true }).url, "https://private.favicons.page/color/github.com");
+  const html = renderToStaticMarkup(
+    createElement(
+      react.FaviconsProvider,
+      { private: true },
+      createElement(react.Favicon, { domain: "github.com" }),
+      createElement(react.Favicon, { domain: "gitlab.com", private: false }),
+    ),
+  );
+  assert.match(html, /https:\/\/private\.favicons\.page\/color\/github\.com/);
+  assert.match(html, /"https:\/\/favicons\.page\/color\/gitlab\.com"/);
+  const app = createSSRApp({ render: () => h(vue.Favicon, { domain: "github.com" }) });
+  app.use(vue.FaviconsPlugin, { private: true });
+  assert.match(await renderToString(app), /private\.favicons\.page\/color\/github\.com/);
+});
+
 test("react renders the icon and takes the base url from the provider", () => {
   const html = renderToStaticMarkup(
     createElement(

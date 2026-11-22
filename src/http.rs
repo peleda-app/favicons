@@ -20,8 +20,8 @@ use crate::app::App;
 use crate::config::{CacheProfile, HttpCache};
 use crate::contract::{
     FallbackReason, H_BLOCKED, H_CDN_CACHE_CONTROL, H_DOMAIN, H_FALLBACK, H_FETCH, H_LICENSE,
-    H_MONO_SOURCE, H_PROVENANCE, H_REASON, H_SOURCE, H_STALE, H_STYLE, H_UPSTREAM, H_VECTOR,
-    MonoSource, Provenance, SVG_MIME, Slot, Source, Style,
+    H_MONO_SOURCE, H_PRIVATE, H_PROVENANCE, H_REASON, H_SOURCE, H_STALE, H_STYLE, H_UPSTREAM,
+    H_VECTOR, MonoSource, Provenance, SVG_MIME, Slot, Source, Style,
 };
 use crate::domain::{MAX_INPUT_LEN, normalize};
 use crate::metrics::inc;
@@ -261,6 +261,7 @@ struct Req {
     if_none_match: Option<HeaderValue>,
     nested: bool,
     gzip: bool,
+    private: bool,
 }
 
 async fn icon(
@@ -360,6 +361,7 @@ async fn serve_icon(
             if_none_match,
             nested: headers.contains_key(H_FETCH),
             gzip: accepts_gzip(&headers),
+            private: is_private(&app, &headers, &uri),
         };
         return fallback(&app, &req, FallbackReason::InvalidDomain);
     };
@@ -374,6 +376,7 @@ async fn serve_icon(
         if_none_match,
         nested: headers.contains_key(H_FETCH),
         gzip: accepts_gzip(&headers),
+        private: is_private(&app, &headers, &uri),
     };
     let domain = &req.name;
     if app.policy.is_blocked(&n.host, domain) {
@@ -387,7 +390,7 @@ async fn serve_key(app: &Arc<App>, req: &Req, client: ClientKey) -> Response {
     let domain = &req.name;
     if let Some(meta) = app.store.meta(domain).await {
         let stale = app.is_stale(&meta) || App::needs_refresh(&meta);
-        if stale && !req.nested && app.limiter.escalate(client) {
+        if stale && !req.nested && !req.private && app.limiter.escalate(client) {
             let _ = app.queue.push(domain, client);
         }
         return serve_meta(app, req, &meta, Source::Cache, stale).await;
@@ -395,6 +398,9 @@ async fn serve_key(app: &Arc<App>, req: &Req, client: ClientKey) -> Response {
 
     if req.nested {
         return plain(StatusCode::NOT_FOUND, "not cached");
+    }
+    if req.private {
+        return fallback(app, req, FallbackReason::NotCached);
     }
     if !app.limiter.escalate(client) {
         inc(&app.stats.rate_limited);
@@ -489,6 +495,7 @@ async fn serve_catalog(
         if_none_match: headers.get(IF_NONE_MATCH).cloned(),
         nested: headers.contains_key(H_FETCH),
         gzip: accepts_gzip(&headers),
+        private: is_private(&app, &headers, &uri),
     };
     serve_key(&app, &req, client).await
 }
@@ -560,7 +567,9 @@ async fn serve_meta(app: &App, req: &Req, meta: &Meta, source: Source, stale: bo
         }),
     };
     let Some(shown) = shown else {
-        let reason = if stale {
+        let reason = if stale && req.private {
+            FallbackReason::NotCached
+        } else if stale {
             FallbackReason::Queued
         } else if req.style == Style::Mono {
             FallbackReason::NoMonochrome
@@ -603,7 +612,12 @@ async fn serve_meta(app: &App, req: &Req, meta: &Meta, source: Source, stale: bo
                 domain = meta.domain,
                 "meta present but image missing; refetching"
             );
-            fallback(app, req, FallbackReason::Queued)
+            let reason = if req.private {
+                FallbackReason::NotCached
+            } else {
+                FallbackReason::Queued
+            };
+            fallback(app, req, reason)
         }
     }
 }
@@ -726,7 +740,56 @@ fn fallback(app: &App, req: &Req, reason: FallbackReason) -> Response {
             HeaderValue::from_str(&format!("\"{}-{}\"", e.trim_matches('"'), reason.as_str())).ok()
         });
     let icon = icon.derived(icon.raw(), etag);
-    image(&icon, req, profile, &out, None)
+    let mut r = image(&icon, req, profile, &out, None);
+    if req.private {
+        let h = r.headers_mut();
+        h.insert(CACHE_CONTROL, HeaderValue::from_static("no-store"));
+        h.insert(
+            HeaderName::from_static(H_CDN_CACHE_CONTROL),
+            HeaderValue::from_static("no-store"),
+        );
+    }
+    r
+}
+
+fn is_private(app: &App, headers: &HeaderMap, uri: &Uri) -> bool {
+    let asked = headers
+        .get(H_PRIVATE)
+        .and_then(|v| v.to_str().ok())
+        .is_some_and(|v| {
+            !matches!(
+                v.trim().to_ascii_lowercase().as_str(),
+                "" | "0" | "false" | "off" | "no"
+            )
+        });
+    if asked {
+        return true;
+    }
+    let hosts = &app.cfg.server.private_hosts;
+    if hosts.is_empty() {
+        return false;
+    }
+    let host = uri
+        .host()
+        .map(str::to_string)
+        .or_else(|| {
+            headers
+                .get(http::header::HOST)
+                .and_then(|v| v.to_str().ok())
+                .map(|h| {
+                    h.rsplit_once(':')
+                        .map_or(h, |(name, port)| {
+                            if port.bytes().all(|b| b.is_ascii_digit()) {
+                                name
+                            } else {
+                                h
+                            }
+                        })
+                        .to_string()
+                })
+        })
+        .map(|h| h.trim_end_matches('.').to_ascii_lowercase());
+    host.is_some_and(|h| hosts.iter().any(|p| p.eq_ignore_ascii_case(&h)))
 }
 
 struct Out<'a> {
@@ -1205,6 +1268,54 @@ mod routing_tests {
         req.extensions_mut()
             .insert(ConnectInfo(SocketAddr::from(([198, 51, 100, 7], 4000))));
         router(app.clone()).oneshot(req).await.unwrap()
+    }
+
+    #[tokio::test]
+    async fn private_requests_never_reach_out_for_uncached_domains() {
+        let mut cfg = Config::default();
+        cfg.fetch.wait_ms = 0;
+        cfg.render.sandbox = SandboxMode::Off;
+        cfg.rate_limit.requests_per_second = 0.0;
+        cfg.server.private_hosts = vec!["private.example.net".into()];
+        let app = App::new(cfg).unwrap();
+        for headers in [
+            &[("host", "Private.Example.Net:443")][..],
+            &[("x-icon-private", "1")][..],
+        ] {
+            let r = get_with(&app, "/color/example.org", headers).await;
+            assert_eq!(r.status(), StatusCode::OK);
+            assert_eq!(r.headers().get(H_REASON).unwrap(), "not-cached");
+            assert_eq!(r.headers().get(CACHE_CONTROL).unwrap(), "no-store");
+            assert_eq!(r.headers().get(H_CDN_CACHE_CONTROL).unwrap(), "no-store");
+            assert_eq!(app.queue.len(), 0);
+        }
+        let r = get_with(&app, "/color/example.org", &[("x-icon-private", "0")]).await;
+        assert_eq!(r.headers().get(H_REASON).unwrap(), "queued");
+        assert_eq!(app.queue.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn private_requests_serve_stale_icons_without_refreshing() {
+        let app = app();
+        let svg = r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128"><path fill="#000000" d="M0 0h128v128H0z"/></svg>"##;
+        let mut meta = crate::store::Meta::new("example.com", crate::store::Status::Ok);
+        meta.color = Some(crate::vector::VectorOrigin::Original);
+        meta.etags.insert("color.svg".into(), "abc".into());
+        meta.fetched_at = 1;
+        app.store
+            .put(
+                meta,
+                vec![(crate::contract::Slot::Color, svg.as_bytes().to_vec())],
+            )
+            .await;
+        let r = get_with(&app, "/color/example.com", &[("x-icon-private", "1")]).await;
+        assert_eq!(r.headers().get(H_SOURCE).unwrap(), "cache");
+        assert_eq!(app.queue.len(), 0);
+        let r = get_with(&app, "/mono/example.com", &[("x-icon-private", "1")]).await;
+        assert_eq!(r.headers().get(H_REASON).unwrap(), "not-cached");
+        assert_eq!(app.queue.len(), 0);
+        get(&app, "/color/example.com").await;
+        assert_eq!(app.queue.len(), 1);
     }
 
     #[test]

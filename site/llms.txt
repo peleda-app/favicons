@@ -30,7 +30,8 @@ Unknown slugs are `404`. Mind `X-Icon-License` (CC-BY and Apache need credit).
 ## Headers worth reading
 
 - `X-Icon-Source`: `cache`, `origin` (fetched just now) or `generated`.
-- `X-Icon-Fallback-Reason`: `queued` (first request for this domain; ask again in a few seconds for the real icon), `not-found`, `fetch-failed`, `blocklisted`, `dns-blocked`, `domain-too-new`, `invalid-domain`, `no-monochrome`, `overloaded`.
+- `X-Icon-Fallback-Reason`: `queued` (first request for this domain; ask again in a few seconds for the real icon), `not-found`, `fetch-failed`, `blocklisted`, `dns-blocked`, `domain-too-new`, `invalid-domain`, `no-monochrome`, `overloaded`, `not-cached` (private request, nothing was fetched).
+- Private requests: use `https://private.favicons.page/...` or send `X-Icon-Private: 1` to read the cache only. The service then never contacts the site; uncached domains get the generated icon.
 - `X-Icon-Blocked`: `blocklist` or `dns-filter` when the domain is known to be malicious; the body is a red warning icon. Treat the site as unsafe.
 - `X-Icon-Provenance`: `bimi` (the owner's verified mail logo), `thesvg` (a curated catalog), `site` or `upstream`.
 - `X-Icon-Shape` (`square`, `rounded`, `circle`, `none`) and `X-Icon-Fill`: `bleed` means draw the icon at full size and clip it to your corners; `inset` means pad it by about 18% on a plate.

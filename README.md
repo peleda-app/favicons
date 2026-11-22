@@ -114,7 +114,9 @@ import { Favicon } from "favicons.page/react";
   writer. No SSRF, no decompression bombs, no scripts in your icons.
 - **Private by design.** Requests collapse to the registrable domain, so
   per-recipient subdomains can't become read receipts. Lookups go over
-  encrypted, malware-filtering DNS. Client IPs are never logged.
+  encrypted, malware-filtering DNS. Client IPs are never logged. For stricter
+  needs, `private.favicons.page` answers from the cache only and never contacts
+  the site.
 - **Fast and small.** About 170 000 cached icons per second on a laptop,
   10 000 on a 4-core Celeron thin client, in about 50 MB of RAM.
   [Benchmarks](docs/PERFORMANCE.md).

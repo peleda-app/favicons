@@ -2,11 +2,12 @@ import { createFavicons, DEFAULT_BASE_URL } from "./index.js";
 
 const clients = new Map();
 
-export function clientFor(baseUrl) {
-  const key = baseUrl ?? DEFAULT_BASE_URL;
+export function clientFor(baseUrl, isPrivate = false) {
+  const base = baseUrl ?? DEFAULT_BASE_URL;
+  const key = `${isPrivate ? "private " : ""}${base}`;
   let client = clients.get(key);
   if (!client) {
-    client = createFavicons({ baseUrl: key });
+    client = createFavicons({ baseUrl: base, private: isPrivate });
     clients.set(key, client);
   }
   return client;
@@ -19,7 +20,7 @@ export function targetOf(props) {
   return props.domain;
 }
 
-export function iconView(props, client = clientFor(props.baseUrl)) {
+export function iconView(props, client = clientFor(props.baseUrl, props.private)) {
   const size = props.size ?? 32;
   const px = typeof size === "number" ? `${size}px` : size;
   const alt = props.alt ?? "";

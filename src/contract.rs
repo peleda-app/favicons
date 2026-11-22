@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 
 pub const H_SOURCE: &str = "x-icon-source";
 pub const H_FETCH: &str = "x-favicons-fetch";
+pub const H_PRIVATE: &str = "x-icon-private";
 pub const H_FALLBACK: &str = "x-icon-fallback";
 pub const H_REASON: &str = "x-icon-fallback-reason";
 pub const H_DOMAIN: &str = "x-icon-domain";
@@ -145,6 +146,7 @@ pub enum FallbackReason {
     DnsBlocked,
     InvalidDomain,
     NoMonochrome,
+    NotCached,
 }
 
 impl FallbackReason {
@@ -159,13 +161,17 @@ impl FallbackReason {
             FallbackReason::DnsBlocked => "dns-blocked",
             FallbackReason::InvalidDomain => "invalid-domain",
             FallbackReason::NoMonochrome => "no-monochrome",
+            FallbackReason::NotCached => "not-cached",
         }
     }
 
     pub fn is_transient(self) -> bool {
         matches!(
             self,
-            FallbackReason::Queued | FallbackReason::Overloaded | FallbackReason::FetchFailed
+            FallbackReason::Queued
+                | FallbackReason::Overloaded
+                | FallbackReason::FetchFailed
+                | FallbackReason::NotCached
         )
     }
 
@@ -177,7 +183,7 @@ impl FallbackReason {
         }
     }
 
-    pub const ALL: [FallbackReason; 9] = [
+    pub const ALL: [FallbackReason; 10] = [
         FallbackReason::Queued,
         FallbackReason::Overloaded,
         FallbackReason::NotFound,
@@ -187,5 +193,6 @@ impl FallbackReason {
         FallbackReason::DnsBlocked,
         FallbackReason::InvalidDomain,
         FallbackReason::NoMonochrome,
+        FallbackReason::NotCached,
     ];
 }

@@ -13,6 +13,10 @@ shutdown_grace_ms = 10000
 # worker_threads = 2     # async runtime threads; default is one per CPU. Lower it on a box shared with other services
 landing = true          # serve the demo page at / (only in builds with the "site" feature, e.g. the favicons.page image)
 # public_url = "https://favicons.example.com"  # name and canonical URLs on the page; defaults to tls.domains[0], then the Host header
+# Requests on these hosts read the cache only and never trigger a fetch, a queue
+# entry or any outbound lookup; X-Icon-Private: 1 does the same on any host.
+# Add the host to tls.domains too when the service terminates TLS itself.
+# private_hosts = ["private.favicons.example.com"]
 
 [client_ip]
 # peer | x-forwarded-for | x-real-ip | cf-connecting-ip

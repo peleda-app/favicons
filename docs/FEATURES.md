@@ -84,6 +84,14 @@
   image dimensions are checked before any decompression, so bombs never inflate.
   See [docs/SECURITY.md](SECURITY.md).
 
+## Private requests
+
+A request on a host from `server.private_hosts` (`private.favicons.page`) or
+with `X-Icon-Private: 1` is answered from the cache only. A miss gets the
+generated icon with reason `not-cached`; the service makes no outbound
+connection, so the looked-up site never learns about it. See
+[API: private requests](API.md#private-requests).
+
 ## How a request is served
 
 ```

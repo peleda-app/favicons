@@ -1,4 +1,5 @@
 export const DEFAULT_BASE_URL = "https://favicons.page";
+export const PRIVATE_BASE_URL = "https://private.favicons.page";
 
 const STYLES = new Set(["color", "mono"]);
 const SHAPES = new Set(["rounded", "superellipse"]);
@@ -124,8 +125,21 @@ export function maskCss(url, { size = "contain", position = "center" } = {}) {
   return `-webkit-mask: ${value}; mask: ${value};`;
 }
 
+function trimmed(value) {
+  return String(value).replace(/\/+$/, "");
+}
+
 export function createFavicons(config = {}) {
-  const base = String(config.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, "");
+  const isPrivate = Boolean(config.private);
+  const shared = trimmed(config.baseUrl ?? DEFAULT_BASE_URL);
+  const privateBase =
+    config.privateBaseUrl !== undefined
+      ? trimmed(config.privateBaseUrl)
+      : shared === DEFAULT_BASE_URL
+        ? PRIVATE_BASE_URL
+        : undefined;
+  const base = isPrivate && privateBase ? privateBase : shared;
+  const asked = isPrivate && !privateBase ? { "x-icon-private": "1" } : undefined;
   const fetcher = config.fetch ?? globalThis.fetch;
   const retries = config.retries ?? 2;
   const retryDelay = config.retryDelay ?? 1500;
@@ -138,6 +152,7 @@ export function createFavicons(config = {}) {
     if (typeof fetcher !== "function") {
       throw new FaviconsError("favicons: no fetch available, pass one in createFavicons({ fetch })");
     }
+    if (asked) init = { ...init, headers: { ...init.headers, ...asked } };
     if (!reload) return fetcher(address, init);
     try {
       return await fetcher(address, { ...init, cache: "reload" });
@@ -207,6 +222,7 @@ export function createFavicons(config = {}) {
 
   return {
     baseUrl: base,
+    private: isPrivate,
     url,
     get,
     head,

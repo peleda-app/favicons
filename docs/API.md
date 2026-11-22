@@ -256,6 +256,7 @@ palettes existed is served without them and refreshed in the background.
 | `dns-blocked` | `fallback_stable` | The filtering DNS resolver sinkholed the domain (answered `0.0.0.0`). `X-Icon-Blocked: dns-filter`. |
 | `no-monochrome` | `fallback_stable` | `mono` was requested, the site has a colour icon, but neither a mask icon nor a usable derived shape exists. |
 | `invalid-domain` | `fallback_stable` | Not a public, registrable DNS name (IP literals, `localhost`, unknown TLDs, `.onion`, …). |
+| `not-cached` | `no-store` | A [private request](#private-requests) for a domain that is not cached. Nothing was fetched or queued. |
 
 Blocked domains (`blocklisted`, `dns-blocked`) get a fixed **warning icon**: a red
 square (a red gradient with a warm highlight) and a white exclamation mark, the
@@ -269,6 +270,33 @@ within about 100° of each other, so overlaps never turn muddy), the gradient
 direction, and the position, size and colour of every glow. Lightness is capped
 on yellow and green hues so the white pattern stays readable. The same domain
 always gets the same image on every instance that shares the salt.
+
+### Private requests
+
+A private request reads the cache and nothing else. The service makes no
+outbound connection for it: no fetch, no queue entry, no background refresh of a
+stale icon, no DNS, RDAP or BIMI lookup, no upstream provider and no catalog
+download. Nobody outside the instance learns that the domain was looked up.
+
+* A cached icon is served as usual, stale or not.
+* Anything else gets the generated icon with `X-Icon-Fallback-Reason:
+  not-cached` and `Cache-Control: no-store` plus `CDN-Cache-Control: no-store`,
+  so a CDN never hands that placeholder to ordinary requests.
+* Plates, palettes and masks are computed locally from the cached icon and work
+  the same way.
+
+Two ways to ask for it:
+
+* **A private host.** Requests whose `Host` is listed in
+  `server.private_hosts` are private. On favicons.page that is
+  `https://private.favicons.page/color/github.com`. It works in a plain
+  `<img src>` and keeps its own CDN cache.
+* **A header.** `X-Icon-Private: 1` on any request, for `fetch()` and servers.
+  Cross-origin browser requests with it go through a CORS preflight, which the
+  service allows.
+
+The popular sites and the icon catalogs prerendered into the favicons.page
+image are always cached, so they are always available privately.
 
 ### Caching guidance for clients
 

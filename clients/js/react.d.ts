@@ -12,11 +12,16 @@ export interface FaviconProps extends Omit<HTMLAttributes<HTMLElement>, "childre
   alt?: string;
   loading?: "lazy" | "eager";
   baseUrl?: string;
+  private?: boolean;
 }
 
 export declare function Favicon(props: FaviconProps): ReactElement;
 
-export declare function FaviconsProvider(props: { baseUrl?: string; children?: ReactNode }): ReactElement;
+export declare function FaviconsProvider(props: {
+  baseUrl?: string;
+  private?: boolean;
+  children?: ReactNode;
+}): ReactElement;
 
 export interface FaviconState {
   icon: Icon | undefined;
@@ -26,7 +31,10 @@ export interface FaviconState {
 
 export declare function useFavicon(
   target: IconTarget,
-  options?: Omit<RequestOptions, "signal"> & { baseUrl?: string },
+  options?: Omit<RequestOptions, "signal"> & { baseUrl?: string; private?: boolean },
 ): FaviconState;
 
-export declare function useFaviconUrl(target: IconTarget, options?: UrlOptions & { baseUrl?: string }): string;
+export declare function useFaviconUrl(
+  target: IconTarget,
+  options?: UrlOptions & { baseUrl?: string; private?: boolean },
+): string;

@@ -1,4 +1,5 @@
 export declare const DEFAULT_BASE_URL: "https://favicons.page";
+export declare const PRIVATE_BASE_URL: "https://private.favicons.page";
 
 export type Style = "color" | "mono";
 export type Shape = "rounded" | "superellipse";
@@ -13,7 +14,8 @@ export type FallbackReason =
   | "blocklisted"
   | "dns-blocked"
   | "no-monochrome"
-  | "invalid-domain";
+  | "invalid-domain"
+  | "not-cached";
 
 export interface CatalogIcon {
   catalog: string;
@@ -98,6 +100,8 @@ export interface Catalog extends CatalogSummary {
 
 export interface FaviconsConfig {
   baseUrl?: string;
+  private?: boolean;
+  privateBaseUrl?: string;
   fetch?: typeof fetch;
   retries?: number;
   retryDelay?: number;
@@ -105,6 +109,7 @@ export interface FaviconsConfig {
 
 export interface Favicons {
   readonly baseUrl: string;
+  readonly private: boolean;
   url(target: IconTarget, options?: UrlOptions): string;
   get(target: IconTarget, options?: RequestOptions): Promise<Icon>;
   head(target: IconTarget, options?: RequestOptions): Promise<IconInfo>;

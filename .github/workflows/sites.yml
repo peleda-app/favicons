@@ -79,7 +79,7 @@ jobs:
           SHARD: ${{ matrix.shard }}
         run: |
           mkdir -p out && chmod 0777 out
-          printf '[render]\ndecode_concurrency = %s\n\n[fetch]\nworkers = 32\n\n[policy]\nmin_domain_age_days = 0\n\n[cache]\nstorage = "file:///out"\n' "$(nproc)" > prerender.toml
+          printf '[render]\ndecode_concurrency = %s\n\n[fetch]\nworkers = 32\n\n[policy]\nmin_domain_age_days = 0\n\n[catalog.thesvg]\nenabled = true\nlicenses = ["CC0-1.0", "Unlicense", "MIT", "Apache-2.0", "BSD-2-Clause", "BSD-3-Clause", "CC-BY-4.0", "CC-BY-3.0"]\n\n[cache]\nstorage = "file:///out"\n' "$(nproc)" > prerender.toml
           docker run --rm -v "$PWD/prerender.toml:/etc/prerender.toml:ro" -v "$PWD/shards/$SHARD:/list.txt:ro" \
             -v "$PWD/out:/out" "$BASE" prerender-domains /list.txt --config /etc/prerender.toml
           echo "icons: $(find out/v4 -mindepth 1 -maxdepth 1 | wc -l) of $(wc -l < "shards/$SHARD")"

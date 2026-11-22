@@ -68,7 +68,10 @@ jobs:
           cp catalogs/catalogs.toml catalogs/bundle/catalogs.toml
           echo "LICENSES=$licenses" >> "$GITHUB_ENV"
           echo "entries: $(find catalogs/bundle/v4 -mindepth 1 -maxdepth 1 | wc -l)"
-          du -sh --apparent-size catalogs/bundle
+          docker run --rm -v "$PWD/catalogs/bundle:/out" "$BASE" pack /out /out/catalogs.pack
+          sudo rm -rf catalogs/bundle/v4
+          ls -la catalogs/bundle
+          du -sh catalogs/bundle
       - id: sites
         name: pick the top sites layer
         env:

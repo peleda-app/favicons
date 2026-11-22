@@ -83,13 +83,13 @@ jobs:
           docker run --rm -v "$PWD/prerender.toml:/etc/prerender.toml:ro" -v "$PWD/shards/$SHARD:/list.txt:ro" \
             -v "$PWD/out:/out" "$BASE" prerender-domains /list.txt --config /etc/prerender.toml
           echo "entries: $(find out/v4 -mindepth 1 -maxdepth 1 | wc -l) of $(wc -l < "shards/$SHARD")"
-          tar -C out -czf "$SHARD.tgz" v4
+          docker run --rm -v "$PWD/out:/out" "$BASE" pack /out "/out/$SHARD.pack"
+          ls -la "out/$SHARD.pack"
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.shard }}
-          path: ${{ matrix.shard }}.tgz
+          path: out/${{ matrix.shard }}.pack
           retention-days: 7
-          compression-level: 0
 
   image:
     needs: render
@@ -107,13 +107,13 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           path: parts
-      - name: merge the shards
+      - name: collect the packs
         run: |
           mkdir -p catalogs/sites
-          for part in parts/shard-*/*.tgz; do tar -xzf "$part" -C catalogs/sites; done
+          cp parts/shard-*/*.pack catalogs/sites/
           cp parts/list/domains.txt parts/list/SOURCES.md catalogs/sites/
-          echo "entries: $(find catalogs/sites/v4 -mindepth 1 -maxdepth 1 | wc -l)"
-          du -sh --apparent-size catalogs/sites
+          ls -la catalogs/sites
+          du -sh catalogs/sites
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         with:

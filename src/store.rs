@@ -240,6 +240,7 @@ fn icon_cache(cfg: &CacheCfg) -> IconCache {
 pub struct Store {
     backend: Option<Arc<dyn ObjectStore>>,
     seed: Option<Arc<dyn ObjectStore>>,
+    packs: Vec<crate::pack::Pack>,
     pub disk: Option<Arc<Disk>>,
     attributes: bool,
     prefix: Path,
@@ -267,11 +268,9 @@ impl Store {
             )
             .map(Arc::new)
         });
-        let seed = cfg
-            .seed
-            .as_deref()
-            .map(str::trim)
-            .filter(|s| !s.is_empty())
+        let seed_dir = cfg.seed.as_deref().map(str::trim).filter(|s| !s.is_empty());
+        let packs = seed_dir.map(open_packs).unwrap_or_default();
+        let seed = seed_dir
             .and_then(|dir| match object_store::local::LocalFileSystem::new_with_prefix(dir) {
                 Ok(fs) => Some(Arc::new(fs) as Arc<dyn ObjectStore>),
                 Err(e) => {
@@ -282,6 +281,7 @@ impl Store {
         Ok(Self {
             backend,
             seed,
+            packs,
             disk,
             attributes,
             prefix,
@@ -333,6 +333,14 @@ impl Store {
     }
 
     async fn read_seed(&self, domain: &str, name: &str) -> anyhow::Result<Option<Bytes>> {
+        if !self.packs.is_empty() {
+            let key = format!("{domain}/{name}");
+            for pack in &self.packs {
+                if let Some(b) = pack.get(&key).await? {
+                    return Ok(Some(b));
+                }
+            }
+        }
         match &self.seed {
             Some(seed) => self.read(seed, &Self::seed_path(domain, name)).await,
             None => Ok(None),
@@ -355,10 +363,7 @@ impl Store {
         {
             return Ok(Some(b));
         }
-        if let Some(seed) = &self.seed {
-            return self.read(seed, &Self::seed_path(domain, name)).await;
-        }
-        Ok(None)
+        self.read_seed(domain, name).await
     }
 
     pub async fn peek_meta(&self, domain: &str) -> Option<Meta> {
@@ -564,6 +569,31 @@ impl Store {
     }
 }
 
+fn open_packs(dir: &str) -> Vec<crate::pack::Pack> {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return Vec::new();
+    };
+    let mut paths: Vec<PathBuf> = entries
+        .filter_map(Result::ok)
+        .map(|e| e.path())
+        .filter(|p| p.extension().is_some_and(|x| x == "pack"))
+        .collect();
+    paths.sort();
+    paths
+        .into_iter()
+        .filter_map(|p| match crate::pack::Pack::open(&p, LAYOUT_VERSION) {
+            Ok(pack) => {
+                tracing::info!(pack = %p.display(), entries = pack.len(), "seed pack opened");
+                Some(pack)
+            }
+            Err(e) => {
+                tracing::warn!(pack = %p.display(), error = %e, "ignoring seed pack");
+                None
+            }
+        })
+        .collect()
+}
+
 type Backend = (Option<Arc<dyn ObjectStore>>, Path, bool, Option<PathBuf>);
 
 fn build_backend(cfg: &CacheCfg) -> anyhow::Result<Backend> {
@@ -660,6 +690,44 @@ mod tests {
         assert!(!meta.pinned && !meta.seeded);
         let icon = store.image(&meta, Slot::Color).await.unwrap();
         assert_eq!(icon.raw().as_ref(), b"working");
+
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[tokio::test]
+    async fn a_packed_seed_serves_pinned_entries() {
+        let root =
+            std::env::temp_dir().join(format!("favicons-pack-seed-{}", rand::random::<u64>()));
+        let (tree, packed, cache_dir) =
+            (root.join("tree"), root.join("packed"), root.join("cache"));
+        let seeder = store_in(&tree);
+        let mut pinned = Meta::new("example.com", Status::Ok);
+        pinned.color = Some(VectorOrigin::Original);
+        pinned.pinned = true;
+        seeder
+            .put_cold(pinned, vec![(Slot::Color, b"packed".to_vec())])
+            .await;
+        std::fs::create_dir_all(&packed).unwrap();
+        crate::pack::write(&tree, LAYOUT_VERSION, &packed.join("sites.pack")).unwrap();
+
+        let working = store_in(&cache_dir);
+        let mut stale = Meta::new("example.com", Status::Ok);
+        stale.color = Some(VectorOrigin::Traced);
+        working
+            .put_cold(stale, vec![(Slot::Color, b"working".to_vec())])
+            .await;
+
+        let cfg = CacheCfg {
+            storage: format!("file://{}", cache_dir.display()),
+            seed: Some(packed.display().to_string()),
+            ..CacheCfg::default()
+        };
+        let store = Store::new(&cfg, &HttpCache::default()).unwrap();
+        let meta = store.meta("example.com").await.unwrap();
+        assert!(meta.pinned && meta.seeded);
+        let icon = store.image(&meta, Slot::Color).await.unwrap();
+        assert_eq!(icon.raw().as_ref(), b"packed");
+        assert!(store.meta("example.net").await.is_none());
 
         std::fs::remove_dir_all(&root).unwrap();
     }

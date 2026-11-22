@@ -12,6 +12,7 @@ mod limiter;
 mod metrics;
 mod net;
 mod openapi;
+mod pack;
 mod palette;
 mod plate;
 mod policy;
@@ -58,6 +59,7 @@ fn run_main(mut args: impl Iterator<Item = String>) -> anyhow::Result<()> {
     let mut render_server = false;
     let mut prerender = false;
     let mut domain_list: Option<PathBuf> = None;
+    let mut pack: Option<(PathBuf, PathBuf)> = None;
     let mut config_path = std::env::var_os("FAVICONS_CONFIG").map(PathBuf::from);
     let mut check_only = false;
     while let Some(arg) = args.next() {
@@ -66,6 +68,12 @@ fn run_main(mut args: impl Iterator<Item = String>) -> anyhow::Result<()> {
             "--check-config" => check_only = true,
             "render-server" => render_server = true,
             "prerender" => prerender = true,
+            "pack" => {
+                let (Some(dir), Some(out)) = (args.next(), args.next()) else {
+                    anyhow::bail!("usage: favicons pack DIR OUT.pack");
+                };
+                pack = Some((dir.into(), out.into()));
+            }
             "prerender-domains" => {
                 domain_list = Some(args.next().map(PathBuf::from).ok_or_else(|| {
                     anyhow::anyhow!("prerender-domains needs a file with one domain per line")
@@ -76,9 +84,15 @@ fn run_main(mut args: impl Iterator<Item = String>) -> anyhow::Result<()> {
                 return Ok(());
             }
             other => anyhow::bail!(
-                "unknown argument {other}; usage: favicons [render-server | prerender | prerender-domains FILE | render-worker | sandbox-selftest PROBE] [--config PATH] [--check-config]"
+                "unknown argument {other}; usage: favicons [render-server | prerender | prerender-domains FILE | pack DIR OUT | render-worker | sandbox-selftest PROBE] [--config PATH] [--check-config]"
             ),
         }
+    }
+
+    if let Some((dir, out)) = pack {
+        let n = pack::write(&dir, store::LAYOUT_VERSION, &out)?;
+        println!("packed {n} files into {}", out.display());
+        return Ok(());
     }
 
     let filter = EnvFilter::try_from_env("FAVICONS_LOG").unwrap_or_else(|_| EnvFilter::new("info"));

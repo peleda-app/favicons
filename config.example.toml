@@ -92,9 +92,10 @@ storage_timeout_ms = 2000
 # usage is back under 90% of it. 0 means no cap. Object storage: use lifecycle rules.
 max_disk_bytes = 0            # e.g. 5_000_000_000
 max_disk_entries = 0          # domains
-# A read-only directory of prerendered entries in the same layout, consulted when
-# the working cache has none. The favicons.page image keeps its catalogs and the
-# top sites there; entries marked "pinned" are never refreshed or evicted.
+# A read-only directory of prerendered entries, consulted when the working cache
+# has none: `.pack` files made by `favicons pack DIR OUT.pack`, then a v4/ tree.
+# The favicons.page image keeps its catalogs and the top sites there; entries
+# marked "pinned" are never refreshed or evicted.
 # seed = "/catalogs"
 
 # Passed straight to object_store; see its docs for all keys.

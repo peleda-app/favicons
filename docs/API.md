@@ -417,7 +417,8 @@ start; object stores keep them until you delete them.
 
 `status` is one of `ok`, `not-found`, `fetch-failed`, `too-new`, `blocked`. Each
 slot holds the vector origin (`original` / `traced`) or `null`. Entries
-prerendered into the `cache.seed` directory carry `"pinned": true`: they are
+prerendered into the `cache.seed` directory (a tree like this one, or `.pack`
+files written by `favicons pack`) carry `"pinned": true`: they are
 served as they are, never queued for a refresh, and win over a copy of the same
 domain in the working cache. The service always
 serves icons itself; storage is never exposed to clients.

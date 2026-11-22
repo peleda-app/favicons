@@ -300,8 +300,9 @@ h2 { font-family: var(--display); font-size: clamp(30px, 3.8vw, 44px); letter-sp
 .code.pv-code { padding: 14px 64px 14px 16px; background: var(--bg); }
 .pv-code pre { font-size: 12.5px; white-space: pre-wrap; word-break: break-all; }
 .credit { margin: 0; font-size: 12.5px; color: var(--dim); }
-.snippets .tabs { display: flex; gap: 4px; margin-bottom: 8px; }
-.snippets .tabs button { border: 0; background: transparent; color: var(--muted); font: 13px var(--sans); padding: 7px 12px; border-radius: 9px; cursor: pointer; }
+.snippets .tabs { display: flex; gap: 4px; margin-bottom: 8px; overflow-x: auto; scrollbar-width: none; overscroll-behavior-x: contain; }
+.snippets .tabs::-webkit-scrollbar { display: none; }
+.snippets .tabs button { flex: none; white-space: nowrap; border: 0; background: transparent; color: var(--muted); font: 13px var(--sans); padding: 7px 12px; border-radius: 9px; cursor: pointer; }
 .snippets .tabs button[aria-selected="true"] { background: var(--surface); color: var(--text); }
 .snippets pre { white-space: pre-wrap; word-break: break-all; }
 .api h3 { font-size: 15px; font-weight: 600; margin: 0 0 12px; }
@@ -337,8 +338,9 @@ h2 { font-family: var(--display); font-size: clamp(30px, 3.8vw, 44px); letter-sp
 .steps { min-height: 0; }
 .code.cfg { flex: 1 1 0; min-height: 260px; display: flex; flex-direction: column; padding-bottom: 6px; }
 .code.cfg .h { color: var(--cream); font-weight: 600; }
-.code.cfg .s { color: #b5d99c; }
-.code.cfg .n { color: #9ec5ff; }
+.code .s { color: #b5d99c; }
+.code .n { color: #9ec5ff; }
+.code .t { color: var(--cream); }
 .code.cfg pre { flex: 1; min-height: 0; overflow: auto; font-size: 12.5px; padding-bottom: 14px; scrollbar-width: thin; }
 .code .file { position: absolute; top: 14px; left: 22px; font: 12px var(--mono); color: var(--dim); }
 .code .k { color: var(--accent); }
@@ -570,6 +572,8 @@ footer a { color: var(--muted); }
       <button type="button" role="tab" data-tab="css" aria-selected="false">CSS mask</button>
       <button type="button" role="tab" data-tab="plate" aria-selected="false">On a plate</button>
       <button type="button" role="tab" data-tab="js" aria-selected="false">JavaScript</button>
+      <button type="button" role="tab" data-tab="react" aria-selected="false">React</button>
+      <button type="button" role="tab" data-tab="vue" aria-selected="false">Vue</button>
       <button type="button" role="tab" data-tab="curl" aria-selected="false">curl</button>
     </div>
     <div class="code"><button class="copy" id="snippetCopy">copy</button><pre id="snippet"></pre></div>
@@ -610,7 +614,7 @@ footer a { color: var(--muted); }
     <div class="point"><span class="pi"><svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M128 32a96 96 0 0 1 0 192Z" opacity="0.2"/><path d="M128 24a104 104 0 1 0 104 104A104.11 104.11 0 0 0 128 24Zm-88 104a88.1 88.1 0 0 1 80-87.63v175.26A88.1 88.1 0 0 1 40 128Zm96 87.63V40.37a88 88 0 0 1 0 175.26Z"/></svg></span><h3>Follows light and dark</h3><p>Leave the theme out of a badge URL and it switches with the viewer's system scheme. Pin <code>/light</code> or <code>/dark</code> when your app has its own toggle.</p></div>
     <div class="point"><span class="pi"><svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M216 48v160H40V48Z" opacity="0.2"/><path d="M69.12 94.15 28.5 128l40.62 33.85a8 8 0 1 1-10.24 12.29l-48-40a8 8 0 0 1 0-12.29l48-40a8 8 0 0 1 10.24 12.3Zm176 27.7-48-40a8 8 0 1 0-10.24 12.3L227.5 128l-40.62 33.85a8 8 0 1 0 10.24 12.29l48-40a8 8 0 0 0 0-12.29ZM162.73 32.48a8 8 0 0 0-10.25 4.79l-64 176a8 8 0 0 0 4.79 10.26 8.14 8.14 0 0 0 2.73.48 8 8 0 0 0 7.52-5.27l64-176a8 8 0 0 0-4.79-10.26Z"/></svg></span><h3>Safe to inline</h3><p>Ids and classes in every SVG are unique to that icon, so any number of them can share one page without clashing.</p></div>
   </div>
-  <p class="use-more">Start with the <a href="#api">API</a>, read <a href="/llms.txt">llms.txt</a> or <a href="/openapi.json">openapi.json</a>, or <a href="#self-host">host it yourself</a>.</p>
+  <p class="use-more">Start with the <a href="#api">API</a> or <code>npm i favicons.page</code>, with <a href="https://github.com/peleda-app/favicons/tree/main/clients/js" target="_blank" rel="noopener">components</a> for React, Vue, Svelte and plain HTML, read <a href="/llms.txt">llms.txt</a> or <a href="/openapi.json">openapi.json</a>, or <a href="#self-host">host it yourself</a>.</p>
 </section>
 
 <section id="catalogs" hidden>
@@ -634,6 +638,7 @@ footer a { color: var(--muted); }
       </div>
       <div class="code pv-code"><button class="copy" data-pv="url">copy</button><pre id="pvUrl">&nbsp;</pre></div>
       <div class="code pv-code"><button class="copy" data-pv="html">copy</button><pre id="pvHtml">&nbsp;</pre></div>
+      <div class="code pv-code"><button class="copy" data-pv="react">copy</button><pre id="pvReact">&nbsp;</pre></div>
       <p class="credit" id="pvCredit">&nbsp;</p>
     </div>
   </div>
@@ -723,6 +728,36 @@ footer a { color: var(--muted); }
   const mail = $("#mail");
   const cursor = $("#cursor");
   const esc = (v) => String(v).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const hl = (code, lang) => {
+    const js = ["js", "jsx", "vue"].includes(lang);
+    const markup = ["html", "jsx", "vue"].includes(lang);
+    const rules = [
+      ["c", lang !== "sh" && lang !== "css" && String.raw`\/\/[^\n]*`],
+      ["c", String.raw`\/\*[\s\S]*?\*\/|<!--[\s\S]*?-->`],
+      ["s", String.raw`"(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*'|\x60(?:[^\x60\\]|\\.)*\x60`],
+      ["t", markup && String.raw`(?<=<\/?)[A-Za-z][\w.-]*`],
+      ["k", markup && String.raw`[:@]?[A-Za-z_][\w-]*(?==)`],
+      ["k", js && String.raw`\b(?:import|from|const|let|await|async|function|return|export|default|new)\b`],
+      ["t", lang === "css" && String.raw`^\s*[.#]?[\w-]+(?=\s*\{)`],
+      ["k", lang === "css" && String.raw`^\s*[\w-]+(?=\s*:)`],
+      ["k", lang === "sh" && String.raw`^\w+|(?<=\s)--?[\w-]+`],
+      ["n", String.raw`#[0-9a-fA-F]{3,8}\b|\b\d+(?:\.\d+)?(?:px|%|em)?\b`],
+    ].filter(([, r]) => r);
+    let re;
+    try {
+      re = new RegExp(rules.map(([, r]) => `(${r})`).join("|"), "gm");
+    } catch {
+      return esc(code);
+    }
+    let out = "";
+    let last = 0;
+    for (const m of code.matchAll(re)) {
+      const i = m.slice(1).findIndex((g) => g !== undefined);
+      out += `${esc(code.slice(last, m.index))}<span class="${rules[i][0]}">${esc(m[0])}</span>`;
+      last = m.index + m[0].length;
+    }
+    return out + esc(code.slice(last));
+  };
   const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
   const STAR = `<svg class="star" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M234.29,114.85l-45,38.83L203,211.75a16.4,16.4,0,0,1-24.5,17.82L128,198.49,77.47,229.57A16.4,16.4,0,0,1,53,211.75l13.76-58.07-45-38.83A16.46,16.46,0,0,1,31.08,86l59-4.76,22.76-55.08a16.36,16.36,0,0,1,30.27,0l22.75,55.08,59,4.76a16.46,16.46,0,0,1,9.37,28.86Z"/></svg>`;
   const published = (file) => fetch(`https://stats.favicons.page/${file}?v=${Math.floor(Date.now() / 60000)}`, { cache: "no-store", credentials: "omit" });
@@ -1096,7 +1131,20 @@ footer a { color: var(--muted); }
       }
     }
 
+    const LANG = { html: "html", plate: "html", css: "css", js: "js", react: "jsx", vue: "vue", curl: "sh" };
     const suffix = () => (!shape ? "" : theme === "auto" ? `/${shape}` : `/${shape}/${theme}`);
+    const opts = () => {
+      const o = [style === "mono" && `style: "mono"`, shape && `shape: "${shape}"`, shape && theme !== "auto" && `theme: "${theme}"`].filter(Boolean);
+      return o.length ? `, { ${o.join(", ")} }` : "";
+    };
+    const jsx = (vue = false) => {
+      const d = state.domain;
+      const base = location.origin !== "https://favicons.page" && !vue ? ` baseUrl="${location.origin}"` : "";
+      const size = vue ? ` :size="${shape ? 40 : 24}"` : ` size={${shape ? 40 : 24}}`;
+      const attrs = [`domain="${d}"`, style === "mono" && "mono", shape && `shape="${shape}"`, shape && theme !== "auto" && `theme="${theme}"`].filter(Boolean).join(" ");
+      const note = style === "mono" && !shape ? (vue ? " <!-- a mask in the text colour -->" : " {/* a mask in the text colour */}") : "";
+      return `<Favicon ${attrs}${size} alt="${title(d)}"${base} />${note}`;
+    };
     function snippet() {
       if (!state) return "";
       const o = location.origin;
@@ -1106,8 +1154,22 @@ footer a { color: var(--muted); }
       switch (tab) {
         case "css":
           return `.icon {\n  width: 24px;\n  height: 24px;\n  background: ${l.mono || "currentColor"};\n  mask: url(${o}/mono/${d}) center / contain no-repeat;\n}`;
-        case "js":
-          return `const r = await fetch("${o}/color/${d}");\nconst plate = r.headers.get("x-icon-light-plate"); // ${l.plate || "—"}\nconst text = r.headers.get("x-icon-light-text");   // ${l.text || "—"}\nconst svg = await r.text();`;
+        case "js": {
+          const own = o !== "https://favicons.page";
+          const head = own
+            ? `import { createFavicons } from "favicons.page"; // npm i favicons.page\n\nconst favicons = createFavicons({ baseUrl: "${o}" });\nconst icon = await favicons.get("${d}"${opts()});`
+            : `import { getIcon } from "favicons.page"; // npm i favicons.page\n\nconst icon = await getIcon("${d}"${opts()});`;
+          return `${head}\nicon.palette.light.plate // ${l.plate || "—"}\nicon.palette.light.text  // ${l.text || "—"}\nicon.palette.fill        // ${state.palette.fill || "—"}\nicon.svg                 // the SVG markup\n\n// or with plain fetch, no package\nconst r = await fetch("${o}/${style}/${d}${suffix()}");\nconst plate = r.headers.get("x-icon-light-plate");\nconst svg = await r.text();`;
+        }
+        case "react": {
+          const base = o !== "https://favicons.page" ? ` baseUrl="${o}"` : "";
+          const pad = state.palette.fill === "inset" ? 7 : 0;
+          return `import { Favicon, useFavicon } from "favicons.page/react";\n\n${jsx()}\n\n// your own badge: any radius, colours from the palette\nfunction Badge() {\n  const { icon } = useFavicon("${d}"${base ? `, { baseUrl: "${o}" }` : ""});\n  const p = icon?.palette; // light.plate ${l.plate || "—"}, fill ${state.palette.fill || "—"}\n  return (\n    <span style=\x7b\x7b display: "inline-flex", width: 40, height: 40, borderRadius: 12,\n      overflow: "hidden", background: p?.light.plate, padding: ${pad}, boxSizing: "border-box" \x7d\x7d>\n      <Favicon domain="${d}" size="100%"${base} />\n    </span>\n  );\n}`;
+        }
+        case "vue": {
+          const plugin = o !== "https://favicons.page" ? `\n// main.js: app.use(FaviconsPlugin, { baseUrl: "${o}" })` : "";
+          return `<script setup>\nimport { Favicon, useFavicon } from "favicons.page/vue";${plugin}\nconst { icon } = useFavicon("${d}");\n<\/script>\n\n<template>\n  ${jsx(true)}\n  <b :style="{ color: icon?.palette?.light.text }">${title(d)}</b> <!-- ${l.text || "—"} -->\n</template>`;
+        }
         case "plate":
           return `<!-- follows the system light or dark scheme -->\n<img src="${o}/${style}/${d}/superellipse" width="40" height="40" alt="${title(d)}">\n<!-- or pin one theme -->\n<img src="${o}/${style}/${d}/rounded/dark" width="40" height="40" alt="${title(d)}">`;
         case "curl":
@@ -1121,7 +1183,7 @@ footer a { color: var(--muted); }
       $("#platePath").textContent = suffix();
       document.querySelector('.opts[data-k="theme"]').classList.toggle("off", !shape);
       if (!state) return;
-      $("#snippet").textContent = snippet();
+      $("#snippet").innerHTML = hl(snippet(), LANG[tab]);
       const key = style + suffix();
       const checker = document.querySelector(".checker");
       const dark = state.palette.dark;
@@ -1264,7 +1326,7 @@ footer a { color: var(--muted); }
       if (!b) return;
       tab = b.dataset.tab;
       document.querySelectorAll("#tabs button").forEach((x) => x.setAttribute("aria-selected", String(x === b)));
-      $("#snippet").textContent = snippet();
+      $("#snippet").innerHTML = hl(snippet(), LANG[tab]);
     });
     $("#snippetCopy").addEventListener("click", () => {
       if (!navigator.clipboard || !state) return;
@@ -1574,7 +1636,10 @@ footer a { color: var(--muted); }
       if (urls[vi] || !keep) setSrc($("#pvHeroImg"), urls[vi]);
       $("#pvUrl").innerHTML = `<span class="c">${esc(location.origin)}</span>/<span class="k">${v.style}</span>/${esc(catalog.id)}/<b>${esc(current.slug)}</b>${v.plate ? `<span class="p">${esc(v.plate)}</span>` : ""}`;
       const size = v.plate ? 40 : 32;
-      $("#pvHtml").innerHTML = `<span class="c">&lt;</span>img src=<span class="k">"${esc(location.origin + path)}"</span> width="${size}" height="${size}" alt=""<span class="c">&gt;</span>`;
+      $("#pvHtml").innerHTML = hl(`<img src="${location.origin + path}" width="${size}" height="${size}" alt="">`, "html");
+      const [, shapeName, themeName] = v.plate ? v.plate.split("/") : [];
+      const props = [`catalog="${catalog.id}"`, `slug="${current.slug}"`, v.style === "mono" && "mono", shapeName && `shape="${shapeName}"`, themeName && `theme="${themeName}"`, `size={${size}}`].filter(Boolean).join(" ");
+      $("#pvReact").innerHTML = hl(`<Favicon ${props} />`, "jsx");
     }
 
     async function pick(it) {
@@ -1632,7 +1697,7 @@ footer a { color: var(--muted); }
     search.addEventListener("input", filter);
     document.querySelectorAll(".pv-code .copy").forEach((btn) => btn.addEventListener("click", () => {
       if (!navigator.clipboard || !current) return;
-      const pre = btn.dataset.pv === "url" ? $("#pvUrl") : $("#pvHtml");
+      const pre = $({ url: "#pvUrl", html: "#pvHtml", react: "#pvReact" }[btn.dataset.pv]);
       navigator.clipboard.writeText(pre.textContent).then(() => {
         btn.textContent = "copied";
         setTimeout(() => (btn.textContent = "copy"), 1200);

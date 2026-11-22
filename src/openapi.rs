@@ -187,6 +187,13 @@ impl Spec<'_> {
                 "responses": { "200": text("robots.txt", "text/plain") }
             }}),
         );
+        paths.insert(
+            "/.well-known/security.txt".into(),
+            json!({ "get": {
+                "operationId": "securityTxt", "summary": "Where to report vulnerabilities (RFC 9116)",
+                "responses": { "200": text("security.txt", "text/plain") }
+            }}),
+        );
         if self.site {
             paths.insert(
                 "/sitemap.xml".into(),

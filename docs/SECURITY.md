@@ -305,4 +305,5 @@ verified digest.
 ## Reporting a vulnerability
 
 Please use GitHub's private vulnerability reporting on this repository rather
-than a public issue.
+than a public issue. Every instance points there from
+`/.well-known/security.txt`.

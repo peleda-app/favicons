@@ -390,6 +390,7 @@ header (validated, never cached).
 | `/sitemap.xml` | The page's URL. |
 | `/robots.txt` | Lets search engines index the page but not `/color/` and `/mono/`, and lets user-driven AI agents (`ChatGPT-User`, `Claude-User`, `Perplexity-User`, `MistralAI-User`) fetch everything. Icon responses also carry `X-Robots-Tag: noindex`. |
 | `/llms.txt` | How to use the API, for language models and agents ([llmstxt.org](https://llmstxt.org)). |
+| `/.well-known/security.txt` | Where to report vulnerabilities ([RFC 9116](https://www.rfc-editor.org/rfc/rfc9116)): GitHub's private vulnerability reporting for this project and the security policy, with an `Expires` six months ahead of the request. |
 | `/openapi.json` | OpenAPI 3.1 description, generated at start from this server's config: its origin, version, configured catalogs (as an enum) and whether the page is built in. Builds without the page also serve it at `/`. |
 
 The page, its images and its fonts (Archivo and Martian Mono, OFL) are only in
@@ -397,7 +398,7 @@ builds with the `site` feature, such as the `favicons.page` image; it loads
 nothing from other hosts.
 
 `server.landing = false` turns off the page, the images and the sitemap;
-`robots.txt`, `llms.txt` and `openapi.json` stay.
+`robots.txt`, `security.txt`, `llms.txt` and `openapi.json` stay.
 
 ## `GET /healthz`
 

@@ -33,6 +33,7 @@ use crate::store::{Icon, Meta, Status};
 pub fn router(app: Arc<App>) -> Router {
     let mut r = Router::new()
         .route("/robots.txt", page(Asset::Robots))
+        .route("/.well-known/security.txt", get(security_txt))
         .route("/llms.txt", page(Asset::Llms))
         .route("/openapi.json", page(Asset::OpenApi));
     if crate::site::ENABLED && app.cfg.server.landing {
@@ -97,6 +98,43 @@ async fn preflight(req: Request, next: Next) -> Response {
     r
 }
 
+const SECURITY_CONTACT: &str = "https://github.com/peleda-app/favicons/security/advisories/new";
+const SECURITY_POLICY: &str = "https://github.com/peleda-app/favicons/blob/main/docs/SECURITY.md";
+
+async fn security_txt() -> Response {
+    let days = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs() / 86_400)
+        + 180;
+    let body = format!(
+        "Contact: {SECURITY_CONTACT}\nExpires: {}T00:00:00Z\nPolicy: {SECURITY_POLICY}\nPreferred-Languages: en\n",
+        civil_date(days)
+    );
+    let mut r = Response::new(Body::from(body));
+    r.headers_mut().insert(
+        CONTENT_TYPE,
+        HeaderValue::from_static("text/plain; charset=utf-8"),
+    );
+    r.headers_mut().insert(
+        CACHE_CONTROL,
+        HeaderValue::from_static("public, max-age=86400"),
+    );
+    r
+}
+
+fn civil_date(days: u64) -> String {
+    let z = days as i64 + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z - era * 146_097;
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let day = doy - (153 * mp + 2) / 5 + 1;
+    let month = if mp < 10 { mp + 3 } else { mp - 9 };
+    let year = yoe + era * 400 + i64::from(month <= 2);
+    format!("{year:04}-{month:02}-{day:02}")
+}
+
 pub fn challenge_router(app: Arc<App>) -> Router {
     Router::new()
         .route("/.well-known/acme-challenge/{token}", get(acme_challenge))
@@ -119,8 +157,14 @@ async fn acme_challenge(State(app): State<Arc<App>>, Path(token): Path<String>) 
     }
 }
 
-async fn to_https(State(app): State<Arc<App>>, uri: Uri) -> Response {
-    let Some(host) = app.cfg.tls.domains.first() else {
+async fn to_https(State(app): State<Arc<App>>, headers: HeaderMap, uri: Uri) -> Response {
+    let domains = &app.cfg.tls.domains;
+    let asked = request_host(&headers, &uri);
+    let Some(host) = domains
+        .iter()
+        .find(|d| asked.as_deref().is_some_and(|h| d.eq_ignore_ascii_case(h)))
+        .or_else(|| domains.first())
+    else {
         return plain(StatusCode::NOT_FOUND, "not found");
     };
     let path = uri.path_and_query().map_or("/", |p| p.as_str());
@@ -766,30 +810,24 @@ fn is_private(app: &App, headers: &HeaderMap, uri: &Uri) -> bool {
         return true;
     }
     let hosts = &app.cfg.server.private_hosts;
-    if hosts.is_empty() {
-        return false;
-    }
-    let host = uri
-        .host()
+    !hosts.is_empty()
+        && request_host(headers, uri)
+            .is_some_and(|h| hosts.iter().any(|p| p.eq_ignore_ascii_case(&h)))
+}
+
+fn request_host(headers: &HeaderMap, uri: &Uri) -> Option<String> {
+    uri.host()
         .map(str::to_string)
         .or_else(|| {
-            headers
-                .get(http::header::HOST)
-                .and_then(|v| v.to_str().ok())
-                .map(|h| {
-                    h.rsplit_once(':')
-                        .map_or(h, |(name, port)| {
-                            if port.bytes().all(|b| b.is_ascii_digit()) {
-                                name
-                            } else {
-                                h
-                            }
-                        })
-                        .to_string()
-                })
+            let h = headers.get(http::header::HOST)?.to_str().ok()?;
+            Some(
+                h.rsplit_once(':')
+                    .filter(|(_, port)| port.bytes().all(|b| b.is_ascii_digit()))
+                    .map_or(h, |(name, _)| name)
+                    .to_string(),
+            )
         })
-        .map(|h| h.trim_end_matches('.').to_ascii_lowercase());
-    host.is_some_and(|h| hosts.iter().any(|p| p.eq_ignore_ascii_case(&h)))
+        .map(|h| h.trim_end_matches('.').to_ascii_lowercase())
 }
 
 struct Out<'a> {
@@ -1142,6 +1180,7 @@ mod routing_tests {
             "/llms.txt",
             "/openapi.json",
             "/robots.txt",
+            "/.well-known/security.txt",
             "/{style}/{catalog}/{slug}",
             "/{style}/{catalog}/{slug}/{shape}",
             "/{style}/{catalog}/{slug}/{shape}/{theme}",
@@ -1268,6 +1307,63 @@ mod routing_tests {
         req.extensions_mut()
             .insert(ConnectInfo(SocketAddr::from(([198, 51, 100, 7], 4000))));
         router(app.clone()).oneshot(req).await.unwrap()
+    }
+
+    #[tokio::test]
+    async fn plain_http_redirects_keep_a_configured_host() {
+        let mut cfg = Config::default();
+        cfg.render.sandbox = SandboxMode::Off;
+        cfg.tls.domains = vec![
+            "favicons.example.net".into(),
+            "private.favicons.example.net".into(),
+        ];
+        let app = App::new(cfg).unwrap();
+        for (host, expected) in [
+            (
+                "private.favicons.example.net",
+                "https://private.favicons.example.net/color/a.com",
+            ),
+            (
+                "other.example.org:80",
+                "https://favicons.example.net/color/a.com",
+            ),
+        ] {
+            let req = http::Request::builder()
+                .uri("/color/a.com")
+                .header("host", host)
+                .body(Body::empty())
+                .unwrap();
+            let r = challenge_router(app.clone()).oneshot(req).await.unwrap();
+            assert_eq!(r.status(), StatusCode::PERMANENT_REDIRECT);
+            assert_eq!(r.headers().get(LOCATION).unwrap(), expected);
+        }
+    }
+
+    #[tokio::test]
+    async fn security_txt_names_a_contact_and_a_future_expiry() {
+        assert_eq!(civil_date(0), "1970-01-01");
+        assert_eq!(civil_date(20_454), "2026-01-01");
+        assert_eq!(civil_date(11_016), "2000-02-29");
+        let r = get(&app(), "/.well-known/security.txt").await;
+        assert_eq!(r.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(r.into_body(), 4096).await.unwrap();
+        let text = std::str::from_utf8(&body).unwrap();
+        assert!(
+            text.contains(&format!("Contact: {SECURITY_CONTACT}\n")),
+            "{text}"
+        );
+        let expires = text
+            .lines()
+            .find_map(|l| l.strip_prefix("Expires: "))
+            .unwrap();
+        let today = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs()
+            / 86_400;
+        assert!(
+            expires > civil_date(today + 30).as_str() && expires < civil_date(today + 365).as_str()
+        );
     }
 
     #[tokio::test]

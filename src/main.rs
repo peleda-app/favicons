@@ -149,6 +149,10 @@ async fn prerender_domains(cfg: config::Config, list: &std::path::Path) -> anyho
         .map_err(|e| anyhow::anyhow!("reading {}: {e}", list.display()))?;
     let domains = app.normalize_list(&text);
     anyhow::ensure!(!domains.is_empty(), "{} lists no domains", list.display());
+    if let Some(catalog) = &app.catalog {
+        catalog.reload(&app.list_client_ref()).await;
+        anyhow::ensure!(catalog.len() > 0, "thesvg catalog did not load");
+    }
     let parallel = app
         .cfg
         .fetch

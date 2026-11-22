@@ -74,12 +74,18 @@ pub fn vectorize_mono(bytes: &[u8], cfg: &RenderCfg, source: MonoSource) -> anyh
         }
         MonoSource::MaskIcon => None,
     };
-    let svg = match toned {
+    let svg = match toned.and_then(|svg| finish(&svg, cfg).ok()) {
         Some(svg) => svg,
-        None => trace_mask(&mask, cfg)?,
+        None => finish(&trace_mask(&mask, cfg)?, cfg).or_else(|_| {
+            let work = resize_premultiplied(&mask, WORK_PX);
+            finish(
+                &traced(&trace::binary(&work, &trace::COARSE), true, true, cfg)?,
+                cfg,
+            )
+        })?,
     };
     Ok(Vector {
-        svg: finish(&svg, cfg)?,
+        svg,
         origin: VectorOrigin::Traced,
     })
 }
@@ -610,8 +616,10 @@ fn tone_layers(img: &RgbaImage, mask: &RgbaImage, ground: Ground) -> Option<Vec<
         Ground::Colour(g) => Some((0.2126 * g[0] + 0.7152 * g[1] + 0.0722 * g[2]) / 255.0),
         Ground::Open | Ground::Single => None,
     };
+    let outlined = base.is_none() && dark_outline(img, mask, &centres);
     let strength = |c: f32| match base {
         Some(b) => (c - b).abs(),
+        None if outlined => 1.0 - c,
         None => c,
     };
     let mut rank: Vec<usize> = (0..centres.len()).collect();
@@ -643,6 +651,31 @@ fn tone_layers(img: &RgbaImage, mask: &RgbaImage, ground: Ground) -> Option<Vec<
         layers.push((opacity, RgbaImage::from_raw(w, h, raw)?));
     }
     Some(layers)
+}
+
+fn dark_outline(img: &RgbaImage, mask: &RgbaImage, centres: &[f32]) -> bool {
+    let darkest = centres.iter().copied().fold(f32::MAX, f32::min);
+    if darkest > 0.2 {
+        return false;
+    }
+    let (w, h) = img.dimensions();
+    let inside = |x: u32, y: u32| mask.get_pixel(x, y)[3] >= 128;
+    let (mut edge, mut dark) = (0u32, 0u32);
+    for y in 1..h.saturating_sub(1) {
+        for x in 1..w.saturating_sub(1) {
+            if !inside(x, y)
+                || (inside(x - 1, y) && inside(x + 1, y) && inside(x, y - 1) && inside(x, y + 1))
+            {
+                continue;
+            }
+            edge += 1;
+            let p = img.get_pixel(x, y);
+            if centres[nearest(centres, luminance(p))] == darkest {
+                dark += 1;
+            }
+        }
+    }
+    edge > 0 && dark * 10 >= edge * 7
 }
 
 fn trace_layers(layers: &[(f32, RgbaImage)], cfg: &RenderCfg) -> anyhow::Result<String> {
@@ -959,6 +992,27 @@ mod tests {
             (100..160).contains(&centre),
             "the darker centre is half: {centre}"
         );
+    }
+
+    #[test]
+    fn outlined_cartoon_keeps_its_outline_darkest() {
+        let img = RgbaImage::from_fn(128, 128, |x, y| {
+            let d = (x as i32 - 64).pow(2) + (y as i32 - 64).pow(2);
+            if d < 30 * 30 {
+                image::Rgba([230, 90, 40, 255])
+            } else if d < 46 * 46 {
+                image::Rgba([250, 210, 40, 255])
+            } else if d < 54 * 54 {
+                image::Rgba([20, 20, 24, 255])
+            } else {
+                image::Rgba([0, 0, 0, 0])
+            }
+        });
+        let v = vectorize_mono(&encode_png(&img).unwrap(), &cfg(), MonoSource::Derived).unwrap();
+        let r = vector::render(&vector::parse(v.svg.as_bytes()).unwrap(), 128).unwrap();
+        let (outline, fill) = (r.get_pixel(64, 5)[3], r.get_pixel(64, 19)[3]);
+        assert!(outline > 240, "the outline is full: {outline}");
+        assert!(fill < 200, "the light fill is a shade: {fill}");
     }
 
     #[test]

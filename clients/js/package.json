@@ -1,0 +1,111 @@
+{
+  "name": "favicons.page",
+  "version": "0.1.0",
+  "description": "Any website's icon as a clean SVG with light and dark theme colours. A zero-dependency client for favicons.page or your own instance, with React and Vue components, a Svelte action and a web component.",
+  "keywords": [
+    "favicon",
+    "favicons",
+    "favicon-api",
+    "logo",
+    "logo-api",
+    "brand-logos",
+    "icons",
+    "svg",
+    "dark-mode",
+    "css-mask",
+    "react",
+    "vue",
+    "svelte",
+    "web-component",
+    "self-hosted",
+    "privacy"
+  ],
+  "homepage": "https://favicons.page",
+  "bugs": {
+    "url": "https://github.com/peleda-app/favicons/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/peleda-app/favicons.git",
+    "directory": "clients/js"
+  },
+  "license": "MIT",
+  "author": {
+    "name": "Peleda",
+    "url": "https://github.com/peleda-app"
+  },
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "default": "./index.js"
+    },
+    "./react": {
+      "types": "./react.d.ts",
+      "default": "./react.js"
+    },
+    "./vue": {
+      "types": "./vue.d.ts",
+      "default": "./vue.js"
+    },
+    "./svelte": {
+      "types": "./svelte.d.ts",
+      "default": "./svelte.js"
+    },
+    "./element": {
+      "types": "./element.d.ts",
+      "default": "./element.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "main": "./index.js",
+  "module": "./index.js",
+  "types": "./index.d.ts",
+  "unpkg": "./index.js",
+  "jsdelivr": "./index.js",
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "shared.js",
+    "react.js",
+    "react.d.ts",
+    "vue.js",
+    "vue.d.ts",
+    "svelte.js",
+    "svelte.d.ts",
+    "element.js",
+    "element.d.ts"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "check": "tsc -p test/tsconfig.json",
+    "prepublishOnly": "npm test && npm run check"
+  },
+  "peerDependencies": {
+    "react": ">=17",
+    "vue": ">=3.3"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    },
+    "vue": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/react": "19.3.0",
+    "happy-dom": "21.0.4",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "typescript": "5.9.3",
+    "vue": "3.5.46"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

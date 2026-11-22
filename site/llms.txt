@@ -63,6 +63,14 @@ const svg = await r.text();
 curl -sD - -o discord.svg {{origin}}/color/discord.com
 ```
 
+The zero-dependency npm package `favicons.page` wraps the same calls and retries a `queued` placeholder:
+
+```js
+import { createFavicons } from "favicons.page";
+const favicons = createFavicons({ baseUrl: "{{origin}}" });
+const { svg, palette } = await favicons.get("discord.com");
+```
+
 ## Docs
 
 - [OpenAPI description]({{origin}}/openapi.json)

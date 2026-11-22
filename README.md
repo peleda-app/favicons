@@ -71,6 +71,35 @@ Icons are made to switch with your interface, not to fight it.
 <img src="https://favicons.page/color/github.com/superellipse/dark" width="40" height="40" alt=""> <!-- pinned -->
 ```
 
+## From JavaScript
+
+[`favicons.page`](clients/js) on npm has no dependencies and works in
+browsers, Node 18+, Deno, Bun and edge runtimes. It builds URLs, reads the SVG
+with its palette, waits out the first `queued` response for you, and points at
+your own instance with one option. Components for React and Vue, a Svelte
+action and a web component come in the same package:
+
+```bash
+npm install favicons.page
+```
+
+```js
+import { iconUrl, getIcon } from "favicons.page";
+
+iconUrl("github.com", { shape: "superellipse" });
+// https://favicons.page/color/github.com/superellipse
+
+const icon = await getIcon("discord.com");
+icon.palette.dark.plate; // "#181b3f"
+```
+
+```jsx
+import { Favicon } from "favicons.page/react";
+
+<Favicon domain="github.com" shape="superellipse" size={40} alt="GitHub" />
+<Favicon domain="github.com" mono size="1em" />  {/* a mask in the text colour */}
+```
+
 ## Why favicons
 
 - **Vector, always.** Sites that ship SVG keep their exact shapes. Bitmaps are
@@ -89,6 +118,17 @@ Icons are made to switch with your interface, not to fight it.
 - **Fast and small.** About 170 000 cached icons per second on a laptop,
   10 000 on a 4-core Celeron thin client, in about 50 MB of RAM.
   [Benchmarks](docs/PERFORMANCE.md).
+
+### Compared with the usual favicon URLs
+
+| | favicons.page | Google `s2/favicons` | DuckDuckGo `ip3` |
+|---|---|---|---|
+| Format | SVG, any size | PNG, up to 256 px | ICO |
+| Colours for light and dark themes | yes, in headers and ready-made badges | no | no |
+| Monochrome mask | yes | no | no |
+| Icons by app name | about 17 000 | no | no |
+| Self-hostable, open source | yes, MIT | no | no |
+| Unknown site | unique identicon, `X-Icon-Fallback-Reason` says why | `404` and a generic globe | `404` and a generic image |
 
 ## Self-hosted apps by name
 
@@ -142,6 +182,7 @@ tools, and every response exposes its headers and timings to any origin.
 - [Security model](docs/SECURITY.md): threats, sandbox, hardening checklist
 - [Self-hosting](docs/SELF-HOSTING.md): Docker, binaries, TLS, small servers
 - [Performance](docs/PERFORMANCE.md): wrk numbers and the k6 load test suite
+- [JavaScript](clients/js): the `favicons.page` npm package with React, Vue, Svelte and web components
 
 ```bash
 cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test

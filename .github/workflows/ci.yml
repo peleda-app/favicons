@@ -32,6 +32,34 @@ jobs:
             if [ "$code" -ne 159 ]; then echo "probe $probe not killed by seccomp (exit $code)"; exit 1; fi
           done
 
+  js:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: [18, 24]
+    defaults:
+      run:
+        working-directory: clients/js
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - run: npm ci
+      - run: npm test
+      - if: matrix.node == 24
+        run: npm run check
+      - if: matrix.node == 24
+        run: npm pack --dry-run
+      - if: matrix.node == 24
+        uses: oven-sh/setup-bun@v2
+      - if: matrix.node == 24
+        run: bun test ./test/index.test.js ./test/frameworks.test.js ./test/element.test.js
+      - if: matrix.node == 24
+        uses: denoland/setup-deno@v2
+      - if: matrix.node == 24
+        run: deno test -A --no-check test/index.test.js test/frameworks.test.js test/element.test.js
+
   audit:
     runs-on: ubuntu-latest
     steps:

@@ -113,7 +113,43 @@ fn is_backdrop(s: &Shape) -> bool {
     };
     let b = s.path.compute_tight_bounds().unwrap_or(s.path.bounds());
     let full = VIEW as f32 * 0.97;
-    a >= 250 && rgb.iter().all(|c| *c >= 235) && b.width() >= full && b.height() >= full
+    a >= 250
+        && rgb.iter().all(|c| *c >= 235)
+        && b.width() >= full
+        && b.height() >= full
+        && (rgb.iter().all(|c| *c >= 250) || fills_corners(s, b))
+}
+
+fn fills_corners(s: &Shape, b: tsp::Rect) -> bool {
+    const SIDE: u32 = 32;
+    let Some(mut mask) = tiny_skia::Mask::new(SIDE, SIDE) else {
+        return true;
+    };
+    let side = SIDE as f32;
+    let t = Transform::from_row(
+        side / b.width(),
+        0.0,
+        0.0,
+        side / b.height(),
+        -b.left() * side / b.width(),
+        -b.top() * side / b.height(),
+    );
+    let rule = if s.evenodd {
+        tiny_skia::FillRule::EvenOdd
+    } else {
+        tiny_skia::FillRule::Winding
+    };
+    mask.fill_path(&s.path, rule, true, t);
+    let data = mask.data();
+    let last = SIDE as usize - 1;
+    [
+        0,
+        last,
+        last * SIDE as usize,
+        SIDE as usize * SIDE as usize - 1,
+    ]
+    .iter()
+    .all(|i| data[*i] >= 128)
 }
 
 fn is_light(s: &Shape) -> bool {
@@ -1048,6 +1084,19 @@ mod tests {
             img.pixels().all(|p| p[3] == 255),
             "background covers the whole square"
         );
+    }
+
+    #[test]
+    fn fit_keeps_a_light_rounded_tile_that_is_the_icon() {
+        let tile = format!(
+            r##"{SVG_PREFIX}<path fill="#f0f4f8" d="M24 0h80a24 24 0 0 1 24 24v80a24 24 0 0 1-24 24H24A24 24 0 0 1 0 104V24A24 24 0 0 1 24 0z"/><path fill="#ef8253" d="M24 0h80a24 24 0 0 1 24 24v8H0v-8A24 24 0 0 1 24 0z"/></svg>"##
+        );
+        let fitted = fit(&tile).unwrap();
+        assert!(fitted.contains("#f0f4f8"), "{fitted}");
+        let white = format!(
+            r##"{SVG_PREFIX}<path fill="#ffffff" d="M24 0h80a24 24 0 0 1 24 24v80a24 24 0 0 1-24 24H24A24 24 0 0 1 0 104V24A24 24 0 0 1 24 0z"/><path fill="#112233" d="M32 40h64v48H32z"/></svg>"##
+        );
+        assert!(!fit(&white).unwrap().contains("#ffffff"));
     }
 
     #[test]

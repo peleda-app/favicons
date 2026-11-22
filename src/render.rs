@@ -223,6 +223,7 @@ pub fn quantize(img: &RgbaImage, max_colors: usize) -> RgbaImage {
             palette.push(colour);
         }
     }
+    add_uncovered(img, &mut palette, max_colors);
     let mut out = img.clone();
     for p in out.pixels_mut() {
         if p[3] < 128 {
@@ -244,6 +245,52 @@ pub fn quantize(img: &RgbaImage, max_colors: usize) -> RgbaImage {
         *p = image::Rgba([nearest[0] as u8, nearest[1] as u8, nearest[2] as u8, 255]);
     }
     out
+}
+
+fn add_uncovered(img: &RgbaImage, palette: &mut Vec<[f32; 3]>, max_colors: usize) {
+    let colour = |p: &image::Rgba<u8>| [f32::from(p[0]), f32::from(p[1]), f32::from(p[2])];
+    let opaque = img.pixels().filter(|p| p[3] >= 128).count();
+    let mut started = false;
+    while palette.len() < max_colors {
+        let mut hist = std::collections::HashMap::<u16, (u32, [f32; 3])>::new();
+        let mut uncovered = 0;
+        for p in img.pixels().filter(|p| p[3] >= 128) {
+            let c = colour(p);
+            if palette.iter().any(|q| rgb_distance(q, &c) <= 0.15) {
+                continue;
+            }
+            uncovered += 1;
+            let key =
+                (u16::from(p[0] >> 5) << 6) | (u16::from(p[1] >> 5) << 3) | u16::from(p[2] >> 5);
+            let e = hist.entry(key).or_insert((0, [0.0; 3]));
+            e.0 += 1;
+            for i in 0..3 {
+                e.1[i] += c[i];
+            }
+        }
+        let floor = if started { 5 } else { 16 };
+        if uncovered * 100 < opaque * floor {
+            return;
+        }
+        started = true;
+        let mut bins: Vec<[f32; 3]> = {
+            let mut v: Vec<_> = hist.into_values().collect();
+            v.sort_by_key(|(n, _)| std::cmp::Reverse(*n));
+            v.into_iter()
+                .map(|(n, sum)| sum.map(|c| c / n as f32))
+                .collect()
+        };
+        bins.retain(|c| {
+            !palette
+                .iter()
+                .enumerate()
+                .any(|(i, a)| palette[i + 1..].iter().any(|b| is_between(c, a, b)))
+        });
+        let Some(next) = bins.first() else {
+            return;
+        };
+        palette.push(*next);
+    }
 }
 
 fn traced(raw: &str, black: bool, disjoint: bool, cfg: &RenderCfg) -> anyhow::Result<String> {
@@ -401,7 +448,13 @@ fn knockout_or_silhouette(img: &RgbaImage) -> Vec<u8> {
         .filter(|p| color_distance(p, plate) < 0.12)
         .count();
     let share = near as f32 / opaque.len() as f32;
-    if !(0.5..=0.92).contains(&share) {
+    let far = opaque
+        .iter()
+        .filter(|p| color_distance(p, plate) >= 0.30)
+        .count();
+    let crisp_details =
+        share <= 0.985 && far * 50 >= opaque.len() && far * 10 >= (opaque.len() - near) * 7;
+    if share < 0.5 || (share > 0.92 && !crisp_details) {
         return silhouette();
     }
     img.pixels()
@@ -412,7 +465,7 @@ fn knockout_or_silhouette(img: &RgbaImage) -> Vec<u8> {
         .collect()
 }
 
-pub const MONO_REVISION: u32 = 1;
+pub const MONO_REVISION: u32 = 2;
 
 pub fn monochrome(img: &RgbaImage, source: MonoSource) -> anyhow::Result<RgbaImage> {
     Ok(monochrome_on(img, source)?.0)
@@ -422,7 +475,12 @@ fn monochrome_on(img: &RgbaImage, source: MonoSource) -> anyhow::Result<(RgbaIma
     let (w, h) = img.dimensions();
     ensure!(w > 0 && h > 0, "empty image");
     let (ink, ground): (Vec<u8>, Ground) = match source {
-        MonoSource::MaskIcon => (img.pixels().map(|p| p[3]).collect(), Ground::Open),
+        MonoSource::MaskIcon => (
+            img.pixels()
+                .map(|p| (smoothstep(0.01, 0.04, f32::from(p[3]) / 255.0) * 255.0).round() as u8)
+                .collect(),
+            Ground::Open,
+        ),
         MonoSource::Derived => {
             let inset = w.min(h) / 24;
             match tile_ink(img, 0).filter(|ink| coverage(ink, w, h) >= 0.01) {
@@ -653,7 +711,7 @@ fn tile_ink(img: &RgbaImage, inset: u32) -> Option<Vec<u8>> {
             .map(|(x, y, p)| {
                 let soft = match frame.filter(|_| !inside(x, y)) {
                     Some(f) => smoothstep(0.10, 0.30, blend_distance(p, bg, f)),
-                    None => smoothstep(0.10, 0.30, color_distance(p, bg)),
+                    None => smoothstep(0.08, 0.20, color_distance(p, bg)),
                 };
                 (soft * f32::from(p[3])).round() as u8
             })
@@ -1039,6 +1097,71 @@ mod tests {
         assert_eq!(alpha_at(&m, 32, 50), 255, "plate stays");
         assert_eq!(alpha_at(&m, 32, 32), 0, "detail is cut out");
         assert_eq!(alpha_at(&m, 1, 1), 0, "outside stays empty");
+    }
+
+    #[test]
+    fn mask_icon_with_fading_opacity_keeps_its_whole_shape() {
+        let svg = br##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><path d="M80 0h10v40H80z"/><linearGradient id="g" x1="0" y1="100" x2="90" y2="0" gradientUnits="userSpaceOnUse"><stop offset="0" stop-opacity=".05"/><stop offset=".5" stop-opacity=".4"/><stop offset="1"/></linearGradient><path d="M0 0h80v100L40 80 0 100z" fill="url(#g)"/></svg>"##;
+        let v = vectorize_mono(svg, &cfg(), MonoSource::MaskIcon).unwrap();
+        let r = vector::render(&vector::parse(v.svg.as_bytes()).unwrap(), 128).unwrap();
+        assert_eq!(r.get_pixel(16, 96)[3], 255, "faint corner stays ink");
+        assert_eq!(r.get_pixel(60, 10)[3], 255, "solid part stays ink");
+    }
+
+    #[test]
+    fn knocks_a_small_light_glyph_out_of_a_dominant_plate() {
+        let mut img = RgbaImage::new(64, 64);
+        for (x, y, p) in img.enumerate_pixels_mut() {
+            if (12..52).contains(&y) {
+                let glyph =
+                    (26..36).contains(&x) && (y as i32 - 32).abs() < (36 - x as i32) / 2 + 1;
+                *p = if glyph {
+                    image::Rgba([255, 255, 255, 255])
+                } else {
+                    image::Rgba([255, 0, 51, 255])
+                };
+            }
+        }
+        let m = monochrome(&img, MonoSource::Derived).unwrap();
+        assert_eq!(alpha_at(&m, 5, 20), 255, "plate stays");
+        assert_eq!(alpha_at(&m, 28, 32), 0, "glyph is cut out");
+        assert_eq!(alpha_at(&m, 5, 5), 0, "outside stays empty");
+    }
+
+    #[test]
+    fn a_plate_with_soft_shading_stays_a_silhouette() {
+        let img = RgbaImage::from_fn(64, 64, |x, y| {
+            if !(12..52).contains(&y) {
+                image::Rgba([0, 0, 0, 0])
+            } else if x >= 61 {
+                image::Rgba([170, 90, 90, 255])
+            } else {
+                image::Rgba([220, 40, 40, 255])
+            }
+        });
+        let m = monochrome(&img, MonoSource::Derived).unwrap();
+        assert_eq!(alpha_at(&m, 62, 30), 255, "shaded edge stays ink");
+    }
+
+    #[test]
+    fn a_gradient_mark_on_a_dark_tile_keeps_its_colours() {
+        let img = RgbaImage::from_fn(128, 128, |x, y| {
+            let (dx, dy) = (x as i32 - 64, y as i32 - 64);
+            if dx * dx + dy * dy < 40 * 40 {
+                let (u, v) = (x as f32 / 127.0, y as f32 / 127.0);
+                image::Rgba([
+                    (120.0 + 135.0 * u) as u8,
+                    (40.0 + 200.0 * v) as u8,
+                    (230.0 - 200.0 * u) as u8,
+                    255,
+                ])
+            } else {
+                image::Rgba([12, 16, 30, 255])
+            }
+        });
+        let q = quantize(&img, 12);
+        let p = q.get_pixel(64, 64);
+        assert!(p[0] > 100, "the mark is not swallowed by the tile: {p:?}");
     }
 
     #[test]

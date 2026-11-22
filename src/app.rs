@@ -247,7 +247,8 @@ impl App {
     }
 
     fn mono_outdated(meta: &Meta) -> bool {
-        meta.mono.is_none() && meta.mono_rev < crate::render::MONO_REVISION
+        meta.mono_rev < crate::render::MONO_REVISION
+            && (meta.mono.is_none() || meta.mono_source == Some(MonoSource::Derived))
     }
 
     pub fn needs_refresh(meta: &Meta) -> bool {
@@ -273,21 +274,24 @@ impl App {
             meta.palette_rev = crate::palette::REVISION;
         }
         let mut images = vec![(Slot::Color, color.raw().to_vec())];
-        if prev.mono.is_some() {
-            if let Some(mono) = self.store.image(prev, Slot::Mono).await {
-                images.push((Slot::Mono, mono.raw().to_vec()));
-            }
-        } else if Self::mono_outdated(prev)
-            && let Ok(v) = self
-                .mono_job(MonoSource::Derived, color.raw().to_vec())
+        let derived = if Self::mono_outdated(prev) {
+            self.mono_job(MonoSource::Derived, color.raw().to_vec())
                 .await
-        {
+                .ok()
+        } else {
+            None
+        };
+        if let Some(v) = derived {
             let etag = blake3::hash(v.svg.as_bytes()).to_hex()[..20].to_string();
             meta.etags
                 .insert(crate::store::object_name(Slot::Mono).into(), etag);
             meta.mono = Some(v.origin);
             meta.mono_source = Some(MonoSource::Derived);
             images.push((Slot::Mono, v.svg.into_bytes()));
+        } else if prev.mono.is_some()
+            && let Some(mono) = self.store.image(prev, Slot::Mono).await
+        {
+            images.push((Slot::Mono, mono.raw().to_vec()));
         }
         meta.mono_rev = crate::render::MONO_REVISION;
         self.store.put(meta, images).await;

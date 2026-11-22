@@ -1,14 +1,11 @@
-[![favicons.page](https://raw.githubusercontent.com/peleda-app/favicons/main/docs/brand/banner.png)](https://favicons.page)
+[![Icons of any site, icon packs, ready-made badges and monochrome masks](https://cdn.jsdelivr.net/gh/peleda-app/favicons@main/docs/brand/showcase.png)](https://favicons.page)
 
 # favicons
 
 **Any website's icon as a clean, safe SVG, with colours that fit every theme.** Self-hosted, in a 9 MB image.
 
-[![version](https://img.shields.io/github/v/release/peleda-app/favicons?color=ffb38a&label=version)](https://github.com/peleda-app/favicons/releases)
-[![image size](https://img.shields.io/docker/image-size/favicons/favicons/latest?color=ffb38a&label=image)](https://hub.docker.com/r/favicons/favicons/tags)
-![platforms](https://img.shields.io/badge/platforms-amd64%20%7C%20arm64-ffb38a)
-[![license](https://img.shields.io/badge/license-MIT-ffb38a)](https://github.com/peleda-app/favicons/blob/main/LICENSE)
-[![stars](https://img.shields.io/github/stars/peleda-app/favicons?color=ffb38a&label=stars)](https://github.com/peleda-app/favicons)
+| [![version](https://img.shields.io/github/v/release/peleda-app/favicons?color=ffb38a&label=version)](https://github.com/peleda-app/favicons/releases) | [![image size](https://img.shields.io/docker/image-size/favicons/favicons/latest?color=ffb38a&label=image)](https://hub.docker.com/r/favicons/favicons/tags) | ![platforms](https://img.shields.io/badge/platforms-amd64%20%7C%20arm64-ffb38a) | [![license](https://img.shields.io/badge/license-MIT-ffb38a)](https://github.com/peleda-app/favicons/blob/main/LICENSE) | [![stars](https://img.shields.io/github/stars/peleda-app/favicons?color=ffb38a&label=stars)](https://github.com/peleda-app/favicons) |
+|---|---|---|---|---|
 
 [**Try it live**](https://favicons.page) · [HTTP API](https://github.com/peleda-app/favicons/blob/main/docs/API.md) · [Self-hosting guide](https://github.com/peleda-app/favicons/blob/main/docs/SELF-HOSTING.md) · [Security](https://github.com/peleda-app/favicons/blob/main/docs/SECURITY.md) · [GitHub](https://github.com/peleda-app/favicons)
 
@@ -86,6 +83,6 @@ npm i favicons.page
 
 A zero-dependency client with React and Vue components, a Svelte action and a web component; point it at your instance with `createFavicons({ baseUrl: "https://icons.example.com" })`. See [favicons.page on npm](https://www.npmjs.com/package/favicons.page).
 
-[![Icons of any site, icon packs, ready-made badges and monochrome masks](https://raw.githubusercontent.com/peleda-app/favicons/main/docs/brand/showcase.png)](https://favicons.page)
+[![A Glance dashboard before and after favicons](https://cdn.jsdelivr.net/gh/peleda-app/favicons@main/docs/brand/glance.png)](https://favicons.page)
 
 MIT licensed. Icon catalogs keep their own licenses.

@@ -7,7 +7,7 @@
 | [![version](https://img.shields.io/github/v/release/peleda-app/favicons?color=ffb38a&label=version)](https://github.com/peleda-app/favicons/releases) | [![image size](https://img.shields.io/docker/image-size/favicons/favicons/latest?color=ffb38a&label=image)](https://hub.docker.com/r/favicons/favicons/tags) | ![platforms](https://img.shields.io/badge/platforms-amd64%20%7C%20arm64-ffb38a) | [![license](https://img.shields.io/badge/license-MIT-ffb38a)](https://github.com/peleda-app/favicons/blob/main/LICENSE) | [![stars](https://img.shields.io/github/stars/peleda-app/favicons?color=ffb38a&label=stars)](https://github.com/peleda-app/favicons) |
 |---|---|---|---|---|
 
-[**Try it live**](https://favicons.page) · [HTTP API](https://github.com/peleda-app/favicons/blob/main/docs/API.md) · [Self-hosting guide](https://github.com/peleda-app/favicons/blob/main/docs/SELF-HOSTING.md) · [Security](https://github.com/peleda-app/favicons/blob/main/docs/SECURITY.md) · [GitHub](https://github.com/peleda-app/favicons)
+[**Try it live**](https://favicons.page) · [HTTP API](https://github.com/peleda-app/favicons/blob/main/docs/api/overview.md) · [Self-hosting guide](https://github.com/peleda-app/favicons/blob/main/docs/self-hosting/install.md) · [Security](https://github.com/peleda-app/favicons/blob/main/docs/security/model.md) · [GitHub](https://github.com/peleda-app/favicons)
 
 `GET /color/github.com` returns the site's icon as a 128×128 SVG, plus the badge, text and mask colours for light and dark themes in its headers. The API at [favicons.page](https://favicons.page) runs this image; the website there is a separate Worker in front of it.
 
@@ -73,7 +73,7 @@ Every option of [config.example.toml](https://github.com/peleda-app/favicons/blo
 | `1.3`, `1.3.0` | Releases |
 | `sha-<commit>` | One exact build |
 
-Multi-arch (`linux/amd64`, `linux/arm64`), running as uid 65534. Every image is signed with cosign (keyless) and carries a signed build provenance attestation and an SBOM; the same images are on `ghcr.io/peleda-app/favicons`. See [Verifying builds](https://favicons.peleda.dev/docs/security#verifying-builds).
+Multi-arch (`linux/amd64`, `linux/arm64`), running as uid 65534. Every image is signed with cosign (keyless) and carries a signed build provenance attestation and an SBOM; the same images are on `ghcr.io/peleda-app/favicons`. See [Verifying builds](https://favicons.page/docs/security/hardening#verifying-builds).
 
 ## From JavaScript
 

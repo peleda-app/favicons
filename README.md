@@ -10,7 +10,7 @@
 [![npm](https://img.shields.io/npm/v/favicons.page?logo=npm&label=npm&color=CB3837)](https://www.npmjs.com/package/favicons.page)
 [![License: MIT](https://img.shields.io/badge/license-MIT-ffb38a)](LICENSE)
 
-[**Try it on favicons.page**](https://favicons.page) · [Docs](https://favicons.peleda.dev/docs/) · [API](docs/API.md) · [Self-hosting](docs/SELF-HOSTING.md) · [Security](docs/SECURITY.md)
+[**Try it on favicons.page**](https://favicons.page) · [Docs](https://favicons.page/docs/) · [API](docs/api/overview.md) · [Self-hosting](docs/self-hosting/install.md) · [Security](docs/security/model.md)
 
 </div>
 
@@ -120,7 +120,7 @@ import { Favicon } from "favicons.page/react";
   the site.
 - **Fast and small.** About 170 000 cached icons per second on a laptop,
   10 000 on a 4-core Celeron thin client, in about 50 MB of RAM.
-  [Benchmarks](docs/PERFORMANCE.md).
+  [Benchmarks](docs/performance/benchmarks.md).
 
 ### Compared with the usual favicon URLs
 
@@ -171,7 +171,7 @@ prerendered catalogs and the icons of the 100 000 most popular sites as
 `ghcr.io/peleda-app/favicons.page`; release binaries are on [GitHub Releases](https://github.com/peleda-app/favicons/releases),
 and `cargo install favicons` builds the API. Built-in Let's Encrypt, local
 disk or S3, GCS and Azure caches, blocklists and every other option are in
-[docs/SELF-HOSTING.md](docs/SELF-HOSTING.md).
+the [self-hosting docs](docs/self-hosting/install.md).
 
 ## For agents and automations
 
@@ -181,12 +181,14 @@ tools, and every response exposes its headers and timings to any origin.
 
 ## Documentation
 
-- [How it works](docs/FEATURES.md): sources, tracing, caching, the request path
-- [HTTP API](docs/API.md): statuses, headers, palettes, fallback reasons
-- [Security model](docs/SECURITY.md): threats, sandbox, hardening checklist
-- [Self-hosting](docs/SELF-HOSTING.md): Docker, binaries, TLS, small servers
-- [Performance](docs/PERFORMANCE.md): wrk numbers and the k6 load test suite
-- [JavaScript](clients/js): the `favicons.page` npm package with React, Vue, Svelte and web components
+Read it at [favicons.page/docs](https://favicons.page/docs/) or in [docs/](docs/README.md):
+
+- [Guide](docs/guide/introduction.md): sources, tracing, palettes, masks, badges, catalogs
+- [HTTP API](docs/api/overview.md): routes, headers, palettes, fallback reasons, caching
+- [Clients](docs/clients/javascript.md): the `favicons.page` npm package with React, Vue, Svelte and web components
+- [Self-hosting](docs/self-hosting/install.md): Docker, binaries, configuration, storage, TLS, small servers
+- [Security](docs/security/model.md): threats, sandbox, privacy, hardening, signed builds
+- [Performance](docs/performance/benchmarks.md): wrk numbers and the k6 load test suite
 
 ```bash
 cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test

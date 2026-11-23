@@ -631,13 +631,12 @@ async fn serve_meta(app: &App, req: &Req, meta: &Meta, source: Source, stale: bo
                 palette: &icon.palette,
                 ..out
             };
-            image(
-                &icon,
-                req,
-                &app.profiles.icon,
-                &out,
-                Some(&app.store.plated),
-            )
+            let profile = if App::needs_refresh(meta) {
+                &app.profiles.fallback_transient
+            } else {
+                &app.profiles.icon
+            };
+            image(&icon, req, profile, &out, Some(&app.store.plated))
         }
         None => {
             tracing::warn!(

@@ -7,6 +7,7 @@
 [![CI](https://github.com/peleda-app/favicons/actions/workflows/ci.yml/badge.svg)](https://github.com/peleda-app/favicons/actions/workflows/ci.yml)
 [![Docker](https://img.shields.io/badge/ghcr.io-peleda--app%2Ffavicons-2496ED?logo=docker&logoColor=white)](https://github.com/peleda-app/favicons/pkgs/container/favicons)
 [![Docker Hub](https://img.shields.io/badge/docker.io-favicons%2Ffavicons-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/r/favicons/favicons)
+[![npm](https://img.shields.io/npm/v/favicons.page?logo=npm&label=npm&color=CB3837)](https://www.npmjs.com/package/favicons.page)
 [![License: MIT](https://img.shields.io/badge/license-MIT-ffb38a)](LICENSE)
 
 [**Try it on favicons.page**](https://favicons.page) · [API](docs/API.md) · [Self-hosting](docs/SELF-HOSTING.md) · [Security](docs/SECURITY.md)

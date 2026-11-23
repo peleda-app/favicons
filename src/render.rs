@@ -430,14 +430,9 @@ fn white_border(img: &RgbaImage) -> bool {
     white * 2 >= border.len()
 }
 
-fn knockout_or_silhouette(img: &RgbaImage) -> Vec<u8> {
-    let silhouette = || img.pixels().map(|p| p[3]).collect();
-    let opaque: Vec<&image::Rgba<u8>> = img.pixels().filter(|p| p[3] >= 200).collect();
-    if opaque.is_empty() {
-        return silhouette();
-    }
+fn dominant(opaque: &[&image::Rgba<u8>]) -> Option<[f32; 3]> {
     let mut bins = std::collections::HashMap::<u16, (u32, [u32; 3])>::new();
-    for p in &opaque {
+    for p in opaque {
         let key = (u16::from(p[0] >> 4) << 8) | (u16::from(p[1] >> 4) << 4) | u16::from(p[2] >> 4);
         let e = bins.entry(key).or_insert((0, [0; 3]));
         e.0 += 1;
@@ -445,10 +440,103 @@ fn knockout_or_silhouette(img: &RgbaImage) -> Vec<u8> {
             e.1[c] += u32::from(p[c]);
         }
     }
-    let Some((count, sum)) = bins.values().max_by_key(|(n, _)| *n) else {
+    let (count, sum) = bins.values().max_by_key(|(n, _)| *n)?;
+    Some(sum.map(|v| v as f32 / *count as f32))
+}
+
+fn tile_plate(img: &RgbaImage) -> Option<[f32; 3]> {
+    let (mut x0, mut y0, mut x1, mut y1) = (u32::MAX, u32::MAX, 0, 0);
+    let mut opaque = Vec::new();
+    for (x, y, p) in img.enumerate_pixels() {
+        if p[3] >= 200 {
+            (x0, y0, x1, y1) = (x0.min(x), y0.min(y), x1.max(x), y1.max(y));
+            opaque.push(p);
+        }
+    }
+    if opaque.is_empty() {
+        return None;
+    }
+    let (bw, bh) = (x1 - x0 + 1, y1 - y0 + 1);
+    let square = bw.min(bh) >= 8 && bw * 5 >= bh * 4 && bh * 5 >= bw * 4;
+    let filled = opaque.len() as u64 * 100 >= u64::from(bw) * u64::from(bh) * 85;
+    if !square || !filled {
+        return None;
+    }
+    let plate = dominant(&opaque)?;
+    let near = opaque
+        .iter()
+        .filter(|p| color_distance(p, plate) < 0.12)
+        .count();
+    let details = opaque
+        .iter()
+        .filter(|p| color_distance(p, plate) >= 0.20)
+        .count();
+    if near * 2 < opaque.len() || details * 100 < opaque.len() {
+        return None;
+    }
+    let sides: Vec<(u32, u32)> = (0..=10u32)
+        .flat_map(|i| {
+            let x = x0 + bw * (30 + i * 4) / 100;
+            let y = y0 + bh * (30 + i * 4) / 100;
+            [(x, y0 + 1), (x, y1 - 1), (x0 + 1, y), (x1 - 1, y)]
+        })
+        .collect();
+    let rim = sides
+        .iter()
+        .filter(|(x, y)| {
+            let p = img.get_pixel(*x, *y);
+            p[3] >= 200 && color_distance(p, plate) < 0.12
+        })
+        .count();
+    let band = (bw.min(bh) / 25).max(2);
+    let edge_details = img
+        .enumerate_pixels()
+        .filter(|(x, y, p)| {
+            p[3] >= 200
+                && color_distance(p, plate) >= 0.20
+                && (*x < x0 + band || *x + band > x1 || *y < y0 + band || *y + band > y1)
+        })
+        .count();
+    (rim * 10 >= sides.len() * 9 && edge_details * 20 <= details).then_some(plate)
+}
+
+fn details_reach_ground(img: &RgbaImage, plate: [f32; 3]) -> bool {
+    let (w, h) = img.dimensions();
+    let (mut ground, mut enclosed) = (0u32, 0u32);
+    for (x, y, p) in img.enumerate_pixels() {
+        if p[3] < 200 || color_distance(p, plate) < 0.30 {
+            continue;
+        }
+        let around = |f: &dyn Fn(&image::Rgba<u8>) -> bool| {
+            (-2i32..=2).any(|dy| {
+                (-2i32..=2).any(|dx| {
+                    let (nx, ny) = (x as i32 + dx, y as i32 + dy);
+                    nx < 0
+                        || ny < 0
+                        || nx >= w as i32
+                        || ny >= h as i32
+                        || f(img.get_pixel(nx as u32, ny as u32))
+                })
+            })
+        };
+        if around(&|n| n[3] < 128) {
+            ground += 1;
+        } else if around(&|n| n[3] >= 200 && color_distance(n, plate) < 0.12) {
+            enclosed += 1;
+        }
+    }
+    ground > enclosed
+}
+
+fn knockout_or_silhouette(img: &RgbaImage) -> Vec<u8> {
+    let silhouette = || img.pixels().map(|p| p[3]).collect();
+    let opaque: Vec<&image::Rgba<u8>> = img.pixels().filter(|p| p[3] >= 200).collect();
+    if opaque.is_empty() {
+        return silhouette();
+    }
+    let Some(plate) = dominant(&opaque) else {
         return silhouette();
     };
-    let plate = sum.map(|v| v as f32 / *count as f32);
     let near = opaque
         .iter()
         .filter(|p| color_distance(p, plate) < 0.12)
@@ -460,7 +548,7 @@ fn knockout_or_silhouette(img: &RgbaImage) -> Vec<u8> {
         .count();
     let crisp_details =
         share <= 0.985 && far * 50 >= opaque.len() && far * 10 >= (opaque.len() - near) * 7;
-    if share < 0.5 || (share > 0.92 && !crisp_details) {
+    if share < 0.5 || (share > 0.92 && !crisp_details) || details_reach_ground(img, plate) {
         return silhouette();
     }
     img.pixels()
@@ -471,7 +559,7 @@ fn knockout_or_silhouette(img: &RgbaImage) -> Vec<u8> {
         .collect()
 }
 
-pub const MONO_REVISION: u32 = 2;
+pub const MONO_REVISION: u32 = 3;
 
 pub fn monochrome(img: &RgbaImage, source: MonoSource) -> anyhow::Result<RgbaImage> {
     Ok(monochrome_on(img, source)?.0)
@@ -497,10 +585,21 @@ fn monochrome_on(img: &RgbaImage, source: MonoSource) -> anyhow::Result<(RgbaIma
                     Some(inner) => (inner, Ground::of(ring_colour(img, inset))),
                     None => (ink, Ground::of(ring_colour(img, 0))),
                 },
-                None => match white_ground(img) {
-                    Some(ink) if white_border(img) => (ink, Ground::Colour([255.0; 3])),
-                    Some(ink) => (ink, Ground::Single),
-                    None => (knockout_or_silhouette(img), Ground::Open),
+                None => match tile_plate(img) {
+                    Some(plate) => (
+                        img.pixels()
+                            .map(|p| {
+                                let soft = smoothstep(0.08, 0.20, color_distance(p, plate));
+                                (soft * f32::from(p[3])).round() as u8
+                            })
+                            .collect(),
+                        Ground::Colour(plate),
+                    ),
+                    None => match white_ground(img) {
+                        Some(ink) if white_border(img) => (ink, Ground::Colour([255.0; 3])),
+                        Some(ink) => (ink, Ground::Single),
+                        None => (knockout_or_silhouette(img), Ground::Open),
+                    },
                 },
             }
         }
@@ -992,6 +1091,55 @@ mod tests {
             (100..160).contains(&centre),
             "the darker centre is half: {centre}"
         );
+    }
+
+    #[test]
+    fn rounded_tile_drops_its_plate_and_keeps_every_detail() {
+        let img = RgbaImage::from_fn(128, 128, |x, y| {
+            let (cx, cy) = ((x as i32 - 64).abs(), (y as i32 - 64).abs());
+            let corner = (cx - 34).max(0).pow(2) + (cy - 34).max(0).pow(2);
+            if cx > 54 || cy > 54 || corner > 20 * 20 {
+                return image::Rgba([0, 0, 0, 0]);
+            }
+            let dot = |ox: i32, oy: i32| (x as i32 - ox).pow(2) + (y as i32 - oy).pow(2) < 9 * 9;
+            if dot(40, 64) {
+                image::Rgba([250, 250, 250, 255])
+            } else if dot(88, 64) {
+                image::Rgba([130, 130, 130, 255])
+            } else {
+                image::Rgba([30, 30, 30, 255])
+            }
+        });
+        let m = monochrome(&img, MonoSource::Derived).unwrap();
+        assert_eq!(m.get_pixel(64, 30)[3], 0, "the plate is gone");
+        assert_eq!(m.get_pixel(40, 64)[3], 255, "the bright dot stays");
+        assert_eq!(m.get_pixel(88, 64)[3], 255, "the grey dot stays");
+        let v = vectorize_mono(&encode_png(&img).unwrap(), &cfg(), MonoSource::Derived).unwrap();
+        assert!(
+            v.svg.contains("fill-opacity"),
+            "the grey dot is a shade: {}",
+            v.svg
+        );
+    }
+
+    #[test]
+    fn coloured_parts_on_transparent_ground_are_kept() {
+        let img = RgbaImage::from_fn(128, 128, |x, y| {
+            if !(16..112).contains(&y) {
+                image::Rgba([0, 0, 0, 0])
+            } else if (16..60).contains(&x) {
+                image::Rgba([10, 10, 10, 255])
+            } else if (68..112).contains(&x) && y < 70 {
+                image::Rgba([229, 112, 0, 255])
+            } else {
+                image::Rgba([0, 0, 0, 0])
+            }
+        });
+        let v = vectorize_mono(&encode_png(&img).unwrap(), &cfg(), MonoSource::Derived).unwrap();
+        let r = vector::render(&vector::parse(v.svg.as_bytes()).unwrap(), 128).unwrap();
+        let (black, orange) = (r.get_pixel(38, 60)[3], r.get_pixel(90, 40)[3]);
+        assert!(black > 60, "the black part stays: {black}");
+        assert!(orange > 60, "the orange part stays: {orange}");
     }
 
     #[test]

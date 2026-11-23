@@ -161,9 +161,10 @@ pub struct Server {
     pub header_read_timeout_ms: u64,
     pub shutdown_grace_ms: u64,
     pub worker_threads: Option<usize>,
-    pub landing: bool,
     pub public_url: Option<String>,
     pub private_hosts: Vec<String>,
+    #[serde(rename = "landing")]
+    _landing: Option<bool>,
 }
 
 impl Default for Server {
@@ -177,9 +178,9 @@ impl Default for Server {
             header_read_timeout_ms: 5_000,
             shutdown_grace_ms: 10_000,
             worker_threads: None,
-            landing: true,
             public_url: None,
             private_hosts: Vec::new(),
+            _landing: None,
         }
     }
 }
@@ -790,6 +791,15 @@ mod tests {
         cfg.validate().unwrap();
         cfg.fetch.allowed_ports = vec![];
         assert!(cfg.validate().is_err());
+    }
+
+    #[test]
+    fn accepts_the_retired_landing_key() {
+        let cfg: Config = Figment::new()
+            .merge(Toml::string("[server]\nlanding = true\n"))
+            .extract()
+            .unwrap();
+        cfg.validate().unwrap();
     }
 
     #[test]

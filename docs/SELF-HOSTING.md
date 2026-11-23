@@ -24,15 +24,13 @@ x-icon-vector: original
 
 Docker: `favicons/favicons` (also `ghcr.io/peleda-app/favicons`) is the API alone, a `scratch` image for
 amd64 and arm64 with one static binary, running as uid 65534 (8.5 MB to
-download). `ghcr.io/peleda-app/favicons.page` is what runs favicons.page: the page at `/`,
-its fonts and every catalog prerendered. Tags: `latest` and `main` follow the main branch, `sha-<commit>`
+download). `ghcr.io/peleda-app/favicons.page` is the same API as the base of what runs favicons.page,
+with every catalog prerendered on top. Tags: `latest` and `main` follow the main branch, `sha-<commit>`
 pins a build, and `1.2.3` / `1.2` appear for release tags.
 
 Each [release](https://github.com/peleda-app/favicons/releases) also carries the
-static binaries as `favicons-<version>-<arch>-linux-musl` and
-`favicons-site-<version>-<arch>-linux-musl` (x86_64 and aarch64) with a
-`SHA256SUMS` file. `cargo install favicons` builds the API from crates.io; the
-page needs a checkout and `cargo build --release --features site`.
+static binaries as `favicons-<version>-<arch>-linux-musl` (x86_64 and aarch64) with a
+`SHA256SUMS` file. `cargo install favicons` builds the API from crates.io.
 
 ```bash
 docker compose up -d
@@ -55,9 +53,12 @@ Every key can also be set via environment variable:
 `FAVICONS_CONFIG` points to the TOML file, `FAVICONS_LOG` sets the log filter
 (`info,favicons=debug`), and `FAVICONS_LOG_FORMAT=json` switches to JSON logs.
 
-The page at `/` is compiled into the binary; `server.landing = false` turns it
-off and `server.public_url` names it. It is only compiled into builds with the
-`site` feature (`cargo build --features site`, the `favicons-site` release binary, or the `favicons.page` image).
+The server is the API only. `/` answers with a small JSON pointer (name,
+version, links to the docs and `/openapi.json`); `server.public_url` names the
+origin used there and in `llms.txt`, `robots.txt`, `sitemap.xml` and
+`openapi.json`. The favicons.page website is a separate Cloudflare Worker in
+front of the API that takes `/`, `/_site/*` and `/docs*`. The old
+`server.landing` key is still accepted and ignored.
 
 ## HTTPS without a proxy
 

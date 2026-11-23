@@ -15,14 +15,11 @@ include = [
   "/src/**/*.rs",
   "/site/robots.txt",
   "/site/llms.txt",
+  "/site/sitemap.xml",
   "/config.example.toml",
   "/README.md",
   "/LICENSE",
 ]
-
-[features]
-default = []
-site = []
 
 [dependencies]
 anyhow = "1"

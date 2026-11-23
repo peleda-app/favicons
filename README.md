@@ -10,7 +10,7 @@
 [![npm](https://img.shields.io/npm/v/favicons.page?logo=npm&label=npm&color=CB3837)](https://www.npmjs.com/package/favicons.page)
 [![License: MIT](https://img.shields.io/badge/license-MIT-ffb38a)](LICENSE)
 
-[**Try it on favicons.page**](https://favicons.page) · [API](docs/API.md) · [Self-hosting](docs/SELF-HOSTING.md) · [Security](docs/SECURITY.md)
+[**Try it on favicons.page**](https://favicons.page) · [Docs](https://favicons.peleda.dev/docs/) · [API](docs/API.md) · [Self-hosting](docs/SELF-HOSTING.md) · [Security](docs/SECURITY.md)
 
 </div>
 
@@ -166,9 +166,9 @@ docker compose up -d
 ```
 
 Two containers from a 9 MB image (on GHCR and as `favicons/favicons` on Docker Hub): the API, and a renderer with no network, a
-read-only root and no capabilities. This page itself is built with the
-`site` feature and ships with prerendered catalogs and the icons of the 100 000
-most popular sites as `ghcr.io/peleda-app/favicons.page`; release binaries are on [GitHub Releases](https://github.com/peleda-app/favicons/releases),
+read-only root and no capabilities. The API behind favicons.page ships with
+prerendered catalogs and the icons of the 100 000 most popular sites as
+`ghcr.io/peleda-app/favicons.page`; release binaries are on [GitHub Releases](https://github.com/peleda-app/favicons/releases),
 and `cargo install favicons` builds the API. Built-in Let's Encrypt, local
 disk or S3, GCS and Azure caches, blocklists and every other option are in
 [docs/SELF-HOSTING.md](docs/SELF-HOSTING.md).

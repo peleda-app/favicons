@@ -377,7 +377,7 @@ identify the brand, not to imply endorsement.
 `attribution`, `count`). `GET /catalogs/{id}.json` adds `items`: every `slug`
 with its `name`, and `category` and `tags` when the index has them.
 
-## The page and machine-readable docs
+## Machine-readable docs
 
 All compiled into the binary. Their names and absolute URLs come from
 `server.public_url`, else `https://{tls.domains[0]}`, else the request's `Host`
@@ -385,20 +385,15 @@ header (validated, never cached).
 
 | Path | What |
 |------|------|
-| `/` | The demo page. It calls `/color` and `/mono` on the same origin, loads nothing from other hosts, and allows only its own inline script by hash in its `Content-Security-Policy`. |
-| `/favicon.svg`, `/apple-touch-icon.png`, `/og.png` | Icons and the 1200×630 share image. |
-| `/sitemap.xml` | The page's URL. |
-| `/robots.txt` | Lets search engines index the page but not `/color/` and `/mono/`, and lets user-driven AI agents (`ChatGPT-User`, `Claude-User`, `Perplexity-User`, `MistralAI-User`) fetch everything. Icon responses also carry `X-Robots-Tag: noindex`. |
+| `/` | JSON pointer: `name`, `version`, `description`, `docs` (https://favicons.page/docs), `openapi`, `llms`, `example` and `source`. On favicons.page the website Worker answers `/` instead. |
+| `/sitemap.xml` | The URLs of `/openapi.json` and `/llms.txt`. |
+| `/robots.txt` | Lets search engines index the docs but not `/color/` and `/mono/`, and lets user-driven AI agents (`ChatGPT-User`, `Claude-User`, `Perplexity-User`, `MistralAI-User`) fetch everything. Icon responses also carry `X-Robots-Tag: noindex`. |
 | `/llms.txt` | How to use the API, for language models and agents ([llmstxt.org](https://llmstxt.org)). |
 | `/.well-known/security.txt` | Where to report vulnerabilities ([RFC 9116](https://www.rfc-editor.org/rfc/rfc9116)): GitHub's private vulnerability reporting for this project and the security policy, with an `Expires` six months ahead of the request. |
-| `/openapi.json` | OpenAPI 3.1 description, generated at start from this server's config: its origin, version, configured catalogs (as an enum) and whether the page is built in. Builds without the page also serve it at `/`. |
+| `/openapi.json` | OpenAPI 3.1 description, generated at start from this server's config: its origin, version, configured catalogs (as an enum). |
 
-The page, its images and its fonts (Archivo and Martian Mono, OFL) are only in
-builds with the `site` feature, such as the `favicons.page` image; it loads
-nothing from other hosts.
-
-`server.landing = false` turns off the page, the images and the sitemap;
-`robots.txt`, `security.txt`, `llms.txt` and `openapi.json` stay.
+The website at favicons.page (`/`, `/_site/*`, `/docs*`) is a separate
+Cloudflare Worker in front of this server; the server itself serves no HTML.
 
 ## `GET /healthz`
 

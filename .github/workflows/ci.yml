@@ -19,9 +19,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo fmt --check
       - run: cargo clippy --all-targets --locked -- -D warnings
-      - run: cargo clippy --all-targets --locked --features site -- -D warnings
       - run: cargo test --locked
-      - run: cargo test --locked --features site
       - run: cargo publish --dry-run --locked
       - name: sandbox selftest
         run: |

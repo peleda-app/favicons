@@ -1,4 +1,4 @@
-# {{host}}: the page is for search engines, the icons are for apps and agents.
+# {{host}}: the API docs are for search engines, the icons are for apps and agents.
 # Icon responses also carry X-Robots-Tag: noindex.
 
 User-agent: *

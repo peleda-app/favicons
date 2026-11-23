@@ -126,6 +126,7 @@ jobs:
           docker buildx build catalogs -f catalogs/sites.Dockerfile \
             --label "org.opencontainers.image.revision=$GITHUB_SHA" \
             -t "$IMAGE:latest" -t "$IMAGE:$(date -u +%Y-%m-%d)" \
+            --provenance=mode=max --sbom=true \
             --metadata-file /tmp/meta.json --push
           echo "digest=$(jq -r '."containerimage.digest"' /tmp/meta.json)" >> "$GITHUB_OUTPUT"
       - uses: actions/attest-build-provenance@v2
@@ -133,6 +134,11 @@ jobs:
           subject-name: ${{ env.IMAGE }}
           subject-digest: ${{ steps.push.outputs.digest }}
           push-to-registry: true
+      - uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3
+      - name: sign
+        env:
+          DIGEST: ${{ steps.push.outputs.digest }}
+        run: cosign sign --yes "$IMAGE@$DIGEST"
       - name: rebuild the site image
         env:
           GH_TOKEN: ${{ github.token }}

@@ -103,6 +103,7 @@ jobs:
             --build-arg "LICENSES=$LICENSES" \
             --label "org.opencontainers.image.revision=$GITHUB_SHA" \
             -t "$IMAGE:latest" -t "$IMAGE:sha-$SHA" \
+            --provenance=mode=max --sbom=true \
             --metadata-file /tmp/meta.json \
             --push
           echo "digest=$(jq -r '."containerimage.digest"' /tmp/meta.json)" >> "$GITHUB_OUTPUT"
@@ -111,6 +112,11 @@ jobs:
           subject-name: ${{ env.IMAGE }}
           subject-digest: ${{ steps.push.outputs.digest }}
           push-to-registry: true
+      - uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3
+      - name: sign
+        env:
+          DIGEST: ${{ steps.push.outputs.digest }}
+        run: cosign sign --yes "$IMAGE@$DIGEST"
       - name: smoke test
         env:
           SITES: ${{ steps.sites.outputs.present }}

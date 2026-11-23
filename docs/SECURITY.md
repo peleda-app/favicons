@@ -289,18 +289,33 @@ for p in fs write net exec prctl; do docker run --rm favicons sandbox-selftest $
 
 ## Verifying builds
 
-Every published image and release binary carries a signed SLSA build
-provenance attestation (Sigstore, keyless, issued to this repository's GitHub
-Actions workflow). It proves the artifact was built by `.github/workflows/docker.yml`
-from a specific commit of this repository:
+Every published image and release binary is signed and carries a signed SLSA
+build provenance attestation (Sigstore, keyless, issued to this repository's
+GitHub Actions workflows). Images also carry BuildKit provenance and an SPDX
+SBOM. The signatures prove the artifact was built by a workflow of this
+repository from a specific commit:
 
 ```bash
 gh attestation verify oci://ghcr.io/peleda-app/favicons:latest --repo peleda-app/favicons
-gh attestation verify favicons-1.3.0-x86_64-linux-musl --repo peleda-app/favicons
+cosign verify ghcr.io/peleda-app/favicons:latest \
+  --certificate-identity-regexp '^https://github.com/peleda-app/favicons/\.github/workflows/' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
 ```
 
-The output names the commit and workflow run. Images can be pinned by the
-verified digest.
+Release binaries come with `SHA256SUMS` and a Sigstore bundle per file:
+
+```bash
+gh attestation verify favicons-1.3.0-x86_64-linux-musl --repo peleda-app/favicons
+cosign verify-blob favicons-1.3.0-x86_64-linux-musl \
+  --bundle favicons-1.3.0-x86_64-linux-musl.sigstore.json \
+  --certificate-identity-regexp '^https://github.com/peleda-app/favicons/\.github/workflows/docker\.yml@refs/tags/v' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+```
+
+The npm package `favicons.page` is published from `.github/workflows/npm.yml`
+with npm provenance; `npm audit signatures` checks it. The output of each
+command names the commit and workflow run. Images can be pinned by the verified
+digest.
 
 ## Reporting a vulnerability
 

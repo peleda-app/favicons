@@ -8,7 +8,6 @@ use crate::vector::VectorOrigin;
 pub struct Spec<'a> {
     pub origin: &'a str,
     pub catalogs: &'a [String],
-    pub site: bool,
 }
 
 fn names<T: Copy>(all: &[T], name: impl Fn(T) -> &'static str) -> Value {
@@ -160,11 +159,7 @@ impl Spec<'_> {
             "parameters": [{ "name": "file", "in": "path", "required": true, "description": "{id}.json", "schema": { "type": "string" } }],
             "responses": { "200": text("JSON object", "application/json"), "404": { "description": "Unknown catalog." } }
         }}));
-        let root = if self.site {
-            json!({ "operationId": "page", "summary": "The demo page", "responses": { "200": text("HTML", "text/html") } })
-        } else {
-            json!({ "operationId": "root", "summary": "This description", "responses": { "200": text("OpenAPI 3.1", "application/json") } })
-        };
+        let root = json!({ "operationId": "root", "summary": "Name, version and links to the docs and this description", "responses": { "200": text("JSON object", "application/json") } });
         paths.insert("/".into(), json!({ "get": root }));
         paths.insert(
             "/openapi.json".into(),
@@ -194,29 +189,13 @@ impl Spec<'_> {
                 "responses": { "200": text("security.txt", "text/plain") }
             }}),
         );
-        if self.site {
-            paths.insert(
-                "/sitemap.xml".into(),
-                json!({ "get": {
-                    "operationId": "sitemap", "summary": "Sitemap of the page",
-                    "responses": { "200": text("XML", "application/xml") }
-                }}),
-            );
-            paths.insert(
-                "/docker-compose.yml".into(),
-                json!({ "get": {
-                    "operationId": "compose", "summary": "Hardened two-container setup",
-                    "responses": { "200": text("YAML", "text/plain") }
-                }}),
-            );
-            paths.insert(
-                "/config.example.toml".into(),
-                json!({ "get": {
-                    "operationId": "configExample", "summary": "Every server option, commented",
-                    "responses": { "200": text("TOML", "text/plain") }
-                }}),
-            );
-        }
+        paths.insert(
+            "/sitemap.xml".into(),
+            json!({ "get": {
+                "operationId": "sitemap", "summary": "Sitemap of the machine-readable docs",
+                "responses": { "200": text("XML", "application/xml") }
+            }}),
+        );
         paths.insert(
             "/healthz".into(),
             json!({ "get": {

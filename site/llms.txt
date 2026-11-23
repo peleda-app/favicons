@@ -75,6 +75,7 @@ const { svg, palette } = await favicons.get("discord.com");
 ## Docs
 
 - [OpenAPI description]({{origin}}/openapi.json)
-- [Full HTTP contract](https://github.com/peleda-app/favicons/blob/main/docs/API.md)
-- [Security model](https://github.com/peleda-app/favicons/blob/main/docs/SECURITY.md)
+- [Documentation](https://favicons.peleda.dev/docs/)
+- [Full HTTP contract](https://favicons.peleda.dev/docs/api)
+- [Security model](https://favicons.peleda.dev/docs/security)
 - [Source code, MIT](https://github.com/peleda-app/favicons)

@@ -31,26 +31,14 @@ use crate::site::Asset;
 use crate::store::{Icon, Meta, Status};
 
 pub fn router(app: Arc<App>) -> Router {
-    let mut r = Router::new()
+    Router::new()
+        .route("/", page(Asset::Root))
         .route("/robots.txt", page(Asset::Robots))
+        .route("/sitemap.xml", page(Asset::Sitemap))
         .route("/.well-known/security.txt", get(security_txt))
         .route("/llms.txt", page(Asset::Llms))
-        .route("/openapi.json", page(Asset::OpenApi));
-    if crate::site::ENABLED && app.cfg.server.landing {
-        r = r
-            .route("/", page(Asset::Index))
-            .route("/sitemap.xml", page(Asset::Sitemap))
-            .route("/config.example.toml", page(Asset::ConfigExample))
-            .route("/docker-compose.yml", page(Asset::Compose))
-            .route("/favicon.svg", page(Asset::Favicon))
-            .route("/apple-touch-icon.png", page(Asset::AppleTouchIcon))
-            .route("/og.png", page(Asset::OgImage))
-            .route("/fonts/archivo.woff2", page(Asset::FontDisplay))
-            .route("/fonts/martian-mono.woff2", page(Asset::FontMono));
-    } else {
-        r = r.route("/", page(Asset::OpenApi));
-    }
-    r.route("/{style}/{domain}", get(icon))
+        .route("/openapi.json", page(Asset::OpenApi))
+        .route("/{style}/{domain}", get(icon))
         .route("/{style}/{domain}/", get(icon_slash))
         .route("/{style}/{domain}/{slug}", get(catalog_icon))
         .route("/{style}/{domain}/{slug}/{theme}", get(plated_icon))
@@ -1037,24 +1025,13 @@ mod routing_tests {
             .unwrap_or("")
     }
 
-    #[cfg(feature = "site")]
     #[tokio::test]
-    async fn serves_the_landing_page() {
+    async fn serves_a_pointer_at_the_root() {
         let app = app();
         let r = get(&app, "/").await;
         assert_eq!(r.status(), StatusCode::OK);
-        let h = r.headers();
-        assert_eq!(h.get(CONTENT_TYPE).unwrap(), "text/html; charset=utf-8");
-        assert!(
-            h.get(CONTENT_SECURITY_POLICY)
-                .unwrap()
-                .to_str()
-                .unwrap()
-                .contains("'sha256-")
-        );
-        assert_eq!(h.get("x-robots-tag").unwrap(), "all");
-        let etag = h.get(ETAG).unwrap().clone();
-
+        assert_eq!(r.headers().get(CONTENT_TYPE).unwrap(), "application/json");
+        let etag = r.headers().get(ETAG).unwrap().clone();
         let mut req = http::Request::builder()
             .uri("/")
             .header(IF_NONE_MATCH, etag)
@@ -1064,14 +1041,15 @@ mod routing_tests {
             .insert(ConnectInfo(SocketAddr::from(([198, 51, 100, 7], 4000))));
         let r = router(app.clone()).oneshot(req).await.unwrap();
         assert_eq!(r.status(), StatusCode::NOT_MODIFIED);
-
-        let r = get(&app, "/favicon.svg").await;
-        assert_eq!(r.headers().get(CONTENT_TYPE).unwrap(), SVG_MIME);
-
-        let r = get(&app, "/color/example.com").await;
-        let csp = r.headers().get(CONTENT_SECURITY_POLICY).unwrap();
-        assert!(csp.to_str().unwrap().contains("sandbox"));
-        assert_eq!(r.headers().get("x-robots-tag").unwrap(), "noindex");
+        let root = json_of(&app, "/").await;
+        assert_eq!(root["docs"], crate::site::DOCS);
+        for path in ["/favicon.svg", "/og.png", "/fonts/archivo.woff2"] {
+            assert_eq!(
+                get(&app, path).await.status(),
+                StatusCode::NOT_FOUND,
+                "{path}"
+            );
+        }
     }
 
     #[tokio::test]
@@ -1180,6 +1158,7 @@ mod routing_tests {
             "/llms.txt",
             "/openapi.json",
             "/robots.txt",
+            "/sitemap.xml",
             "/.well-known/security.txt",
             "/{style}/{catalog}/{slug}",
             "/{style}/{catalog}/{slug}/{shape}",
@@ -1188,11 +1167,6 @@ mod routing_tests {
             "/{style}/{domain}/{shape}",
             "/{style}/{domain}/{shape}/{theme}",
         ];
-        if crate::site::ENABLED {
-            expected.push("/sitemap.xml");
-            expected.push("/config.example.toml");
-            expected.push("/docker-compose.yml");
-        }
         expected.sort();
         assert_eq!(paths, expected);
 
@@ -1214,12 +1188,6 @@ mod routing_tests {
         let reasons = &spec["components"]["responses"]["Icon"]["headers"]["X-Icon-Fallback-Reason"]
             ["schema"]["enum"];
         assert_eq!(reasons.as_array().unwrap().len(), FallbackReason::ALL.len());
-
-        if !crate::site::ENABLED {
-            let r = get(&app, "/").await;
-            assert_eq!(r.headers().get(CONTENT_TYPE).unwrap(), "application/json");
-            assert_eq!(json_of(&app, "/").await, spec);
-        }
 
         let plain = App::new(Config::default()).unwrap();
         let spec = json_of(&plain, "/openapi.json").await;
@@ -1668,21 +1636,6 @@ mod routing_tests {
                 "{path}"
             );
         }
-    }
-
-    #[cfg(feature = "site")]
-    #[tokio::test]
-    async fn landing_can_be_turned_off() {
-        let mut cfg = Config::default();
-        cfg.render.sandbox = SandboxMode::Off;
-        cfg.server.landing = false;
-        let app = App::new(cfg).unwrap();
-        let r = get(&app, "/").await;
-        assert_eq!(r.headers().get(CONTENT_TYPE).unwrap(), "application/json");
-        assert_eq!(
-            get(&app, "/favicon.svg").await.status(),
-            StatusCode::NOT_FOUND
-        );
     }
 
     #[tokio::test]

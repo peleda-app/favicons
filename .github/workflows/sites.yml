@@ -1,6 +1,10 @@
 name: sites
 
 on:
+  workflow_run:
+    workflows: [docker]
+    types: [completed]
+    branches: [main]
   schedule:
     - cron: "17 3 * * 1"
   workflow_dispatch:
@@ -26,7 +30,45 @@ env:
   SHARDS: 20
 
 jobs:
+  gate:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: read
+    outputs:
+      run: ${{ steps.check.outputs.run }}
+      revisions: ${{ steps.check.outputs.revisions }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: check
+        name: compare render revisions with the published layer
+        env:
+          EVENT: ${{ github.event_name }}
+          IMAGE: ghcr.io/${{ github.repository_owner }}/favicons-sites:latest
+        run: |
+          mono=$(sed -n 's/^pub const MONO_REVISION: u32 = \([0-9]*\);/\1/p' src/render.rs)
+          palette=$(sed -n 's/^pub const REVISION: u32 = \([0-9]*\);/\1/p' src/palette.rs)
+          [ -n "$mono" ] && [ -n "$palette" ] || { echo "revision constants not found"; exit 1; }
+          revisions="mono-$mono.palette-$palette"
+          published=$(docker buildx imagetools inspect "$IMAGE" --format '{{json .Image.Config.Labels}}' 2>/dev/null \
+            | jq -r '."page.favicons.render-revisions" // empty' || true)
+          echo "render: $revisions, published: ${published:-none}"
+          run=true
+          if [ "$EVENT" = workflow_run ] && [ "$published" = "$revisions" ]; then run=false; fi
+          echo "revisions=$revisions" >> "$GITHUB_OUTPUT"
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+
   list:
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
     runs-on: ubuntu-24.04
     outputs:
       shards: ${{ steps.split.outputs.shards }}
@@ -92,7 +134,7 @@ jobs:
           retention-days: 7
 
   image:
-    needs: render
+    needs: [gate, render]
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -122,9 +164,12 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - id: push
         name: build and push
+        env:
+          REVISIONS: ${{ needs.gate.outputs.revisions }}
         run: |
           docker buildx build catalogs -f catalogs/sites.Dockerfile \
             --label "org.opencontainers.image.revision=$GITHUB_SHA" \
+            --label "page.favicons.render-revisions=$REVISIONS" \
             -t "$IMAGE:latest" -t "$IMAGE:$(date -u +%Y-%m-%d)" \
             --provenance=mode=max --sbom=true \
             --metadata-file /tmp/meta.json --push

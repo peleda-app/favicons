@@ -270,8 +270,8 @@ fn add_uncovered(img: &RgbaImage, palette: &mut Vec<[f32; 3]>, max_colors: usize
                 (u16::from(p[0] >> 5) << 6) | (u16::from(p[1] >> 5) << 3) | u16::from(p[2] >> 5);
             let e = hist.entry(key).or_insert((0, [0.0; 3]));
             e.0 += 1;
-            for i in 0..3 {
-                e.1[i] += c[i];
+            for (sum, v) in e.1.iter_mut().zip(c) {
+                *sum += v;
             }
         }
         let floor = if started { 5 } else { 16 };

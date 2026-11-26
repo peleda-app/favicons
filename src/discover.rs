@@ -273,7 +273,7 @@ fn resolve(base: &Url, href: &str, scope: &Scope) -> Option<Location> {
     if href.is_empty() {
         return None;
     }
-    if href.len() > 5 && href[..5].eq_ignore_ascii_case("data:") {
+    if href.len() > 5 && href.as_bytes()[..5].eq_ignore_ascii_case(b"data:") {
         return decode_data_url(href, scope.max_inline).map(Location::Inline);
     }
     let url = base.join(href).ok()?;
@@ -354,6 +354,18 @@ mod tests {
             },
             max_inline,
         }
+    }
+
+    #[test]
+    fn href_with_multibyte_char_across_byte_five_does_not_panic() {
+        let html = "<head><link rel=\"icon\" href=\"icon\u{486}vg\"></head>";
+        let page_icons = parse_html(html.as_bytes(), &page(), &scope(1024)).icons;
+        assert_eq!(page_icons.len(), 1);
+        let manifest = r#"{"icons":[{"src":"icon\u0486vg","sizes":"any"}]}"#;
+        assert_eq!(
+            parse_manifest(manifest.as_bytes(), &page(), &scope(1024)).len(),
+            1
+        );
     }
 
     #[test]

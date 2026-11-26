@@ -1,0 +1,26 @@
+[tools]
+rust = "1.99"
+
+[tasks.check]
+description = "Everything CI runs on every push, plus the fuzz workspace and dojo"
+run = [
+  "bash scripts/check-unsafe.sh",
+  "cargo fmt --check",
+  "cargo fmt --check --manifest-path fuzz/Cargo.toml",
+  "cargo check --manifest-path fuzz/Cargo.toml --bins",
+  "cargo clippy --all-targets --locked -- -D warnings",
+  "cargo test --locked",
+  "cargo run -q --manifest-path ../dojo/Cargo.toml -p dojo -- check .",
+]
+
+[tasks.fuzz]
+description = "Fuzz: `mise run fuzz -- all 60` (every target 60 s), `mise run fuzz -- <target> [secs]`, `build`, `list`, `replay <target> <file>`"
+run = "bash fuzz/run.sh"
+
+[tasks.deny]
+description = "Dependency review: advisories, bans, licenses, sources"
+run = "cargo deny check"
+
+[tasks.dojo]
+description = "Workspace rules check"
+run = "cargo run -q --manifest-path ../dojo/Cargo.toml -p dojo -- check ."

@@ -1,0 +1,9 @@
+render fixtures/render
+mono fixtures/render
+analyze fixtures/analyze
+html fixtures/html
+manifest fixtures/manifest
+host fixtures/host
+catalog fixtures/catalog
+worker_request fixtures/worker_request
+worker_response fixtures/worker_response

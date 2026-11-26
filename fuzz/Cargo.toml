@@ -1,0 +1,112 @@
+[package]
+name = "favicons-fuzz"
+version = "0.0.0"
+edition = "2024"
+license = "MIT"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[package.metadata.dojo]
+kind = "fuzz"
+
+[workspace]
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[dependencies]
+libfuzzer-sys = "0.4"
+anyhow = "1"
+base64 = "0.22"
+blake3 = "1"
+bytes = "1"
+figment = { version = "0.10", features = ["toml", "env"] }
+hickory-resolver = { version = "0.26", features = ["tokio", "https-ring", "tls-ring", "webpki-roots"] }
+http = "1"
+image = { version = "0.25", default-features = false, features = ["png", "ico", "jpeg", "gif", "webp", "bmp"] }
+percent-encoding = "2"
+psl = "2"
+miniz_oxide = "0.8"
+reqwest = { version = "0.13", default-features = false, features = ["rustls-no-provider", "http2", "charset", "json", "gzip", "brotli", "deflate"] }
+resvg = { version = "0.45", default-features = false }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+rustix = { version = "1", features = ["process", "thread"] }
+scraper = { version = "0.23", default-features = false }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "signal", "sync", "time", "fs", "process", "io-util"] }
+tracing = "0.1"
+url = "2"
+visioncortex = "0.8"
+webpki-roots = "1"
+ring = { version = "0.17", default-features = false }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+libc = "0.2"
+seccompiler = "0.5"
+
+[[bin]]
+name = "render"
+path = "fuzz_targets/render.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "mono"
+path = "fuzz_targets/mono.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "analyze"
+path = "fuzz_targets/analyze.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "html"
+path = "fuzz_targets/html.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "manifest"
+path = "fuzz_targets/manifest.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "worker_request"
+path = "fuzz_targets/worker_request.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "worker_response"
+path = "fuzz_targets/worker_response.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "host"
+path = "fuzz_targets/host.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "catalog"
+path = "fuzz_targets/catalog.rs"
+test = false
+doc = false
+bench = false

@@ -1,3 +1,6 @@
+//! favicons: a privacy-first website icon service that serves any site's icon as a clean,
+//! sandboxed SVG with light and dark theme colours. See `README.md` and `docs/`.
+
 mod age;
 mod app;
 mod catalog;

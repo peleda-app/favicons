@@ -21,6 +21,9 @@ include = [
   "/LICENSE",
 ]
 
+[package.metadata.dojo]
+kind = "app"
+
 [dependencies]
 anyhow = "1"
 axum = { version = "0.8", default-features = false, features = ["http1", "http2", "tokio", "query", "tracing"] }
@@ -69,6 +72,7 @@ strip = true
 
 [lints.rust]
 unsafe_code = "forbid"
+missing_docs = "warn"
 
 [lints.clippy]
 dbg_macro = "deny"

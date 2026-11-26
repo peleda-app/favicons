@@ -2,3 +2,5 @@
 *.local.toml
 /cache
 /catalogs/bundle
+AGENTS.local.md
+CLAUDE.local.md

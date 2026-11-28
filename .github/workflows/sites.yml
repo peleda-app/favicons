@@ -183,7 +183,12 @@ jobs:
       - name: sign
         env:
           DIGEST: ${{ steps.push.outputs.digest }}
-        run: cosign sign --yes "$IMAGE@$DIGEST"
+        run: |
+          for attempt in 1 2 3; do
+            cosign sign --yes "$IMAGE@$DIGEST" && exit 0
+            sleep $((attempt * 30))
+          done
+          cosign sign --yes "$IMAGE@$DIGEST"
       - name: rebuild the site image
         env:
           GH_TOKEN: ${{ github.token }}

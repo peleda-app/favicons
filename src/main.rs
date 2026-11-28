@@ -153,8 +153,15 @@ async fn prerender_domains(cfg: config::Config, list: &std::path::Path) -> anyho
     let domains = app.normalize_list(&text);
     anyhow::ensure!(!domains.is_empty(), "{} lists no domains", list.display());
     if let Some(catalog) = &app.catalog {
-        catalog.reload(&app.list_client_ref()).await;
-        anyhow::ensure!(catalog.len() > 0, "thesvg catalog did not load");
+        let client = app.list_client_ref();
+        let loaded = load_with_retry(
+            LOAD_ATTEMPTS,
+            LOAD_BACKOFF,
+            || catalog.reload(&client),
+            || catalog.len() > 0,
+        )
+        .await;
+        anyhow::ensure!(loaded, "thesvg catalog did not load");
     }
     let parallel = app
         .cfg
@@ -163,6 +170,32 @@ async fn prerender_domains(cfg: config::Config, list: &std::path::Path) -> anyho
         .max(app.cfg.render.decode_concurrency * 4);
     app.prerender_domains(domains, parallel).await;
     Ok(())
+}
+
+const LOAD_ATTEMPTS: u32 = 4;
+const LOAD_BACKOFF: std::time::Duration = std::time::Duration::from_secs(15);
+
+async fn load_with_retry<F, Fut>(
+    attempts: u32,
+    backoff: std::time::Duration,
+    mut load: F,
+    loaded: impl Fn() -> bool,
+) -> bool
+where
+    F: FnMut() -> Fut,
+    Fut: std::future::Future<Output = ()>,
+{
+    for attempt in 1..=attempts {
+        load().await;
+        if loaded() {
+            return true;
+        }
+        if attempt < attempts {
+            tracing::warn!(attempt, "catalog did not load, retrying");
+            tokio::time::sleep(backoff * attempt).await;
+        }
+    }
+    false
 }
 
 async fn prerender_catalogs(cfg: config::Config) -> anyhow::Result<()> {
@@ -180,8 +213,15 @@ async fn prerender_catalogs(cfg: config::Config) -> anyhow::Result<()> {
             let app = app.clone();
             let parallel = app.cfg.render.decode_concurrency * 2;
             tokio::spawn(async move {
-                catalog.reload(&app.list_client_ref()).await;
-                anyhow::ensure!(catalog.is_loaded(), "catalog {} did not load", catalog.id());
+                let client = app.list_client_ref();
+                let loaded = load_with_retry(
+                    LOAD_ATTEMPTS,
+                    LOAD_BACKOFF,
+                    || catalog.reload(&client),
+                    || catalog.is_loaded(),
+                )
+                .await;
+                anyhow::ensure!(loaded, "catalog {} did not load", catalog.id());
                 app.prerender(&catalog, true, parallel).await;
                 Ok(())
             })
@@ -290,5 +330,42 @@ async fn shutdown_signal() {
     tokio::select! {
         _ = ctrl_c => {},
         _ = term => {},
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::load_with_retry;
+    use std::sync::atomic::{AtomicU32, Ordering};
+    use std::time::Duration;
+
+    async fn run(succeed_on: u32, attempts: u32) -> (bool, u32) {
+        let calls = AtomicU32::new(0);
+        let ok = load_with_retry(
+            attempts,
+            Duration::ZERO,
+            || {
+                calls.fetch_add(1, Ordering::SeqCst);
+                async {}
+            },
+            || calls.load(Ordering::SeqCst) >= succeed_on,
+        )
+        .await;
+        (ok, calls.load(Ordering::SeqCst))
+    }
+
+    #[tokio::test]
+    async fn stops_after_first_success() {
+        assert_eq!(run(1, 4).await, (true, 1));
+    }
+
+    #[tokio::test]
+    async fn retries_a_transient_failure() {
+        assert_eq!(run(3, 4).await, (true, 3));
+    }
+
+    #[tokio::test]
+    async fn gives_up_after_the_last_attempt() {
+        assert_eq!(run(u32::MAX, 4).await, (false, 4));
     }
 }
